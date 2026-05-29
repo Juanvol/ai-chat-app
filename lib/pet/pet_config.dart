@@ -4,6 +4,8 @@ enum AiFrequency { silent, occasional, chatty }
 enum TriggerScene { browser, document, settings, all }
 
 class PetConfig {
+  static final DateTime _clearSentinel = DateTime(2000, 1, 1);
+
   final bool enabled;
   final AiFrequency aiFrequency;
   final Set<TriggerScene> triggerScenes;
@@ -20,11 +22,12 @@ class PetConfig {
     Set<TriggerScene>? triggerScenes,
     this.petX = 0,
     this.petY = 200,
-    this.petScale = 1.0,
+    double? petScale,
     this.skinName = 'funuonuo',
     this.autoStart = false,
     this.quietUntil,
-  }) : triggerScenes = triggerScenes ?? {TriggerScene.all};
+  })  : triggerScenes = Set.from(triggerScenes ?? {TriggerScene.all}),
+        petScale = (petScale ?? 1.0).clamp(0.5, 1.5);
 
   PetConfig copyWith({
     bool? enabled,
@@ -40,13 +43,13 @@ class PetConfig {
     return PetConfig(
       enabled: enabled ?? this.enabled,
       aiFrequency: aiFrequency ?? this.aiFrequency,
-      triggerScenes: triggerScenes ?? this.triggerScenes,
+      triggerScenes: triggerScenes != null ? Set.from(triggerScenes) : Set.from(this.triggerScenes),
       petX: petX ?? this.petX,
       petY: petY ?? this.petY,
       petScale: (petScale ?? this.petScale).clamp(0.5, 1.5),
       skinName: skinName ?? this.skinName,
       autoStart: autoStart ?? this.autoStart,
-      quietUntil: quietUntil ?? this.quietUntil,
+      quietUntil: identical(quietUntil, _clearSentinel) ? null : (quietUntil ?? this.quietUntil),
     );
   }
 
@@ -87,7 +90,7 @@ class PetConfig {
       triggerScenes: parseScenes(json['triggerScenes']),
       petX: (json['petX'] as num?)?.toInt() ?? 0,
       petY: (json['petY'] as num?)?.toInt() ?? 200,
-      petScale: (json['petScale'] as num?)?.toDouble() ?? 1.0,
+      petScale: ((json['petScale'] as num?)?.toDouble() ?? 1.0).clamp(0.5, 1.5),
       skinName: json['skinName'] as String? ?? 'funuonuo',
       autoStart: json['autoStart'] == true,
       quietUntil: json['quietUntil'] != null

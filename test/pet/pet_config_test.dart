@@ -108,5 +108,19 @@ void main() {
       expect(low.petScale, 0.5);
       expect(high.petScale, 1.5);
     });
+
+    test('构造函数也 clamp petScale', () {
+      final low = PetConfig(petScale: 0.01);
+      final high = PetConfig(petScale: 5.0);
+      expect(low.petScale, 0.5);
+      expect(high.petScale, 1.5);
+    });
+
+    test('fromJson 也 clamp petScale', () {
+      final low = PetConfig.fromJson({'petScale': 0.01});
+      final high = PetConfig.fromJson({'petScale': 5.0});
+      expect(low.petScale, 0.5);
+      expect(high.petScale, 1.5);
+    });
   });
 }
