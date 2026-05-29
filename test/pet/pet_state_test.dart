@@ -108,15 +108,64 @@ void main() {
       expect(state.affection, 0);
     });
 
-    test('lastFed 默认值在构造后 1 分钟内', () {
+    test('lastFed 默认值在构造时间附近', () {
+      final before = DateTime.now();
       final state = PetState();
-      final now = DateTime.now();
-      expect(state.lastFed.difference(now).inMinutes.abs(), lessThan(1));
+      final after = DateTime.now();
+      expect(state.lastFed.isAfter(before) || state.lastFed == before, true);
+      expect(state.lastFed.isBefore(after) || state.lastFed == after, true);
     });
 
     test('totalInteractions 不应降到 0 以下', () {
       final state = PetState().copyWith(totalInteractions: -1);
       expect(state.totalInteractions, 0);
+    });
+
+    test('affection 上界 clamp 到 999999', () {
+      final state = PetState().copyWith(affection: 9999999);
+      expect(state.affection, 999999);
+    });
+
+    test('totalInteractions 上界 clamp 到 999999', () {
+      final state = PetState().copyWith(totalInteractions: 9999999);
+      expect(state.totalInteractions, 999999);
+    });
+  });
+
+  group('PetState fromJson 容错', () {
+    test('未知 status 回退到 idle', () {
+      final state = PetState.fromJson({'status': 'unknown_status'});
+      expect(state.status, PetStatus.idle);
+    });
+
+    test('缺失字段使用默认值', () {
+      final state = PetState.fromJson(<String, dynamic>{});
+      expect(state.hunger, 100);
+      expect(state.mood, 100);
+      expect(state.energy, 100);
+      expect(state.affection, 0);
+      expect(state.status, PetStatus.idle);
+      expect(state.totalInteractions, 0);
+    });
+
+    test('lastFed 为 null 时回退到当前时间', () {
+      final before = DateTime.now();
+      final state = PetState.fromJson({'lastFed': null});
+      final after = DateTime.now();
+      expect(state.lastFed.isAfter(before) || state.lastFed == before, true);
+      expect(state.lastFed.isBefore(after) || state.lastFed == after, true);
+    });
+
+    test('lastFed 非法格式回退到当前时间', () {
+      final state = PetState.fromJson({'lastFed': 'not-a-date'});
+      final now = DateTime.now();
+      expect(state.lastFed.difference(now).inSeconds.abs(), lessThan(5));
+    });
+
+    test('字段为 null 与缺失行为一致', () {
+      final state = PetState.fromJson({'hunger': null, 'mood': null});
+      expect(state.hunger, 100);
+      expect(state.mood, 100);
     });
   });
 }
