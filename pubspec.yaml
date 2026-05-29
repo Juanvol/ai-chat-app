@@ -1,0 +1,40 @@
+name: deepseek_chat
+description: 满血 DeepSeek V4 Pro AI 聊天助手
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.4.0
+  provider: ^6.1.1
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_markdown: ^0.6.22
+  flutter_highlight: ^0.7.0
+  highlight: ^0.7.0
+  path_provider: ^2.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon_src.png
+  fonts:
+    - family: YaHei
+      fonts:
+        - asset: fonts/STXIHEI.TTF
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/icon_src.png"
+  adaptive_icon_background: "#4A90D9"
+  adaptive_icon_foreground: "assets/icon_src.png"

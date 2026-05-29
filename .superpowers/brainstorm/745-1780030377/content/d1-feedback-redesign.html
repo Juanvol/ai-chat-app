@@ -1,0 +1,95 @@
+<h2>D1+D2：反馈页改造方案</h2>
+<p class="subtitle">顶部新增"改进摘要"卡片 + 中间新增"修正指令时间线"，下方保留现有反馈列表</p>
+
+<div class="section">
+  <h3>整体结构（从上到下）</h3>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">反馈页 — 改造后</div>
+  <div class="mockup-body">
+    <!-- 改进摘要卡片 -->
+    <div style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid #C4B5FD;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:600;font-size:15px;color:#5B21B6;">AI 已在为你进化</span>
+        <span style="font-size:12px;color:#7C3AED;">2026-05-28 分析</span>
+      </div>
+      <div style="display:flex;gap:24px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:24px;font-weight:700;color:#6D28D9;">8</div>
+          <div style="font-size:12px;color:#7C3AED;">已处理反馈</div>
+        </div>
+        <div>
+          <div style="font-size:24px;font-weight:700;color:#6D28D9;">3</div>
+          <div style="font-size:12px;color:#7C3AED;">次进化</div>
+        </div>
+        <div>
+          <div style="font-size:24px;font-weight:700;color:#6D28D9;">2</div>
+          <div style="font-size:12px;color:#7C3AED;">待分析</div>
+        </div>
+      </div>
+      <div style="background:white;border-radius:8px;padding:10px 12px;font-size:13px;color:#4C1D95;">
+        <span style="font-weight:600;">当前修正：</span>回复更简洁 · 少用比喻 · 优先给出代码示例
+      </div>
+    </div>
+
+    <!-- 进化时间线标题 -->
+    <div style="font-size:13px;font-weight:600;color:#6B7280;margin-bottom:8px;margin-top:16px;">进化历程</div>
+
+    <!-- 时间线条目 1 -->
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="width:10px;height:10px;background:#7C3AED;border-radius:50%;"></div>
+        <div style="width:2px;flex:1;background:#E5E7EB;"></div>
+      </div>
+      <div style="flex:1;background:#F9FAFB;border-radius:8px;padding:10px 12px;border:1px solid #E5E7EB;">
+        <div style="font-size:12px;color:#9CA3AF;">05-28 22:15 · 基于 3 条反馈</div>
+        <div style="font-size:13px;color:#374151;margin-top:2px;">回复更简洁 · 少用比喻 · 优先给出代码示例</div>
+      </div>
+    </div>
+
+    <!-- 时间线条目 2 -->
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="width:10px;height:10px;background:#7C3AED;border-radius:50%;"></div>
+        <div style="width:2px;flex:1;background:#E5E7EB;"></div>
+      </div>
+      <div style="flex:1;background:#F9FAFB;border-radius:8px;padding:10px 12px;border:1px solid #E5E7EB;">
+        <div style="font-size:12px;color:#9CA3AF;">05-22 14:30 · 基于 2 条反馈</div>
+        <div style="font-size:13px;color:#374151;margin-top:2px;">不要在回答中追问太多 · 直接给结论再给分析</div>
+      </div>
+    </div>
+
+    <!-- 时间线条目 3 -->
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="width:10px;height:10px;background:#A78BFA;border-radius:50%;"></div>
+      </div>
+      <div style="flex:1;background:#F9FAFB;border-radius:8px;padding:10px 12px;border:1px solid #E5E7EB;">
+        <div style="font-size:12px;color:#9CA3AF;">05-15 09:00 · 基于 3 条反馈</div>
+        <div style="font-size:13px;color:#374151;margin-top:2px;">回答太啰嗦 · 需要更多代码示例 · 少用英文术语</div>
+      </div>
+    </div>
+
+    <!-- 分隔线 -->
+    <div style="border-top:1px solid #E5E7EB;margin:16px 0;"></div>
+
+    <!-- 现有反馈列表 -->
+    <div style="font-size:13px;font-weight:600;color:#6B7280;margin-bottom:8px;">反馈记录</div>
+
+    <div style="background:#F9FAFB;border-radius:8px;padding:10px 12px;margin-bottom:6px;border:1px solid #E5E7EB;">
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-size:13px;font-weight:500;color:#374151;">"回答太长"</span>
+        <span style="font-size:11px;color:#9CA3AF;">05-28</span>
+      </div>
+      <div style="font-size:12px;color:#9CA3AF;">已处理</div>
+    </div>
+    <div style="background:#FFF7ED;border-radius:8px;padding:10px 12px;margin-bottom:6px;border:1px solid #FED7AA;">
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-size:13px;font-weight:500;color:#374151;">"没有直接回答问题"</span>
+        <span style="font-size:11px;color:#9CA3AF;">05-28</span>
+      </div>
+      <div style="font-size:12px;color:#EA580C;">待分析</div>
+    </div>
+  </div>
+</div>

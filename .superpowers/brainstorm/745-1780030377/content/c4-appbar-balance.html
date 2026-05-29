@@ -1,0 +1,85 @@
+<h2>C+D 整合：AppBar 不乱的方案</h2>
+<p class="subtitle">人格切换 + 反馈进化 + 模型选择，三个功能共存但分层</p>
+
+<div class="split">
+  <div class="mockup" style="flex:1;">
+    <div class="mockup-header">❌ 全放 AppBar（太乱）</div>
+    <div class="mockup-body" style="font-size:12px;color:#DC2626;">
+      [☰] INTP 逻辑学家 ▾<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;新对话<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ds-v4-pro ▾<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[🧠] [✨·] [+]
+      <br><br>3 行 title + 3 个 action = 太挤
+    </div>
+  </div>
+  <div class="mockup" style="flex:1;">
+    <div class="mockup-header">✅ 推荐方案</div>
+    <div class="mockup-body" style="font-size:12px;">
+      [🧠 ☰] 新对话<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ds-v4-pro ▾<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[✨·] [+]
+      <br><br>人格头像移入 leading<br>2 行 title + 2 个 action
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px;"></div>
+
+<h3>方案细节</h3>
+
+<div class="section">
+  <h4>leading 区：人格头像 + 菜单合一</h4>
+</div>
+<div class="mockup">
+  <div class="mockup-body">
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+      <div style="position:relative;width:36px;height:36px;border-radius:50%;background:#EDE9FE;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid #C4B5FD;">
+        🧠
+      </div>
+      <div>
+        <div style="font-size:10px;color:#9CA3AF;">当前人格</div>
+        <div style="font-size:13px;font-weight:600;">INTP 逻辑学家 ▾</div>
+      </div>
+      <span style="margin-left:auto;font-size:16px;color:#888891;">☰</span>
+    </div>
+    <div style="font-size:11px;color:#7C3AED;margin-top:4px;">点击头像 → 切换人格 · 点击 ☰ → 菜单</div>
+  </div>
+</div>
+
+<div style="display:flex;gap:12px;margin-top:16px;">
+  <div style="flex:1;">
+    <h4>无选中人格时</h4>
+    <div class="mockup">
+      <div class="mockup-body" style="font-size:12px;">
+        [☰] 新对话<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ds-v4-pro ▾<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[✨·] [+]
+        <br><br>跟现在一样，不显示人格
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;">
+    <h4>Drawer 也显示人格</h4>
+    <div class="mockup">
+      <div class="mockup-body" style="font-size:12px;">
+        ┌─────────────┐<br>
+        │ 🧠 INTP     │<br>
+        │ 逻辑学家    │<br>
+        │ → 切换人格  │<br>
+        ├─────────────┤<br>
+        │ 📋 对话列表 │<br>
+        │ ...         │<br>
+        └─────────────┘
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:12px;margin-top:16px;">
+  <h4 style="color:#166534;margin:0 0 8px 0;">整合原则</h4>
+  <ul style="margin:0;padding-left:16px;font-size:13px;color:#166534;">
+    <li><strong>层级分流</strong>：高频操作（换人格/换模型）→ AppBar 可点击；低频操作（创建/编辑人格）→ Drawer + 画廊页</li>
+    <li><strong>状态一致</strong>：AppBar 头像、Drawer 高亮、画廊页紫色边框 — 同一人格在三处显示一致</li>
+    <li><strong>无人格降级</strong>：无人格时 AppBar 回归现在样式，Drawer 显示"创建人格"引导</li>
+  </ul>
+</div>

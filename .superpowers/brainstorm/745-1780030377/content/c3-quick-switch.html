@@ -1,0 +1,48 @@
+<h2>C4：聊天页人格快捷切换</h2>
+<p class="subtitle">在聊天页 AppBar 点击当前人格名称/头像，弹出底部面板快速切换</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>AppBar 人格行可点击（推荐）</h3>
+      <p>在模型选择器上方加一行人格信息，点击弹出底部面板切换。与模型选择器保持一致的交互模式。</p>
+      <div style="background:#F5F5FA;border-radius:8px;padding:8px 12px;margin-top:8px;border:1px solid #E8E8EF;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🧠</span>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:13px;">INTP 逻辑学家</div>
+            <div style="font-size:11px;color:#9CA3AF;">点击切换人格 ▾</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Drawer 里的人格入口</h3>
+      <p>在侧边抽屉菜单中加人格切换区域，不占 AppBar 空间。切换频率低时适用。</p>
+      <div style="background:#F5F5FA;border-radius:8px;padding:8px 12px;margin-top:8px;border:1px solid #E8E8EF;max-width:260px;">
+        <div style="font-size:10px;color:#9CA3AF;margin-bottom:4px;">当前人格</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">🧠</span>
+          <span style="font-weight:600;font-size:12px;">INTP 逻辑学家</span>
+          <span style="font-size:12px;margin-left:auto;">▸</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>两者都要（推荐）</h3>
+      <p>AppBar 显示当前人格（一行），点击切换。Drawer 中也显示当前选中的人格。交互一致性最高。</p>
+      <div style="font-size:11px;color:#166534;background:#F0FDF4;border-radius:6px;padding:8px;margin-top:8px;">
+        ✅ AppBar 人格行 = 高频切换入口。Drawer = 提醒当前人格。底部面板 = 选择人格的完整列表。
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,50 @@
+<h2>D3：聊天页"AI 进化中"提示方案</h2>
+<p class="subtitle">当反馈闭环有活跃修正指令时，在聊天页轻量提示用户。点击跳转反馈页。</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>AppBar 图标 + 小红点</h3>
+      <p>在 AppBar 右侧新增一个进化图标（✨），有修正指令时显示小红点。最轻量，不占空间。</p>
+      <div style="background:#F5F5FA;border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;align-items:center;gap:8px;border:1px solid #E8E8EF;">
+        <span style="font-size:12px;color:#888891;">AI Chat</span>
+        <div style="flex:1;"></div>
+        <div style="position:relative;display:inline-block;">
+          <span style="font-size:16px;">✨</span>
+          <span style="position:absolute;top:-2px;right:-2px;width:7px;height:7px;background:#EF4444;border-radius:50%;display:inline-block;"></span>
+        </div>
+        <span style="font-size:16px;">▾</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>记忆横幅风格（与记忆提取横幅一致）</h3>
+      <p>紫色卡片，显示"AI 已根据你的 N 条反馈做出改进"，可点击查看详情，可关闭。</p>
+      <div style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE);border-radius:8px;padding:10px 12px;margin-top:8px;border:1px solid #C4B5FD;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <span style="font-size:13px;font-weight:600;color:#5B21B6;">✨ AI 已根据你的 8 条反馈做出改进</span>
+          <div style="font-size:11px;color:#7C3AED;margin-top:2px;">回复更简洁 · 优先代码示例</div>
+        </div>
+        <div style="display:flex;gap:4px;">
+          <span style="font-size:11px;color:#7C3AED;border:1px solid #C4B5FD;padding:2px 8px;border-radius:4px;">查看</span>
+          <span style="font-size:14px;color:#A78BFA;">✕</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>两者都要（推荐）</h3>
+      <p>AppBar 始终显示 ✨ 图标（有修正时小红点，无修正时灰色）。点击图标弹出改进摘要。首次有新修正时显示横幅（可关闭），之后缩回图标。</p>
+      <div style="background:#F0FDF4;border-radius:8px;padding:8px 12px;margin-top:8px;border:1px solid #BBF7D0;">
+        <span style="font-size:12px;color:#166534;">✅ 既有持续感知（图标），又有新改进提醒（横幅），跟记忆横幅保持一致的交互模式</span>
+      </div>
+    </div>
+  </div>
+</div>

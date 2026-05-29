@@ -1,0 +1,62 @@
+<h2>C3：人格画廊布局方案</h2>
+<p class="subtitle">从当前列表改为卡片网格，展示 MBTI 类型、语气、使用次数</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>GridView 卡片（推荐）</h3>
+      <p>2 列网格，每张卡片显示头像 + 名字 + MBTI 标签 + 语气徽章。顶部"+"按钮创建新人格。与 App 现有卡片风格一致。</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div style="background:#F5F5FA;border-radius:10px;padding:12px;text-align:center;border:1px solid #E8E8EF;">
+          <div style="font-size:24px;">🤖</div>
+          <div style="font-weight:600;font-size:13px;margin-top:4px;">默认助手</div>
+          <div style="display:inline-block;background:#DDD6FE;color:#5B21B6;font-size:10px;padding:1px 6px;border-radius:4px;margin-top:4px;">通用</div>
+        </div>
+        <div style="background:#F5F5FA;border-radius:10px;padding:12px;text-align:center;border:2px solid #7C3AED;">
+          <div style="font-size:24px;">🧠</div>
+          <div style="font-weight:600;font-size:13px;margin-top:4px;">逻辑学家</div>
+          <div style="display:inline-block;background:#DDD6FE;color:#5B21B6;font-size:10px;padding:1px 6px;border-radius:4px;margin-top:4px;">INTP</div>
+          <div style="font-size:9px;color:#A78BFA;margin-top:2px;">● 使用中</div>
+        </div>
+        <div style="background:#F5F5FA;border-radius:10px;padding:12px;text-align:center;border:1px solid #E8E8EF;">
+          <div style="font-size:24px;">💜</div>
+          <div style="font-weight:600;font-size:13px;margin-top:4px;">灵魂知己</div>
+          <div style="display:inline-block;background:#DDD6FE;color:#5B21B6;font-size:10px;padding:1px 6px;border-radius:4px;margin-top:4px;">INFP</div>
+        </div>
+        <div style="background:#F5F5FA;border-radius:10px;padding:12px;text-align:center;border:1px solid #E8E8EF;">
+          <div style="font-size:24px;">🔥</div>
+          <div style="font-weight:600;font-size:13px;margin-top:4px;">吐槽搭子</div>
+          <div style="display:inline-block;background:#DDD6FE;color:#5B21B6;font-size:10px;padding:1px 6px;border-radius:4px;margin-top:4px;">ESTP</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#A78BFA;margin-top:8px;">✅ 视觉密度适中，可扫视，选中的紫色边框与 App 主题一致</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>列表 + 卡片混合</h3>
+      <p>当前使用的 Persona 行变为带更多信息的卡片，每行显示头像 + 名字 + 标签 + 使用状态</p>
+      <div style="margin-top:8px;">
+        <div style="background:#F5F5FA;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:10px;border:2px solid #7C3AED;">
+          <span style="font-size:22px;">🧠</span>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:13px;">逻辑学家 · INTP</div>
+            <div style="font-size:11px;color:#9CA3AF;">理性分析 · 专业 · 适中</div>
+          </div>
+          <span style="font-size:10px;background:#DDD6FE;color:#5B21B6;padding:2px 6px;border-radius:4px;">使用中</span>
+        </div>
+        <div style="background:#F5F5FA;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:22px;">💜</span>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:13px;">灵魂知己 · INFP</div>
+            <div style="font-size:11px;color:#9CA3AF;">有洞察力 · 随意 · 详细</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:8px;">⚠️ 信息量够但视觉冲击力不如网格</div>
+    </div>
+  </div>
+</div>
