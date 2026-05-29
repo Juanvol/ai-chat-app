@@ -28,6 +28,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon_src.png
+    - assets/pet_skins/funuonuo/idle/
+    - assets/pet_skins/funuonuo/hungry/
+    - assets/pet_skins/funuonuo/talking/
+    - assets/pet_skins/funuonuo/sleeping/
   fonts:
     - family: YaHei
       fonts:
