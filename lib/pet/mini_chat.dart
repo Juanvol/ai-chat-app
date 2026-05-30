@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import '../api/deepseek_client.dart';
+import '../models/message.dart';
 import '../services/pet_feature_flags.dart';
+import '../pet/pet_persona.dart';
 
 class MiniChat extends StatefulWidget {
   final VoidCallback onClose;
@@ -55,6 +57,7 @@ class _MiniChatState extends State<MiniChat> {
   @override
   void dispose() {
     _cancelToken?.cancel();
+    _responseTimeout?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     _idleTimer?.cancel();
@@ -68,7 +71,17 @@ class _MiniChatState extends State<MiniChat> {
       final apiKey = box.get('api_key') as String?;
       if (apiKey != null && apiKey.isNotEmpty) {
         _client = LLMClient(apiKey: apiKey);
-        _client?.setSystemPrompt(_personaPrompt);
+        // 读自定义 persona，无则 fallback 默认
+        String prompt = _personaPrompt;
+        try {
+          final configBox = await Hive.openBox('pet_config');
+          final raw = configBox.get('persona');
+          if (raw != null) {
+            final p = PetPersona.fromJson(Map<String, dynamic>.from(raw as Map));
+            if (p.systemPrompt.isNotEmpty) prompt = p.systemPrompt;
+          }
+        } catch (_) {}
+        _client!.setSystemPrompt(prompt);
       }
     } catch (_) {}
   }
@@ -90,7 +103,7 @@ class _MiniChatState extends State<MiniChat> {
   void _resetIdleTimer() {
     _idleTimer?.cancel();
     if (_isLoading) return; // AI 回复中不自动关闭
-    _idleTimer = Timer(const Duration(seconds: 15), () {
+    _idleTimer = Timer(const Duration(seconds: 30), () {
       if (mounted) widget.onClose();
     });
   }
@@ -127,9 +140,28 @@ class _MiniChatState extends State<MiniChat> {
     _cancelToken?.cancel();
     _cancelToken = CancelToken();
 
+    // 提取上下文
+    final history = <Message>[];
+    try {
+      final configBox = await Hive.openBox('pet_config');
+      final rounds = configBox.get('chatContextRounds', defaultValue: 3) as int;
+      final msgCount = (rounds * 2).clamp(0, _messages.length);
+      final start = _messages.length - msgCount;
+      for (int i = start; i < _messages.length; i++) {
+        if (_messages[i].text.isNotEmpty) {
+          history.add(Message(
+            id: 'ctx_$i',
+            role: _messages[i].isUser ? 'user' : 'assistant',
+            content: _messages[i].text,
+            createdAt: DateTime.now(),
+          ));
+        }
+      }
+    } catch (_) {}
+
     try {
       await for (final chunk in _client!.sendStream(
-        history: [],
+        history: history,
         userContent: userText,
         thinkingEnabled: false,
         maxTokens: 512,
@@ -147,7 +179,12 @@ class _MiniChatState extends State<MiniChat> {
         widget.onMemorySave?.call();
         setState(() => _lastFeedbackIndex = assistantIndex);
       }
-    } on DioException catch (_) {
+    } on DioException catch (e) {
+      if (e.type != DioExceptionType.cancel && mounted) {
+        setState(() {
+          _messages[assistantIndex] = _ChatLine(isUser: false, text: '信号不好喵...待会再试试~');
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -169,6 +206,24 @@ class _MiniChatState extends State<MiniChat> {
     _inputController.clear();
     _resetIdleTimer();
 
+    // 提取最近历史（先于新消息添加，避免重复发送当前消息）
+    final recentHistory = <Map<String, String>>[];
+    int rounds = 3;
+    try {
+      final configBox = await Hive.openBox('pet_config');
+      rounds = configBox.get('chatContextRounds', defaultValue: 3) as int;
+    } catch (_) {}
+    final msgCount = (rounds * 2).clamp(0, _messages.length);
+    final start = (_messages.length - msgCount).clamp(0, _messages.length);
+    for (int i = start; i < _messages.length; i++) {
+      if (_messages[i].isUser || _messages[i].text.isNotEmpty) {
+        recentHistory.add({
+          'role': _messages[i].isUser ? 'user' : 'assistant',
+          'content': _messages[i].text,
+        });
+      }
+    }
+
     setState(() {
       _messages.add(_ChatLine(isUser: true, text: userText));
       _isLoading = true;
@@ -187,17 +242,6 @@ class _MiniChatState extends State<MiniChat> {
         });
       }
     });
-
-    final recentHistory = <Map<String, String>>[];
-    final start = (_messages.length - 6).clamp(0, _messages.length);
-    for (int i = start; i < _messages.length; i++) {
-      if (_messages[i].isUser || _messages[i].text.isNotEmpty) {
-        recentHistory.add({
-          'role': _messages[i].isUser ? 'user' : 'assistant',
-          'content': _messages[i].text,
-        });
-      }
-    }
 
     try {
       await _agentChannel.invokeMethod('chatReq', {
