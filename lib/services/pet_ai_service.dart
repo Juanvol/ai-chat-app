@@ -7,6 +7,7 @@ import '../models/memory.dart' as mem;
 import '../models/feedback_entry.dart' as fb;
 import '../pet/pet_config.dart';
 import '../pet/pet_memory.dart';
+import '../pet/pet_persona.dart';
 import 'pet_agent_core.dart';
 import 'pet_token_service.dart';
 import 'pet_profile_service.dart';
@@ -19,6 +20,8 @@ class PetAiService {
   String? _visionApiKey;
   String? _visionBaseUrl;
   final String _visionModel = 'mimo-v2-omni';
+  static int _idCounter = 0;
+  static final String _sessionPrefix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
 
   /// Agent 核心（引擎 #2 本地实例，用于主动建议等场景）
   PetAgentCore? _agent;
@@ -39,13 +42,31 @@ class PetAiService {
       // 文本 client — DeepSeek
       final apiKey = box.get('api_key') as String?;
       if (apiKey != null && apiKey.isNotEmpty) {
+        // 优先读取用户定制 persona，无则用默认
+        String systemPrompt = _personaPrompt;
+        try {
+          final configBox = await Hive.openBox('pet_config');
+          final raw = configBox.get('persona');
+          if (raw != null) {
+            final persona = PetPersona.fromJson(Map<String, dynamic>.from(raw as Map));
+            systemPrompt = persona.systemPrompt;
+          }
+        } catch (_) {}
         _textClient = LLMClient(apiKey: apiKey);
-        _textClient?.setSystemPrompt(_personaPrompt);
+        _textClient?.setSystemPrompt(systemPrompt);
       }
       // 视觉 client — MiMo
-      _visionApiKey = box.get('xiaomi_key') as String?;
+      // 1. 优先从 pet_config 读宠物专用视觉 key
+      try {
+        final configBox = await Hive.openBox('pet_config');
+        _visionApiKey = configBox.get('visionApiKey') as String?;
+        _visionBaseUrl = configBox.get('visionBaseUrl') as String?;
+      } catch (_) {}
+      // 2. fallback：主应用 xiaomi_key
+      _visionApiKey ??= box.get('xiaomi_key') as String?;
+      _visionBaseUrl ??= 'https://token-plan-cn.xiaomimimo.com';
+
       if (_visionApiKey != null && _visionApiKey!.isNotEmpty) {
-        _visionBaseUrl = 'https://token-plan-cn.xiaomimimo.com';
         _visionClient = LLMClient(apiKey: _visionApiKey);
       }
       // 初始化 Agent 核心
@@ -253,7 +274,7 @@ class PetAiService {
     try {
       final fbBox = await Hive.openBox('feedbacks');
       final entry = fb.FeedbackEntry(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        id: '${_sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}_${_idCounter++}',
         conversationId: 'pet_chat',
         userMessage: userMessage,
         aiResponse: aiResponse,
