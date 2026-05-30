@@ -22,6 +22,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
 
   // ── 新增：性格/额度/模型/视觉 ──
   PetPersona _persona = PetPersona();
+  late final TextEditingController _promptController = TextEditingController();
   int? _dailyBudget = 50000;
   String _decisionModel = 'deepseek-chat';
   String _chatModel = 'deepseek-chat';
@@ -38,6 +39,12 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   void initState() {
     super.initState();
     _loadConfig();
+  }
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadConfig() async {
@@ -57,11 +64,13 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
       if (raw != null) {
         _persona = PetPersona.fromJson(Map<String, dynamic>.from(raw as Map));
       }
+      _promptController.text = _persona.systemPrompt;
     } catch (_) {}
   }
 
   Future<void> _savePersona(PetPersona p) async {
     _persona = p;
+    _promptController.text = p.systemPrompt;
     try {
       final box = await Hive.openBox('pet_config');
       await box.put('persona', p.toJson());
@@ -276,10 +285,10 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           initialTime: TimeOfDay.now(),
         );
         if (time != null) {
-          final until = DateTime(
-            DateTime.now().year, DateTime.now().month, DateTime.now().day,
-            time.hour, time.minute,
-          );
+          final now = DateTime.now();
+          var until = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+          // 如果选的时间已经过了（如晚上选"到明早8点"），则推到明天
+          if (until.isBefore(now)) until = until.add(const Duration(days: 1));
           await _saveConfig(_config.copyWith(quietUntil: until));
         }
       },
@@ -296,7 +305,9 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
         const SizedBox(height: 8),
         // 模板选择
         DropdownButtonFormField<String>(
-          initialValue: _persona.templateId ?? 'default',
+          initialValue: _persona.templateId != null
+              && _personaTemplates.containsKey(_persona.templateId)
+              ? _persona.templateId! : 'default',
           decoration: const InputDecoration(
             labelText: '性格模板',
             border: OutlineInputBorder(),
@@ -323,7 +334,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
         const SizedBox(height: 12),
         // System Prompt 编辑
         TextField(
-          controller: TextEditingController(text: _persona.systemPrompt),
+          controller: _promptController,
           maxLines: 3,
           style: const TextStyle(fontSize: 13),
           decoration: const InputDecoration(
