@@ -9,6 +9,9 @@ import 'services/memory_service.dart';
 import 'services/persona_service.dart';
 import 'services/feedback_service.dart';
 import 'services/token_stats_service.dart';
+import 'services/pet_token_service.dart';
+import 'services/pet_profile_service.dart';
+import 'services/pet_chat_service.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
@@ -34,6 +37,9 @@ void main() async {
       ChangeNotifierProvider(create: (_) => PersonaService(storage: storage)),
       ChangeNotifierProvider(create: (_) => FeedbackService(storage: storage)),
       ChangeNotifierProvider(create: (_) => TokenStatsService(storage: storage)),
+      ChangeNotifierProvider(create: (_) => PetTokenService()),
+      ChangeNotifierProvider(create: (_) => PetProfileService()),
+      ChangeNotifierProvider(create: (_) => PetChatService()),
     ],
     child: DeepSeekApp(storage: storage),
   ));
