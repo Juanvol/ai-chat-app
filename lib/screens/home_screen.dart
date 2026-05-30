@@ -18,6 +18,8 @@ import 'settings_screen.dart';
 import 'persona_screen.dart';
 import 'memory_screen.dart';
 import 'feedback_screen.dart';
+import 'pet_center_screen.dart';
+import '../services/pet_chat_service.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -288,6 +290,8 @@ class _Drawer extends StatefulWidget {
 class _DrawerState extends State<_Drawer> {
   String _query = '';
   final _searchCtrl = TextEditingController();
+  bool _selectionMode = false;
+  final Set<String> _selectedConvIds = {};
 
   List<Conversation> get _filtered {
     final q = _query.trim().toLowerCase();
@@ -347,6 +351,39 @@ class _DrawerState extends State<_Drawer> {
     );
   }
 
+  Future<void> _shareToPet() async {
+    if (_selectedConvIds.isEmpty) return;
+    final summaries = <Map<String, dynamic>>[];
+    for (final c in widget.svc.conversations) {
+      if (!_selectedConvIds.contains(c.id)) continue;
+      final lastMsg = c.messages.isNotEmpty ? c.messages.last.content : '';
+      summaries.add({
+        'id': c.id,
+        'title': c.title,
+        'summary': lastMsg.length > 200 ? '${lastMsg.substring(0, 200)}...' : lastMsg,
+      });
+    }
+    try {
+      final chatSvc = PetChatService();
+      final count = await chatSvc.importMemories(summaries);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已分享 $count 条记忆给糯糯~ 📝')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('分享失败，糯糯可能还在睡觉喵~')),
+        );
+      }
+    }
+    setState(() {
+      _selectionMode = false;
+      _selectedConvIds.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -369,6 +406,15 @@ class _DrawerState extends State<_Drawer> {
               const SizedBox(width: C.s12),
               Text('AI Chat', style: C.title),
               const Spacer(),
+              if (widget.svc.conversations.isNotEmpty)
+                IconButton(
+                  icon: Icon(_selectionMode ? Icons.close : Icons.ios_share, size: 18),
+                  tooltip: _selectionMode ? '取消选择' : '分享给糯糯',
+                  onPressed: () => setState(() {
+                    _selectionMode = !_selectionMode;
+                    if (!_selectionMode) _selectedConvIds.clear();
+                  }),
+                ),
             ]),
           ),
 
@@ -466,7 +512,20 @@ class _DrawerState extends State<_Drawer> {
                       final c = list[i];
                       final sel = widget.svc.currentConversation?.id == c.id;
                       return GestureDetector(
-                        onTap: () { widget.svc.selectConversation(c.id); Navigator.pop(context); },
+                        onTap: () {
+                          if (_selectionMode) {
+                            setState(() {
+                              if (_selectedConvIds.contains(c.id)) {
+                                _selectedConvIds.remove(c.id);
+                              } else {
+                                _selectedConvIds.add(c.id);
+                              }
+                            });
+                          } else {
+                            widget.svc.selectConversation(c.id);
+                            Navigator.pop(context);
+                          }
+                        },
                         child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: C.s8, vertical: 2),
                           padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: 10),
@@ -475,8 +534,18 @@ class _DrawerState extends State<_Drawer> {
                             borderRadius: BorderRadius.circular(C.r8),
                           ),
                           child: Row(children: [
-                            Container(width: 4, height: 4,
-                              decoration: BoxDecoration(shape: BoxShape.circle, color: sel ? cs.primary : cs.outline)),
+                            if (_selectionMode)
+                              Padding(
+                                padding: const EdgeInsets.only(right: C.s8),
+                                child: Icon(
+                                  _selectedConvIds.contains(c.id) ? Icons.check_box : Icons.check_box_outline_blank,
+                                  size: 18,
+                                  color: _selectedConvIds.contains(c.id) ? const Color(0xFF7C3AED) : const Color(0xFFA0A0AB),
+                                ),
+                              )
+                            else
+                              Container(width: 4, height: 4,
+                                decoration: BoxDecoration(shape: BoxShape.circle, color: sel ? cs.primary : cs.outline)),
                             const SizedBox(width: C.s12),
                             if (c.isPinned)
                               const Padding(
@@ -525,10 +594,23 @@ class _DrawerState extends State<_Drawer> {
                   ),
           ),
 
+          if (_selectionMode && _selectedConvIds.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(C.s12),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _shareToPet,
+                  icon: const Icon(Icons.pets, size: 18),
+                  label: Text('分享 ${_selectedConvIds.length} 条对话给糯糯'),
+                ),
+              ),
+            ),
           const Divider(height: 1),
           _drawerItem(context, Icons.work_outline, '任务上下文', const MemoryScreen()),
           _drawerItem(context, Icons.people_outline, '人格管理', const PersonaScreen()),
           _drawerItem(context, Icons.feedback_outlined, '反馈知识库', const FeedbackScreen()),
+          _drawerItem(context, Icons.pets, '弗糯糯', const PetCenterScreen()),
           _drawerItem(context, Icons.settings_outlined, '设置', const SettingsScreen()),
           const SizedBox(height: C.s4),
         ]),
