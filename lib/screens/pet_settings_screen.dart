@@ -6,6 +6,7 @@ import '../pet/pet_config.dart';
 import '../pet/pet_persona.dart';
 import '../services/pet_service.dart';
 import '../services/pet_token_service.dart';
+import '../models/model_config.dart';
 
 class PetSettingsScreen extends StatefulWidget {
   const PetSettingsScreen({super.key});
@@ -26,6 +27,11 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   int? _dailyBudget = 50000;
   String _decisionModel = 'deepseek-chat';
   String _chatModel = 'deepseek-chat';
+  String _visionModel = '';  // 空 = 跟随主模型
+  String _visionApiKey = '';
+  // ignore: unused_field — 预留，后续支持视觉自定义 Base URL
+  String _visionBaseUrl = '';
+  late final TextEditingController _visionKeyController;
   bool _visionEnabled = false;
 
   static const _personaTemplates = {
@@ -38,12 +44,14 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _visionKeyController = TextEditingController();
     _loadConfig();
   }
 
   @override
   void dispose() {
     _promptController.dispose();
+    _visionKeyController.dispose();
     super.dispose();
   }
 
@@ -100,6 +108,10 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
       _decisionModel = box.get('decisionModel', defaultValue: 'deepseek-chat') as String;
       _chatModel = box.get('chatModel', defaultValue: 'deepseek-chat') as String;
       _visionEnabled = box.get('visionEnabled', defaultValue: false) as bool;
+      _visionModel = box.get('visionModel', defaultValue: '') as String;
+      _visionApiKey = box.get('visionApiKey', defaultValue: '') as String;
+      _visionBaseUrl = box.get('visionBaseUrl', defaultValue: '') as String;
+      _visionKeyController.text = _visionApiKey;
     } catch (_) {}
   }
 
@@ -167,8 +179,6 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           _buildBudgetSection(),
           const Divider(height: 32),
           _buildModelSection(),
-          const Divider(height: 32),
-          _buildVisionToggle(),
         ],
       ),
     );
@@ -381,23 +391,46 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   // ── 模型选择 ──
 
   Widget _buildModelSection() {
-    final models = ['deepseek-chat', 'deepseek-reasoner'];
+    final mainModels = ModelConfig.builtIn
+        .where((m) => m.id != 'custom-model' && m.id != 'mimo-v2-omni')
+        .toList();
+    final visionModels = ModelConfig.builtIn
+        .where((m) => m.providerId == 'xiaomi' || m.id == 'gpt-4o')
+        .toList();
+
+    final mainModel = mainModels.firstWhere(
+      (m) => m.id == _chatModel,
+      orElse: () => mainModels.first,
+    );
+    final mainHasVision = visionModels.any((m) => m.id == _chatModel);
+
+    String visionProvider;
+    if (_visionModel.isEmpty) {
+      visionProvider = mainModel.providerId;
+    } else {
+      final vm = visionModels.firstWhere(
+        (m) => m.id == _visionModel,
+        orElse: () => visionModels.first,
+      );
+      visionProvider = vm.providerId;
+    }
+    final showVisionKey = visionProvider != mainModel.providerId;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('🤖 模型配置', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        // 决策模型
         DropdownButtonFormField<String>(
-          initialValue: models.contains(_decisionModel) ? _decisionModel : 'deepseek-chat',
+          initialValue: mainModels.any((m) => m.id == _decisionModel) ? _decisionModel : 'deepseek-chat',
           decoration: const InputDecoration(
-            labelText: '决策模型（感知→行动）',
+            labelText: '主模型（决策+聊天）',
             border: OutlineInputBorder(),
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
-          items: models.map((m) => DropdownMenuItem(
-            value: m,
-            child: Text(m, style: const TextStyle(fontSize: 14)),
+          items: mainModels.map((m) => DropdownMenuItem(
+            value: m.id,
+            child: Text('${m.name} (${m.providerId})', style: const TextStyle(fontSize: 13)),
           )).toList(),
           onChanged: (v) {
             if (v != null) {
@@ -406,41 +439,72 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             }
           },
         ),
-        const SizedBox(height: 12),
-        // 对话模型
-        DropdownButtonFormField<String>(
-          initialValue: models.contains(_chatModel) ? _chatModel : 'deepseek-chat',
-          decoration: const InputDecoration(
-            labelText: '对话模型（聊天回复）',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          items: models.map((m) => DropdownMenuItem(
-            value: m,
-            child: Text(m, style: const TextStyle(fontSize: 14)),
-          )).toList(),
+        const SizedBox(height: 24),
+        const Text('👁️ 视觉分析', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text('主模型${mainHasVision ? '支持' : '不支持'}视觉能力。可独立选择视觉模型。',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          title: const Text('开启视觉分析'),
+          subtitle: const Text('允许糯糯分析你的屏幕截图'),
+          value: _visionEnabled,
           onChanged: (v) {
-            if (v != null) {
-              _chatModel = v;
-              _saveModelSetting('chatModel', v);
-            }
+            _visionEnabled = v;
+            _saveModelSetting('visionEnabled', v);
+            if (mounted) setState(() {});
           },
         ),
+        if (_visionEnabled) ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _visionModel,
+            decoration: const InputDecoration(
+              labelText: '视觉模型',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('跟随主模型', style: TextStyle(fontSize: 13))),
+              ...visionModels.map((m) => DropdownMenuItem(
+                value: m.id,
+                child: Text('${m.name} (${m.providerId})', style: const TextStyle(fontSize: 13)),
+              )),
+            ],
+            onChanged: (v) {
+              if (v != null) {
+                _visionModel = v;
+                _saveModelSetting('visionModel', v);
+                if (mounted) setState(() {});
+              }
+            },
+          ),
+          if (_visionModel.isEmpty && !mainHasVision)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('⚠ 当前主模型无视觉能力，建议选择其他视觉模型',
+                  style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+            ),
+        ],
+        if (_visionEnabled && showVisionKey) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _visionKeyController,
+            obscureText: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(
+              labelText: '视觉 API Key',
+              hintText: '视觉模型 provider 的 API Key',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            onChanged: (v) {
+              _visionApiKey = v.trim();
+              _saveModelSetting('visionApiKey', _visionApiKey);
+            },
+          ),
+        ],
       ],
-    );
-  }
-
-  // ── 视觉开关 ──
-
-  Widget _buildVisionToggle() {
-    return SwitchListTile(
-      title: const Text('👁️ 视觉分析（MiMo）'),
-      subtitle: const Text('允许糯糯分析你的屏幕截图，提供上下文感知建议'),
-      value: _visionEnabled,
-      onChanged: (v) {
-        _visionEnabled = v;
-        _saveModelSetting('visionEnabled', v);
-      },
     );
   }
 
