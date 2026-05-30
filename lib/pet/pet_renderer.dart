@@ -5,11 +5,15 @@ import 'pet_state.dart';
 class PetRenderer extends StatefulWidget {
   final PetStatus status;
   final double size;
+  final bool ecoMode;
+  final String? moodEmoji;
 
   const PetRenderer({
     super.key,
     required this.status,
     this.size = 120,
+    this.ecoMode = false,
+    this.moodEmoji,
   });
 
   @override
@@ -45,7 +49,8 @@ class _PetRendererState extends State<PetRenderer>
     _ac = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: _frames.length * 80),
-    )..repeat();
+    );
+    _applyAnimMode();
   }
 
   @override
@@ -55,6 +60,18 @@ class _PetRendererState extends State<PetRenderer>
       _loadFrames();
       _ac.duration = Duration(milliseconds: _frames.length * 80);
       _ac.forward(from: 0);
+    }
+    if (oldWidget.ecoMode != widget.ecoMode) {
+      _applyAnimMode();
+      if (!widget.ecoMode) _ac.forward(from: 0);
+    }
+  }
+
+  void _applyAnimMode() {
+    if (widget.ecoMode) {
+      _ac.stop();
+    } else {
+      _ac.repeat();
     }
   }
 
@@ -75,11 +92,13 @@ class _PetRendererState extends State<PetRenderer>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
+    final petWidget = AnimatedBuilder(
       animation: _ac,
       builder: (context, child) {
         if (_frames.isEmpty) return SizedBox(width: widget.size, height: widget.size);
-        final idx = (_ac.value * _frames.length).floor().clamp(0, _frames.length - 1);
+        final idx = widget.ecoMode
+            ? 0
+            : (_ac.value * _frames.length).floor().clamp(0, _frames.length - 1);
         return Image(
           image: _frames[idx],
           width: widget.size,
@@ -87,6 +106,20 @@ class _PetRendererState extends State<PetRenderer>
           errorBuilder: (_, __, ___) => SizedBox(width: widget.size, height: widget.size),
         );
       },
+    );
+
+    if (widget.moodEmoji == null) return petWidget;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        petWidget,
+        Positioned(
+          top: -8,
+          right: -8,
+          child: Text(widget.moodEmoji!, style: const TextStyle(fontSize: 22)),
+        ),
+      ],
     );
   }
 }
