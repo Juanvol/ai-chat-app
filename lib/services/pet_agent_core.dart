@@ -85,7 +85,6 @@ class PetAgentCore extends ChangeNotifier {
   int _consecutiveApiFailures = 0;
   bool _isPureRuleMode = false;
   CancelToken? _chatCancelToken;
-  int _currentChatRequestId = 0;
   final _rng = Random();
 
   PetAgentCore({
@@ -320,7 +319,6 @@ class PetAgentCore extends ChangeNotifier {
   }) async {
     _chatCancelToken?.cancel();
     _chatCancelToken = CancelToken();
-    _currentChatRequestId = requestId;
 
     if (_chatClient == null) {
       _sendChatError('糯糯还没准备好喵...稍等一下~', requestId: requestId);
@@ -329,9 +327,7 @@ class PetAgentCore extends ChangeNotifier {
 
     final persona = await _loadPersona();
     final buffer = StringBuffer();
-    if (persona.systemPrompt.isNotEmpty) {
-      buffer.writeln(persona.systemPrompt);
-    }
+    buffer.writeln(persona.systemPrompt);
 
     if (history.isNotEmpty) {
       buffer.writeln('最近对话：');
