@@ -1,4 +1,5 @@
 // Flutter 3.24 / Dart 3.5
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -143,6 +144,39 @@ void main() {
         final messages = 4;
         final msgCount = (rounds * 2).clamp(0, messages);
         expect(msgCount, 4); // 取全部
+      });
+    });
+
+    group('记忆摘要 JSON 解析', () {
+      test('标准 JSON 数组解析', () {
+        final json = '[{"content":"主人喜欢蓝色","context":"pet_chat"},{"content":"写代码","context":"coding"}]';
+        final start = json.indexOf('[');
+        final end = json.lastIndexOf(']');
+        final sub = json.substring(start, end + 1);
+        final list = (jsonDecode(sub) as List).cast<Map<String, dynamic>>();
+        expect(list.length, 2);
+        expect(list[0]['content'], '主人喜欢蓝色');
+        expect(list[1]['context'], 'coding');
+      });
+
+      test('空数组正常处理', () {
+        final json = '[]';
+        final start = json.indexOf('[');
+        final end = json.lastIndexOf(']');
+        final sub = json.substring(start, end + 1);
+        final list = (jsonDecode(sub) as List).cast<Map<String, dynamic>>();
+        expect(list.length, 0);
+      });
+
+      test('content 为空跳过', () {
+        final json = '[{"content":"","context":"x"},{"content":"有效","context":"y"}]';
+        final list = (jsonDecode(json) as List).cast<Map<String, dynamic>>();
+        final valid = list.where((m) {
+          final c = m['content'] as String?;
+          return c != null && c.isNotEmpty;
+        }).toList();
+        expect(valid.length, 1);
+        expect(valid[0]['content'], '有效');
       });
     });
   });

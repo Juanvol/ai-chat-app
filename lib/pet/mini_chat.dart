@@ -1,5 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,18 +8,22 @@ import 'package:hive/hive.dart';
 import '../api/deepseek_client.dart';
 import '../models/message.dart';
 import '../services/pet_feature_flags.dart';
+import '../services/pet_ai_service.dart';
+import '../services/pet_token_service.dart';
 import '../pet/pet_persona.dart';
 
 class MiniChat extends StatefulWidget {
   final VoidCallback onClose;
   final void Function(String userMsg, String aiMsg, bool liked)? onFeedback;
   final VoidCallback? onMemorySave;
+  final PetAiService? aiService;
 
   const MiniChat({
     super.key,
     required this.onClose,
     this.onFeedback,
     this.onMemorySave,
+    this.aiService,
   });
 
   @override
@@ -44,10 +49,13 @@ class _MiniChatState extends State<MiniChat> {
   int _agentRequestId = 0;
   Timer? _responseTimeout;
   int _agentAssistantIndex = -1;
+  PetAiService? _aiService;
+  int _lastSummarizedIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _aiService = widget.aiService;
     _initClient();
     _expandWindow();
     _resetIdleTimer();
@@ -56,6 +64,7 @@ class _MiniChatState extends State<MiniChat> {
 
   @override
   void dispose() {
+    _summarizeAndSave(); // fire-and-forget，触发 LLM 摘要
     _cancelToken?.cancel();
     _responseTimeout?.cancel();
     _inputController.dispose();
@@ -322,6 +331,65 @@ class _MiniChatState extends State<MiniChat> {
         );
       }
     });
+  }
+
+  // ── 自动 LLM 摘要聊天记忆 ──
+
+  void _summarizeAndSave() {
+    if (_aiService == null || _client == null) return;
+    final newMsgs = _messages.length - _lastSummarizedIndex;
+    if (newMsgs < 4) return; // 至少 2 轮才摘要
+
+    // fire-and-forget，不阻塞 dispose
+    _doSummarize();
+  }
+
+  Future<void> _doSummarize() async {
+    try {
+      final svc = PetTokenService();
+      if (!await svc.checkBudget()) return;
+    } catch (_) {
+      return;
+    }
+
+    final recent = _messages.sublist(_lastSummarizedIndex);
+    final text = recent
+        .where((m) => m.text.isNotEmpty)
+        .map((m) => '${m.isUser ? "主人" : "糯糯"}: ${m.text}')
+        .join('\n');
+
+    if (text.isEmpty) return;
+
+    try {
+      final result = await _client!.send(
+        history: [],
+        userContent: '从以下宠物对话中提取关键信息（用户喜好、宠物状态变化、重要事件），'
+            '以 JSON 数组格式返回，不超过 3 条，每条包含 "content" 和 "context" 字段：\n$text',
+        maxTokens: 256,
+        thinkingEnabled: false,
+      );
+      _parseSummariesAndSave(result.content);
+      _lastSummarizedIndex = _messages.length;
+    } catch (_) {}
+  }
+
+  void _parseSummariesAndSave(String llmOutput) {
+    try {
+      final start = llmOutput.indexOf('[');
+      final end = llmOutput.lastIndexOf(']');
+      if (start == -1 || end == -1) return;
+      final sub = llmOutput.substring(start, end + 1);
+      final list = (jsonDecode(sub) as List).cast<Map<String, dynamic>>();
+      for (final item in list) {
+        final content = item['content'] as String?;
+        if (content == null || content.isEmpty) continue;
+        _aiService!.saveMemory(
+          content: content,
+          context: (item['context'] as String?) ?? 'pet_chat',
+          affectionGain: 3,
+        );
+      }
+    } catch (_) {}
   }
 
   @override

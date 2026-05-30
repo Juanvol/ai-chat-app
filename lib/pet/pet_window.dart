@@ -173,6 +173,7 @@ class _PetWindowState extends State<PetWindow> {
         onClose: _dismissChat,
         onFeedback: _onChatFeedback,
         onMemorySave: _onChatMemory,
+        aiService: _aiService,
       );
     }
     return Stack(
