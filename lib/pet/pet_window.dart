@@ -31,6 +31,7 @@ class _PetWindowState extends State<PetWindow> {
   bool _screenOn = true;
   int _batteryLevel = 100;
   bool _charging = false;
+  double _petScale = 1.0;
 
   @override
   void initState() {
@@ -73,6 +74,10 @@ class _PetWindowState extends State<PetWindow> {
     _aiService!.startProactiveTimer((s) {
       if (mounted) setState(() => _suggestion = s);
     });
+    try {
+      final config = await PetService.loadConfig();
+      if (mounted) setState(() => _petScale = config.petScale);
+    } catch (_) {}
     if (mounted) setState(() => _initialized = true);
   }
 
@@ -111,7 +116,10 @@ class _PetWindowState extends State<PetWindow> {
   }
 
   void _dismissMenu() => setState(() => _showMenu = false);
-  void _dismissChat() => setState(() => _showChat = false);
+  void _dismissChat() {
+    _controller?.stopChatting();
+    setState(() => _showChat = false);
+  }
 
   void _onFeed() { _wakeUp(); _controller?.feed(); _dismissMenu(); }
   void _onPlay() { _wakeUp(); _controller?.play(); _dismissMenu(); }
@@ -120,6 +128,7 @@ class _PetWindowState extends State<PetWindow> {
 
   void _onSuggestionChat() {
     _wakeUp();
+    _controller?.chat(); // 设置 talking 状态
     setState(() { _suggestion = null; _showChat = true; });
   }
 
@@ -184,7 +193,11 @@ class _PetWindowState extends State<PetWindow> {
               onLongPress: _onLongPress,
               child: PetBehavior(
                 ecoMode: _ecoMode,
-                child: PetRenderer(status: _controller?.state.status ?? PetStatus.idle, ecoMode: _ecoMode),
+                child: PetRenderer(
+                  status: _controller?.state.status ?? PetStatus.idle,
+                  size: 120 * _petScale,
+                  ecoMode: _ecoMode,
+                ),
               ),
             ),
           ],
