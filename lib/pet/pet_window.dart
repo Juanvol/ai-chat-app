@@ -81,7 +81,7 @@ class _PetWindowState extends State<PetWindow> {
 
   @override
   void dispose() {
-    _aiService?.stopProactiveTimer();
+    _aiService?.dispose();
     if (_controller != null) {
       try { PetService.saveState(_controller!.state); } catch (_) {}
       _controller!.dispose();
