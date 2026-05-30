@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'api/deepseek_client.dart';
 import 'config/theme.dart' show C;
@@ -12,6 +13,7 @@ import 'services/token_stats_service.dart';
 import 'services/pet_token_service.dart';
 import 'services/pet_profile_service.dart';
 import 'services/pet_chat_service.dart';
+import 'services/pet_agent_core.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
@@ -53,11 +55,50 @@ class DeepSeekApp extends StatefulWidget {
 }
 
 class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
+  PetAgentCore? _petAgent;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadThemeMode();
+    _setupPetAgentBridge();
+  }
+
+  void _setupPetAgentBridge() {
+    MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+        .setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'chatReq':
+          final text = call.arguments['text'] as String? ?? '';
+          final history = (call.arguments['history'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ?? [];
+          final requestId = call.arguments['requestId'] as int? ?? 0;
+
+          // 懒初始化 Agent
+          if (_petAgent == null) {
+            final tokenSvc = PetTokenService();
+            final profileSvc = PetProfileService();
+            _petAgent = PetAgentCore(
+              tokenService: tokenSvc,
+              profileService: profileSvc,
+            );
+            final apiKey = widget.storage.apiKey;
+            await _petAgent!.init(
+              decisionApiKey: apiKey,
+              chatApiKey: apiKey,
+            );
+            _petAgent!.start();
+          }
+
+          await _petAgent!.handleChatRequest(
+            text,
+            history: history,
+            requestId: requestId,
+          );
+      }
+    });
   }
 
   void _loadThemeMode() {

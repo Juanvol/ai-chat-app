@@ -2,9 +2,12 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import '../api/deepseek_client.dart';
 import '../pet/pet_persona.dart';
+import 'pet_chat_service.dart';
 import 'pet_token_service.dart';
 import 'pet_profile_service.dart';
 
@@ -74,12 +77,15 @@ class PetAgentCore extends ChangeNotifier {
   final PetProfileService profileService;
 
   LLMClient? _decisionClient;
+  LLMClient? _chatClient;
   bool _isActive = false;
   AttentionLevel _attentionLevel = AttentionLevel.L3;
   AgentMood _mood = AgentMood();
   Timer? _perceptionTimer;
   int _consecutiveApiFailures = 0;
   bool _isPureRuleMode = false;
+  CancelToken? _chatCancelToken;
+  int _currentChatRequestId = 0;
   final _rng = Random();
 
   PetAgentCore({
@@ -95,9 +101,13 @@ class PetAgentCore extends ChangeNotifier {
 
   Future<void> init({
     String? decisionApiKey,
+    String? chatApiKey,
   }) async {
     if (decisionApiKey != null && decisionApiKey.isNotEmpty) {
       _decisionClient = LLMClient(apiKey: decisionApiKey);
+    }
+    if (chatApiKey != null && chatApiKey.isNotEmpty) {
+      _chatClient = LLMClient(apiKey: chatApiKey);
     }
     await _loadState();
   }
@@ -302,8 +312,113 @@ class PetAgentCore extends ChangeNotifier {
     }
   }
 
+  /// 处理引擎 #2 通过 MethodChannel 发来的聊天请求
+  Future<void> handleChatRequest(
+    String userText, {
+    List<Map<String, dynamic>> history = const [],
+    int requestId = 0,
+  }) async {
+    _chatCancelToken?.cancel();
+    _chatCancelToken = CancelToken();
+    _currentChatRequestId = requestId;
+
+    if (_chatClient == null) {
+      _sendChatError('糯糯还没准备好喵...稍等一下~', requestId: requestId);
+      return;
+    }
+
+    final persona = await _loadPersona();
+    final buffer = StringBuffer();
+    if (persona.systemPrompt.isNotEmpty) {
+      buffer.writeln(persona.systemPrompt);
+    }
+
+    if (history.isNotEmpty) {
+      buffer.writeln('最近对话：');
+      for (final m in history) {
+        final role = m['role'] == 'user' ? '主人' : '糯糯';
+        buffer.writeln('$role: ${m['content']}');
+      }
+    }
+    buffer.writeln('主人说: $userText');
+    buffer.writeln('请以糯糯的身份回复，保持短小可爱，不超过3句话。');
+
+    try {
+      final textBuffer = StringBuffer();
+      DateTime lastChunkTime = DateTime.now();
+
+      await for (final chunk in _chatClient!.sendStream(
+        history: [],
+        userContent: buffer.toString(),
+        thinkingEnabled: false,
+        maxTokens: 512,
+        cancelToken: _chatCancelToken,
+      )) {
+        textBuffer.write(chunk.text);
+
+        final now = DateTime.now();
+        if (now.difference(lastChunkTime).inMilliseconds < 50) continue;
+        lastChunkTime = now;
+
+        _sendChatChunk(textBuffer.toString(), requestId: requestId);
+      }
+
+      if (textBuffer.isNotEmpty) {
+        _sendChatChunk(textBuffer.toString(), requestId: requestId);
+      }
+      _sendChatDone(requestId: requestId);
+
+      await _saveChatMessage(userText, textBuffer.toString());
+    } on DioException catch (_) {
+      // 请求被取消
+    } catch (e) {
+      debugPrint('PetAgentCore.handleChatRequest failed: $e');
+      _sendChatError('信号不好喵...待会再试试~', requestId: requestId);
+    }
+  }
+
+  void _sendChatChunk(String fullText, {required int requestId}) {
+    try {
+      MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+          .invokeMethod('chatChunk', {
+        'fullText': fullText,
+        'requestId': requestId,
+      });
+    } catch (_) {}
+  }
+
+  void _sendChatDone({required int requestId}) {
+    try {
+      MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+          .invokeMethod('chatDone', {'requestId': requestId});
+    } catch (_) {}
+  }
+
+  void _sendChatError(String message, {required int requestId}) {
+    try {
+      MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+          .invokeMethod('chatError', {
+        'message': message,
+        'requestId': requestId,
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveChatMessage(String userText, String assistantText) async {
+    try {
+      final chatSvc = PetChatService();
+      final chatBox = await Hive.openBox('pet_chats');
+      final currentId = chatBox.get('currentId') as String?;
+      if (currentId != null) {
+        await chatSvc.addMessage(currentId, 'user', userText);
+        await chatSvc.addMessage(currentId, 'assistant', assistantText);
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    _chatCancelToken?.cancel();
     stop();
     super.dispose();
   }
