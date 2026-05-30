@@ -24,7 +24,9 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   // ── 新增：性格/额度/模型/视觉 ──
   PetPersona _persona = PetPersona();
   late final TextEditingController _promptController = TextEditingController();
+  late final TextEditingController _budgetController;
   int? _dailyBudget = 50000;
+  int _chatContextRounds = 3;
   String _decisionModel = 'deepseek-chat';
   String _chatModel = 'deepseek-chat';
   String _visionModel = '';  // 空 = 跟随主模型
@@ -44,6 +46,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _budgetController = TextEditingController();
     _visionKeyController = TextEditingController();
     _loadConfig();
   }
@@ -51,6 +54,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   @override
   void dispose() {
     _promptController.dispose();
+    _budgetController.dispose();
     _visionKeyController.dispose();
     super.dispose();
   }
@@ -112,6 +116,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
       _visionApiKey = box.get('visionApiKey', defaultValue: '') as String;
       _visionBaseUrl = box.get('visionBaseUrl', defaultValue: '') as String;
       _visionKeyController.text = _visionApiKey;
+      _chatContextRounds = box.get('chatContextRounds', defaultValue: 3) as int;
     } catch (_) {}
   }
 
@@ -179,6 +184,8 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           _buildBudgetSection(),
           const Divider(height: 32),
           _buildModelSection(),
+          _buildContextRounds(),
+          const Divider(height: 32),
         ],
       ),
     );
@@ -381,8 +388,30 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           children: List.generate(labels.length, (i) => ChoiceChip(
             label: Text(labels[i]),
             selected: selectedIdx == i,
-            onSelected: (_) => _saveBudget(values[i]),
+            onSelected: (_) {
+              _budgetController.clear();
+              _saveBudget(values[i]);
+            },
           )),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _budgetController,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(fontSize: 14),
+          decoration: const InputDecoration(
+            labelText: '自定义额度',
+            hintText: '输入数字，如 75000',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          onChanged: (v) {
+            final n = int.tryParse(v);
+            if (n != null && n > 0) {
+              _saveBudget(n);
+              setState(() {});
+            }
+          },
         ),
       ],
     );
@@ -504,6 +533,31 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             },
           ),
         ],
+      ],
+    );
+  }
+
+  // ── 聊天上下文轮数 ──
+
+  Widget _buildContextRounds() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('聊天上下文轮数: $_chatContextRounds 轮',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text('每轮 = 用户消息 + AI 回复。0 轮 = 无上下文记忆',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        Slider(
+          value: _chatContextRounds.toDouble(),
+          min: 0, max: 10, divisions: 10,
+          label: '$_chatContextRounds 轮',
+          onChanged: (v) {
+            _chatContextRounds = v.round();
+            _saveModelSetting('chatContextRounds', _chatContextRounds);
+            if (mounted) setState(() {});
+          },
+        ),
       ],
     );
   }
