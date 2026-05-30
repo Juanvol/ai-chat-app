@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
 import io.flutter.FlutterInjector
+import io.flutter.embedding.android.FlutterSurfaceView
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
@@ -119,13 +120,9 @@ class PetForegroundService : Service() {
             }
         }
 
-        petView = flutterEngine?.renderSurfaceView
-        if (petView == null) {
-            // 引擎创建但无 Surface：销毁引擎防止泄漏
-            flutterEngine?.destroy()
-            flutterEngine = null
-            return
-        }
+        val surfaceView = FlutterSurfaceView(this)
+        surfaceView.attachToRenderer(flutterEngine!!.getRenderer())
+        petView = surfaceView
 
         setupMethodChannel()
         startMonitoring()
