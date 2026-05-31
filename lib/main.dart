@@ -41,7 +41,7 @@ void main() async {
       ChangeNotifierProvider(create: (_) => TokenStatsService(storage: storage)),
       ChangeNotifierProvider(create: (_) => PetTokenService()),
       ChangeNotifierProvider(create: (_) => PetProfileService()),
-      ChangeNotifierProvider(create: (_) => PetChatService()),
+      ChangeNotifierProvider(create: (_) { final s = PetChatService(); s.init(); return s; }),
     ],
     child: DeepSeekApp(storage: storage),
   ));

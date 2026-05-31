@@ -93,6 +93,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   Future<void> _loadBudget() async {
     try {
       final svc = PetTokenService();
+      await svc.loadBudget();
       _dailyBudget = svc.dailyBudget;
     } catch (_) {}
   }

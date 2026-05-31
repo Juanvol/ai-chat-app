@@ -6,15 +6,25 @@ class PetChatService extends ChangeNotifier {
   static const _chatsBox = 'pet_chats';
   static const _memBox = 'pet_memories';
   String? _currentId;
+  static int _idCounter = 0;
+  static int _memIdCounter = 0;
+  static final String _sessionPrefix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
 
   String? get currentId => _currentId;
 
   Future<Box> get _chats => Hive.openBox(_chatsBox);
   Future<Box> get _mems => Hive.openBox(_memBox);
 
+  Future<void> init() async {
+    try {
+      final box = await _chats;
+      _currentId = box.get('currentId') as String?;
+    } catch (_) {}
+  }
+
   Future<String> createChat() async {
     final box = await _chats;
-    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final id = '${_sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}_${_idCounter++}';
     await box.put(id, {
       'id': id,
       'title': '新对话',
@@ -70,9 +80,20 @@ class PetChatService extends ChangeNotifier {
     final box = await _chats;
     await box.delete(id);
     if (_currentId == id) {
-      final all = await listChats();
-      _currentId = all.isNotEmpty ? all.first['id'] as String? : null;
-      await box.put('currentId', _currentId);
+      // 从剩下的 key 中找第一个可用 chat
+      String? fallbackId;
+      for (final key in box.keys) {
+        if (key is String && key != 'currentId') {
+          fallbackId = key;
+          break;
+        }
+      }
+      _currentId = fallbackId;
+      if (_currentId != null) {
+        await box.put('currentId', _currentId);
+      } else {
+        await box.delete('currentId');
+      }
     }
     notifyListeners();
   }
@@ -111,7 +132,7 @@ class PetChatService extends ChangeNotifier {
     final box = await _mems;
     int count = 0;
     for (final summary in summaries) {
-      final id = DateTime.now().microsecondsSinceEpoch.toString() + count.toString();
+      final id = '${_sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}_${_memIdCounter++}';
       await box.put(id, {
         'id': id,
         'content': summary['summary'] as String? ?? '',

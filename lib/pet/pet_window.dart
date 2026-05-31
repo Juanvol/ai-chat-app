@@ -70,7 +70,7 @@ class _PetWindowState extends State<PetWindow> {
     );
     _controller!.start();
     _aiService = PetAiService();
-    _aiService!.init();
+    await _aiService!.init();
     _aiService!.startProactiveTimer((s) {
       if (mounted) setState(() => _suggestion = s);
     });

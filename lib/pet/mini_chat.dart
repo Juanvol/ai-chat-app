@@ -111,7 +111,7 @@ class _MiniChatState extends State<MiniChat> {
   void _resetIdleTimer() {
     _idleTimer?.cancel();
     if (_isLoading) return; // AI 回复中不自动关闭
-    _idleTimer = Timer(const Duration(seconds: 30), () {
+    _idleTimer = Timer(const Duration(seconds: 60), () {
       if (mounted) _onClose();
     });
   }
@@ -126,6 +126,7 @@ class _MiniChatState extends State<MiniChat> {
     if (_isLoading) return;
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
+    setState(() => _isLoading = true); // 锁住防止 await 期间重复发送
 
     final useAgent = await PetFeatureFlags.agentRouting;
     if (useAgent) {
