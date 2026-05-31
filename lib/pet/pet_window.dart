@@ -77,6 +77,12 @@ class _PetWindowState extends State<PetWindow> {
     try {
       final config = await PetService.loadConfig();
       if (mounted) setState(() => _petScale = config.petScale);
+      // 恢复上次保存的窗口位置
+      if (config.petX != 0 || config.petY != 200) {
+        try {
+          await _channel.invokeMethod('setWindowPos', {'x': config.petX, 'y': config.petY});
+        } catch (_) {}
+      }
     } catch (_) {}
     if (mounted) setState(() => _initialized = true);
   }
@@ -148,6 +154,17 @@ class _PetWindowState extends State<PetWindow> {
 
   void _dismissSuggestion() => setState(() => _suggestion = null);
 
+  Future<void> _savePosition() async {
+    try {
+      final result = await _channel.invokeMethod('getWindowPos');
+      final map = Map<String, dynamic>.from(result as Map);
+      final x = (map['x'] as num?)?.toInt() ?? 0;
+      final y = (map['y'] as num?)?.toInt() ?? 0;
+      final config = await PetService.loadConfig();
+      await PetService.saveConfig(config.copyWith(petX: x, petY: y));
+    } catch (_) {}
+  }
+
   void _onChatFeedback(String userMsg, String aiMsg, bool liked) {
     _aiService?.saveFeedback(
       userMessage: userMsg,
@@ -206,6 +223,7 @@ class _PetWindowState extends State<PetWindow> {
               onTap: _onTap,
               onDoubleTap: _onDoubleTap,
               onLongPress: _onLongPress,
+              onDragEnd: _savePosition,
               child: PetBehavior(
                 ecoMode: _ecoMode,
                 child: PetRenderer(

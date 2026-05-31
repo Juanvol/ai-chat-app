@@ -161,6 +161,17 @@ class PetForegroundService : Service() {
         petChannel = MethodChannel(engine.dartExecutor.binaryMessenger, METHOD_CHANNEL)
         petChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
+                "setWindowPos" -> {
+                    val x = call.argument<Int>("x") ?: 0
+                    val y = call.argument<Int>("y") ?: 0
+                    val params = petView?.layoutParams as? WindowManager.LayoutParams
+                    params?.let {
+                        it.x = x
+                        it.y = y
+                        windowManager?.updateViewLayout(petView, it)
+                    }
+                    result.success(null)
+                }
                 "moveWindow" -> {
                     val dx = call.argument<Int>("dx") ?: 0
                     val dy = call.argument<Int>("dy") ?: 0
