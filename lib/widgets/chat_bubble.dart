@@ -164,7 +164,7 @@ class _DeepThinking extends StatefulWidget {
 
 class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderStateMixin {
   final _sc = ScrollController();
-  final _start = DateTime.now();
+  late DateTime _start;
   late final AnimationController _ticker;
   List<String>? _cachedLines;
   bool _open = false;
@@ -177,6 +177,7 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
   @override
   void initState() {
     super.initState();
+    _start = DateTime.now();
     _ticker = AnimationController(duration: const Duration(seconds: 60), vsync: this)
       ..addListener(() => setState(() {}));
     if (widget.isThinking) _ticker.repeat();
@@ -186,6 +187,12 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
   void didUpdateWidget(covariant _DeepThinking old) {
     super.didUpdateWidget(old);
     _cachedLines = null;
+    // State 复用：新思考开始时重置计时器
+    if (!old.isThinking && widget.isThinking) {
+      _start = DateTime.now();
+      _timerFrozen = false;
+      _frozenSecs = 0;
+    }
     if (old.isThinking && !widget.isThinking) {
       _frozenSecs = DateTime.now().difference(_start).inMilliseconds / 1000;
       _timerFrozen = true;

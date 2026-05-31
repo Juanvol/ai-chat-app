@@ -92,18 +92,24 @@ class _PetRendererState extends State<PetRenderer>
 
   @override
   Widget build(BuildContext context) {
-    final petWidget = AnimatedBuilder(
-      animation: _ac,
+    final petWidget = ListenableBuilder(
+      listenable: _ac,
       builder: (context, child) {
         if (_frames.isEmpty) return SizedBox(width: widget.size, height: widget.size);
         final idx = widget.ecoMode
             ? 0
             : (_ac.value * _frames.length).floor().clamp(0, _frames.length - 1);
-        return Image(
-          image: _frames[idx],
+        return Image.asset(
+          '${_skinBase}/${_resolveDir(widget.status)}/frame_${idx.toString().padLeft(2, '0')}.png',
           width: widget.size,
           height: widget.size,
-          errorBuilder: (_, __, ___) => SizedBox(width: widget.size, height: widget.size),
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Container(
+            width: widget.size,
+            height: widget.size,
+            color: const Color(0xFFE0E8F0),
+            child: const Center(child: Text('🐾', style: TextStyle(fontSize: 32))),
+          ),
         );
       },
     );
@@ -117,7 +123,17 @@ class _PetRendererState extends State<PetRenderer>
         Positioned(
           top: -8,
           right: -8,
-          child: Text(widget.moodEmoji!, style: const TextStyle(fontSize: 22)),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+            child: Text(
+              widget.moodEmoji!,
+              key: ValueKey(widget.moodEmoji),
+              style: const TextStyle(fontSize: 22),
+            ),
+          ),
         ),
       ],
     );
