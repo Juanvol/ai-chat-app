@@ -76,6 +76,18 @@ class PetBehaviorState extends State<PetBehavior> {
 
   void _startIdleBehavior() {
     _scheduleMove();
+    _scheduleBubble();
+  }
+
+  void _scheduleBubble() {
+    _bubbleTimer?.cancel();
+    final delay = Duration(seconds: 60 + _rng.nextInt(60));
+    _bubbleTimer = Timer(delay, () {
+      if (!mounted || widget.ecoMode) return;
+      final text = presetBubbles[_rng.nextInt(presetBubbles.length)];
+      showBubble(text);
+      _scheduleBubble();
+    });
   }
 
   void _scheduleMove() {
@@ -95,6 +107,7 @@ class PetBehaviorState extends State<PetBehavior> {
       if (!mounted || widget.ecoMode) return;
       try {
         final box = await Hive.openBox('agent_action');
+        if (!mounted) return;
         final raw = box.get('current');
         if (raw == null) return;
         final action = Map<String, dynamic>.from(raw as Map);
@@ -128,6 +141,7 @@ class PetBehaviorState extends State<PetBehavior> {
     if (widget.ecoMode && !oldWidget.ecoMode) {
       _moveTimer?.cancel();
       _actionWatcher?.cancel();
+      _bubbleTimer?.cancel();
     } else if (!widget.ecoMode && oldWidget.ecoMode) {
       _startIdleBehavior();
       _startActionWatcher();

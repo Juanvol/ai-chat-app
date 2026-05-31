@@ -81,6 +81,20 @@ class _PetWindowState extends State<PetWindow> {
     if (mounted) setState(() => _initialized = true);
   }
 
+  String? _moodEmoji() {
+    final s = _controller?.state;
+    if (s == null) return null;
+    return switch (s.status) {
+      PetStatus.hungry => '🍖',
+      PetStatus.eating => '😋',
+      PetStatus.happy => '😸',
+      PetStatus.sleepy => '💤',
+      PetStatus.sleeping => '💤',
+      PetStatus.talking => '💬',
+      PetStatus.idle => s.mood > 60 ? '😊' : s.mood > 30 ? '😐' : '😞',
+    };
+  }
+
   bool get _ecoMode =>
       !_screenOn || _batteryLevel < 15 && !_charging || (_controller?.isDeepSleeping ?? false);
 
@@ -198,6 +212,7 @@ class _PetWindowState extends State<PetWindow> {
                   status: _controller?.state.status ?? PetStatus.idle,
                   size: 120 * _petScale,
                   ecoMode: _ecoMode,
+                  moodEmoji: _moodEmoji(),
                 ),
               ),
             ),
