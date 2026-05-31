@@ -9,6 +9,7 @@ class PetChatService extends ChangeNotifier {
   static int _idCounter = 0;
   static int _memIdCounter = 0;
   static final String _sessionPrefix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+  Future<void>? _addLock; // 防止 addMessage 并行读写覆盖
 
   String? get currentId => _currentId;
 
@@ -46,6 +47,19 @@ class PetChatService extends ChangeNotifier {
   }
 
   Future<void> addMessage(String chatId, String role, String content) async {
+    // 等待上一 addMessage 完成，防并行读写覆盖
+    while (_addLock != null) {
+      try { await _addLock; } catch (_) {}
+    }
+    _addLock = _doAddMessage(chatId, role, content);
+    try {
+      await _addLock;
+    } finally {
+      _addLock = null;
+    }
+  }
+
+  Future<void> _doAddMessage(String chatId, String role, String content) async {
     final box = await _chats;
     final chat = await getChat(chatId);
     if (chat == null) return;

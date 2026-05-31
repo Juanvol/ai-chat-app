@@ -104,13 +104,18 @@ class PetBehaviorState extends State<PetBehavior> {
 
   void _startActionWatcher() {
     _actionWatcher?.cancel();
-    _actionWatcher = Timer.periodic(const Duration(seconds: 2), (_) async {
+    _scheduleActionCheck();
+  }
+
+  void _scheduleActionCheck() {
+    _actionWatcher?.cancel();
+    _actionWatcher = Timer(const Duration(seconds: 2), () async {
       if (!mounted || widget.ecoMode) return;
       try {
         final box = await Hive.openBox('agent_action');
         if (!mounted) return;
         final raw = box.get('current');
-        if (raw == null) return;
+        if (raw == null) { _scheduleActionCheck(); return; }
         final action = Map<String, dynamic>.from(raw as Map);
         final type = action['type'] as String?;
         final content = action['content'] as String?;
@@ -122,6 +127,7 @@ class PetBehaviorState extends State<PetBehavior> {
             setState(() => _flipped = !_flipped);
         }
       } catch (_) {}
+      if (mounted && !widget.ecoMode) _scheduleActionCheck();
     });
   }
 

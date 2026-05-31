@@ -25,6 +25,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   PetPersona _persona = PetPersona();
   late final TextEditingController _promptController = TextEditingController();
   late final TextEditingController _budgetController;
+  Timer? _budgetDebounce;
   int? _dailyBudget = 50000;
   int _chatContextRounds = 3;
   String _decisionModel = 'deepseek-chat';

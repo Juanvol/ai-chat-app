@@ -40,7 +40,7 @@ class PetTokenService extends ChangeNotifier {
     int chat = 0,
     int vision = 0,
   }) async {
-    // ·ÀÖ¹²¢ÐÐ¶ÁÐ´¸²¸Ç
+    // ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½Ð¶ï¿½Ð´ï¿½ï¿½ï¿½ï¿½
     while (_recordLock != null) {
       try { await _recordLock; } catch (_) {}
     }
