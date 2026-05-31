@@ -249,8 +249,8 @@ class _MiniChatState extends State<MiniChat> {
       _isLoading = true;
     });
 
-    _agentAssistantIndex = _messages.length;
     _messages.add(const _ChatLine(isUser: false, text: ''));
+    _agentAssistantIndex = _messages.length - 1;
 
     _responseTimeout?.cancel();
     _responseTimeout = Timer(const Duration(seconds: 30), () {
@@ -290,6 +290,7 @@ class _MiniChatState extends State<MiniChat> {
           final fullText = call.arguments['fullText'] as String? ?? '';
           final requestId = call.arguments['requestId'] as int? ?? 0;
           if (requestId != _agentRequestId) return;
+          if (_agentAssistantIndex < 0 || _agentAssistantIndex >= _messages.length) return;
           _responseTimeout?.cancel();
           if (mounted) {
             setState(() {
@@ -383,7 +384,10 @@ class _MiniChatState extends State<MiniChat> {
       );
       _parseSummariesAndSave(result.content);
       _lastSummarizedIndex = _messages.length;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PetMiniChat._doSummarize failed: $e');
+      _lastSummarizedIndex = _messages.length; // 防止重复重试
+    }
   }
 
   void _parseSummariesAndSave(String llmOutput) {

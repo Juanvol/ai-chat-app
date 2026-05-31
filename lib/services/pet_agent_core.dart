@@ -86,6 +86,7 @@ class PetAgentCore extends ChangeNotifier {
   bool _isPureRuleMode = false;
   CancelToken? _chatCancelToken;
   final _rng = Random();
+  PetChatService? _chatSvc;
 
   PetAgentCore({
     PetTokenService? tokenService,
@@ -165,6 +166,7 @@ class PetAgentCore extends ChangeNotifier {
   Future<void> _perceive() async {
     if (!_isActive || _isPureRuleMode) return;
     if (!await tokenService.checkBudget()) return;
+    if (!_isActive) return; // await 后重查，防止 dispose 后继续执行
 
     final now = DateTime.now();
     final local = assessLocally(
@@ -217,7 +219,7 @@ class PetAgentCore extends ChangeNotifier {
     if (_decisionClient == null) return;
 
     try {
-      final persona = await _loadPersona();
+      await _loadPersona(); // 确保 persona 已加载到上下文
       final mood = _mood.applyNoise();
 
       final prompt = StringBuffer();
@@ -237,6 +239,12 @@ class PetAgentCore extends ChangeNotifier {
       }
 
       _consecutiveApiFailures = 0;
+      // 恢复：连续成功后退出纯规则模式
+      if (_isPureRuleMode) {
+        _isPureRuleMode = false;
+        debugPrint('PetAgentCore: API 恢复，退出纯规则模式');
+        notifyListeners();
+      }
 
       final action = _parseAction(result.content);
       if (action != null) {
@@ -244,7 +252,7 @@ class PetAgentCore extends ChangeNotifier {
       }
     } catch (e) {
       _consecutiveApiFailures++;
-      if (_consecutiveApiFailures >= 3) {
+      if (_consecutiveApiFailures >= 3 && !_isPureRuleMode) {
         _isPureRuleMode = true;
         debugPrint('PetAgentCore: 连续 3 次 API 失败，切到纯规则模式');
         notifyListeners();
@@ -326,9 +334,9 @@ class PetAgentCore extends ChangeNotifier {
     }
 
     final persona = await _loadPersona();
-    final buffer = StringBuffer();
-    buffer.writeln(persona.systemPrompt);
+    _chatClient?.setSystemPrompt(persona.systemPrompt);
 
+    final buffer = StringBuffer();
     if (history.isNotEmpty) {
       buffer.writeln('最近对话：');
       for (final m in history) {
@@ -365,8 +373,9 @@ class PetAgentCore extends ChangeNotifier {
       _sendChatDone(requestId: requestId);
 
       await _saveChatMessage(userText, textBuffer.toString());
-    } on DioException catch (_) {
-      // 请求被取消
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) { /* 请求被取消，正常 */ }
+      else { rethrow; }
     } catch (e) {
       debugPrint('PetAgentCore.handleChatRequest failed: $e');
       _sendChatError('信号不好喵...待会再试试~', requestId: requestId);
@@ -402,12 +411,12 @@ class PetAgentCore extends ChangeNotifier {
 
   Future<void> _saveChatMessage(String userText, String assistantText) async {
     try {
-      final chatSvc = PetChatService();
+      _chatSvc ??= PetChatService();
       final chatBox = await Hive.openBox('pet_chats');
       final currentId = chatBox.get('currentId') as String?;
       if (currentId != null) {
-        await chatSvc.addMessage(currentId, 'user', userText);
-        await chatSvc.addMessage(currentId, 'assistant', assistantText);
+        await _chatSvc!.addMessage(currentId, 'user', userText);
+        await _chatSvc!.addMessage(currentId, 'assistant', assistantText);
       }
     } catch (_) {}
   }

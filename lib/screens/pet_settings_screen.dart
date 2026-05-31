@@ -465,7 +465,9 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           onChanged: (v) {
             if (v != null) {
               _decisionModel = v;
+              _chatModel = v; // 主模型同时用于决策和聊天
               _saveModelSetting('decisionModel', v);
+              _saveModelSetting('chatModel', v);
             }
           },
         ),

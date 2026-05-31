@@ -2,8 +2,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import '../../lib/services/pet_token_service.dart';
-import '../../lib/models/pet_token_usage.dart';
+import 'package:deepseek_chat/services/pet_token_service.dart';
 
 void main() {
   setUp(() {

@@ -78,7 +78,9 @@ class PetAiService {
         decisionApiKey: apiKey,
         chatApiKey: apiKey,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PetAiService.init failed: $e');
+    }
   }
 
   /// 获取内部 Agent 实例（供外部订阅决策事件等）

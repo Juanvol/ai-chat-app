@@ -6,14 +6,32 @@ import '../models/pet_token_usage.dart';
 class PetTokenService extends ChangeNotifier {
   static const _boxName = 'pet_token';
   int? _dailyBudget = 50000;
+  bool _budgetLoaded = false;
+  Future<void>? _recordLock;
 
   int? get dailyBudget => _dailyBudget;
   bool get isUnlimited => _dailyBudget == null;
 
   Future<Box> get _box => Hive.openBox(_boxName);
 
+  Future<void> loadBudget() async {
+    if (_budgetLoaded) return;
+    try {
+      final box = await _box;
+      final raw = box.get('budget');
+      if (raw != null) {
+        _dailyBudget = raw as int?;
+      }
+    } catch (_) {}
+    _budgetLoaded = true;
+  }
+
   Future<void> setBudget(int? tokens) async {
     _dailyBudget = tokens;
+    try {
+      final box = await _box;
+      await box.put('budget', tokens);
+    } catch (_) {}
     notifyListeners();
   }
 
@@ -22,6 +40,15 @@ class PetTokenService extends ChangeNotifier {
     int chat = 0,
     int vision = 0,
   }) async {
+    // ∑¿÷π≤¢––∂¡–¥∏≤∏«
+    while (_recordLock != null) {
+      try { await _recordLock; } catch (_) {}
+    }
+    _recordLock = _recordTokens(decision, chat, vision);
+    try { await _recordLock; } finally { _recordLock = null; }
+  }
+
+  Future<void> _recordTokens(int decision, int chat, int vision) async {
     final box = await _box;
     final today = PetTokenUsage();
     final existing = box.get(today.dateKey);

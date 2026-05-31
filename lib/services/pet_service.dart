@@ -37,12 +37,14 @@ class PetService {
 
   // ── 配置变更监听（供引擎 #2 使用） ──
 
-  static Stream<BoxEvent> watchConfig() {
-    return Hive.box(_configBoxName).watch();
+  static Future<Stream<BoxEvent>> watchConfig() async {
+    final box = await Hive.openBox(_configBoxName);
+    return box.watch();
   }
 
-  static Stream<BoxEvent> watchState() {
-    return Hive.box(_stateBoxName).watch();
+  static Future<Stream<BoxEvent>> watchState() async {
+    final box = await Hive.openBox(_stateBoxName);
+    return box.watch();
   }
 
   // ── 宠物开关控制 ──
