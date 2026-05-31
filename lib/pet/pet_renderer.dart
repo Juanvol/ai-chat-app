@@ -59,11 +59,12 @@ class _PetRendererState extends State<PetRenderer>
     if (oldWidget.status != widget.status) {
       _loadFrames();
       _ac.duration = Duration(milliseconds: _frames.length * 80);
-      _ac.forward(from: 0);
+      _ac.value = 0;
+      if (!widget.ecoMode) _ac.repeat();
     }
     if (oldWidget.ecoMode != widget.ecoMode) {
       _applyAnimMode();
-      if (!widget.ecoMode) _ac.forward(from: 0);
+      if (!widget.ecoMode) _ac.value = 0;
     }
   }
 

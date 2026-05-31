@@ -16,7 +16,8 @@ class PetBehavior extends StatefulWidget {
 
 class PetBehaviorState extends State<PetBehavior> {
   String? _currentBubble;
-  Timer? _bubbleTimer;
+  Timer? _idleBubbleScheduler;
+  Timer? _bubbleDismissTimer;
   bool _flipped = false;
   Timer? _moveTimer;
   Timer? _actionWatcher;
@@ -80,9 +81,9 @@ class PetBehaviorState extends State<PetBehavior> {
   }
 
   void _scheduleBubble() {
-    _bubbleTimer?.cancel();
+    _idleBubbleScheduler?.cancel();
     final delay = Duration(seconds: 60 + _rng.nextInt(60));
-    _bubbleTimer = Timer(delay, () {
+    _idleBubbleScheduler = Timer(delay, () {
       if (!mounted || widget.ecoMode) return;
       final text = presetBubbles[_rng.nextInt(presetBubbles.length)];
       showBubble(text);
@@ -126,10 +127,10 @@ class PetBehaviorState extends State<PetBehavior> {
 
   void showBubble(String? text) {
     if (text == null || text.isEmpty) return;
-    _bubbleTimer?.cancel();
+    _bubbleDismissTimer?.cancel();
     _currentBubble = text;
     if (mounted) setState(() {});
-    _bubbleTimer = Timer(const Duration(seconds: 4), () {
+    _bubbleDismissTimer = Timer(const Duration(seconds: 4), () {
       _currentBubble = null;
       if (mounted) setState(() {});
     });
@@ -141,7 +142,8 @@ class PetBehaviorState extends State<PetBehavior> {
     if (widget.ecoMode && !oldWidget.ecoMode) {
       _moveTimer?.cancel();
       _actionWatcher?.cancel();
-      _bubbleTimer?.cancel();
+      _idleBubbleScheduler?.cancel();
+      _bubbleDismissTimer?.cancel();
     } else if (!widget.ecoMode && oldWidget.ecoMode) {
       _startIdleBehavior();
       _startActionWatcher();
@@ -150,7 +152,8 @@ class PetBehaviorState extends State<PetBehavior> {
 
   @override
   void dispose() {
-    _bubbleTimer?.cancel();
+    _idleBubbleScheduler?.cancel();
+    _bubbleDismissTimer?.cancel();
     _moveTimer?.cancel();
     _actionWatcher?.cancel();
     super.dispose();
