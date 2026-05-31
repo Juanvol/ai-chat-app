@@ -271,11 +271,13 @@ class _MiniChatState extends State<MiniChat> {
     } catch (e) {
       _responseTimeout?.cancel();
       if (mounted) {
+        // Agent 桥未就绪 → 降级到直接 LLM 路径
         setState(() {
-          _messages[_agentAssistantIndex] =
-              _ChatLine(isUser: false, text: '糯糯在睡觉喵~打开 App 唤醒她 💤');
+          _messages.removeLast(); // 移除空 assistant 消息
+          _messages.removeLast(); // 移除用户消息
           _isLoading = false;
         });
+        _sendDirect(userText);
       }
     }
   }
