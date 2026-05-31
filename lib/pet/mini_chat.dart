@@ -133,7 +133,13 @@ class _MiniChatState extends State<MiniChat> {
 
   // ── 旧路径（完整保留）──
   Future<void> _sendDirect(String userText) async {
-    if (_client == null) return;
+    if (_client == null) {
+      setState(() {
+        _messages.add(_ChatLine(isUser: true, text: userText));
+        _messages.add(const _ChatLine(isUser: false, text: '糯糯还没准备好喵~\n请在主应用设置中配置 API Key 后重试'));
+      });
+      return;
+    }
     _inputController.clear();
     _resetIdleTimer();
 
