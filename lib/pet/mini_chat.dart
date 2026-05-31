@@ -64,7 +64,6 @@ class _MiniChatState extends State<MiniChat> {
 
   @override
   void dispose() {
-    _summarizeAndSave(); // fire-and-forget，触发 LLM 摘要
     _cancelToken?.cancel();
     _responseTimeout?.cancel();
     _inputController.dispose();
@@ -113,8 +112,13 @@ class _MiniChatState extends State<MiniChat> {
     _idleTimer?.cancel();
     if (_isLoading) return; // AI 回复中不自动关闭
     _idleTimer = Timer(const Duration(seconds: 30), () {
-      if (mounted) widget.onClose();
+      if (mounted) _onClose();
     });
+  }
+
+  void _onClose() {
+    _summarizeAndSave();
+    widget.onClose();
   }
 
   // ── 发送入口：根据 Feature Flag 分流 ──
@@ -428,7 +432,7 @@ class _MiniChatState extends State<MiniChat> {
           const Text('🐾 弗糯糯', style: TextStyle(color: Colors.white70, fontSize: 13)),
           const Spacer(),
           GestureDetector(
-            onTap: widget.onClose,
+            onTap: _onClose,
             child: const Icon(Icons.close, color: Colors.white38, size: 18),
           ),
         ],
