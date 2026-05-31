@@ -1,5 +1,8 @@
 // Flutter 3.24 / Dart 3.5
 class PetMemory {
+  static int _idCounter = 0;
+  static final String _sessionPrefix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+
   final String id;
   final String content;
   final String context;
@@ -12,7 +15,7 @@ class PetMemory {
     this.context = '',
     DateTime? createdAt,
     this.affectionGain = 0,
-  })  : id = id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+  })  : id = id ?? '${_sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}_${_idCounter++}',
         createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {

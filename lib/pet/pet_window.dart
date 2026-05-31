@@ -68,6 +68,8 @@ class _PetWindowState extends State<PetWindow> {
         try { PetService.saveState(s); } catch (_) {}
       },
     );
+    // 先显示 UI，再启动衰减（避免 controller 状态变化在 UI 就绪前丢失）
+    if (mounted) setState(() => _initialized = true);
     _controller!.start();
     _aiService = PetAiService();
     await _aiService!.init();
@@ -76,7 +78,8 @@ class _PetWindowState extends State<PetWindow> {
     });
     try {
       final config = await PetService.loadConfig();
-      if (mounted) setState(() => _petScale = config.petScale);
+      if (!mounted) return;
+      setState(() => _petScale = config.petScale);
       // 恢复上次保存的窗口位置
       if (config.petX != 0 || config.petY != 200) {
         try {
@@ -84,7 +87,6 @@ class _PetWindowState extends State<PetWindow> {
         } catch (_) {}
       }
     } catch (_) {}
-    if (mounted) setState(() => _initialized = true);
   }
 
   String? _moodEmoji() {

@@ -337,7 +337,7 @@ class _SSState extends State<SettingsScreen> {
                     if (isSelectedProvider)
                       Padding(
                         padding: const EdgeInsets.only(left: C.s8),
-                        child: Text(selectedModel!.name, style: C.caption.copyWith(color: const Color(0xFFA78BFA))),
+                        child: Text(selectedModel.name, style: C.caption.copyWith(color: const Color(0xFFA78BFA))),
                       ),
                     const Spacer(),
                     Icon(isExpanded ? Icons.expand_less : Icons.expand_more, size: 20, color: const Color(0xFF9D9DA8)),

@@ -220,4 +220,88 @@ void main() {
       c.dispose();
     });
   });
+
+  // ── 回归测试 ──
+
+  group('PetController regression', () {
+    test('restoreFromState 触发 onStateChanged (regression #5)', () {
+      // bug: restoreFromState 调了 notifyListeners 而非 _notify，跳过 onStateChanged
+      PetState? saved;
+      final c = PetController(onStateChanged: (s) => saved = s);
+      c.restoreFromState(PetState(hunger: 42));
+      expect(saved, isNotNull);
+      expect(saved!.hunger, 42);
+      c.dispose();
+    });
+
+    test('feed 后 transition 到 idle 时触发 _checkAutoTransition (regression #4)', () async {
+      // bug: _scheduleTransition 回调未调 _checkAutoTransition
+      // feed 将 hunger 重置到 100，所以用 energy < 20 来验证 auto-transition
+      final c = PetController(
+        initialState: PetState(energy: 15), // energy<20，feed 不改变 energy
+        decayInterval: const Duration(hours: 1),
+      );
+      c.feed(); // hunger=100, status=eating, 4秒后切 idle
+      expect(c.state.status, PetStatus.eating);
+      await Future<void>.delayed(const Duration(seconds: 5));
+      // 修复前：idle（_checkAutoTransition 未调）
+      // 修复后：sleepy（energy < 20 触发 _checkAutoTransition）
+      expect(c.state.status, PetStatus.sleepy);
+      c.dispose();
+    });
+
+    test('stopChatting 后触发 _checkAutoTransition (regression #4b)', () {
+      final c = PetController(
+        initialState: PetState(hunger: 20, status: PetStatus.talking),
+        decayInterval: const Duration(hours: 1),
+      );
+      c.stopChatting();
+      // 修复前：status 是 idle（_checkAutoTransition 未调）
+      // 修复后：status 是 hungry
+      expect(c.state.status, PetStatus.hungry);
+      c.dispose();
+    });
+
+    test('restoreFromState 恢复 eating 状态 → 立即切 idle (regression #6)', () {
+      // bug: 恢复 eating/happy 过渡状态时没有调度 transition，导致永久卡住
+      final c = PetController(
+        decayInterval: const Duration(hours: 1),
+      );
+      c.restoreFromState(PetState(hunger: 100, status: PetStatus.eating));
+      // 修复后：eating → idle
+      expect(c.state.status, PetStatus.idle);
+      c.dispose();
+    });
+
+    test('restoreFromState 恢复 happy → 立即切 idle (regression #6b)', () {
+      final c = PetController(
+        decayInterval: const Duration(hours: 1),
+      );
+      c.restoreFromState(PetState(mood: 100, status: PetStatus.happy));
+      expect(c.state.status, PetStatus.idle);
+      c.dispose();
+    });
+
+    test('restoreFromState 恢复 idle 且 hunger<30 → 立即 hungry (regression #7)', () {
+      // bug: restoreFromState 缺少 _checkAutoTransition，恢复后不检查阈值
+      final c = PetController(
+        decayInterval: const Duration(hours: 1),
+      );
+      c.restoreFromState(PetState(hunger: 20, status: PetStatus.idle));
+      // 修复后：hunger<30 → hungry
+      expect(c.state.status, PetStatus.hungry);
+      c.dispose();
+    });
+
+    test('restoreFromState 恢复 eating + 低 energy → idle → sleepy (regression #6+#7)', () {
+      // eating→idle 后 _checkAutoTransition 检测到 energy<20 → sleepy
+      final c = PetController(
+        decayInterval: const Duration(hours: 1),
+      );
+      c.restoreFromState(PetState(hunger: 100, energy: 15, status: PetStatus.eating));
+      // eating → idle → sleepy
+      expect(c.state.status, PetStatus.sleepy);
+      c.dispose();
+    });
+  });
 }

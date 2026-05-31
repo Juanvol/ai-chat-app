@@ -179,6 +179,57 @@ class LLMClient {
     }
   }
 
+  /// 视觉请求（非流式），用于截图分析等场景
+  /// [base64Image] 纯 base64 字符串（不含 data: URI 前缀）
+  Future<String> sendVision({
+    required String base64Image,
+    String mimeType = 'image/png',
+    required String prompt,
+    String baseUrl = 'https://token-plan-cn.xiaomimimo.com',
+    String? apiKey,
+    String model = 'mimo-v2-omni',
+    int maxTokens = 1024,
+  }) async {
+    final originalKey = _apiKey;
+    if (apiKey != null && apiKey.isNotEmpty) {
+      _apiKey = apiKey;
+      _updateAuth();
+    }
+
+    final body = <String, dynamic>{
+      'model': model,
+      'messages': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'image_url',
+              'image_url': {
+                'url': 'data:$mimeType;base64,$base64Image',
+              },
+            },
+            {'type': 'text', 'text': prompt},
+          ],
+        },
+      ],
+      'max_tokens': maxTokens,
+      'stream': false,
+    };
+
+    try {
+      final response = await _dio.post('$baseUrl/v1/chat/completions', data: body);
+      final content = response.data['choices']?[0]?['message']?['content'] as String?;
+      // MiMo 有时在 reasoning_content 中返回思考内容
+      final reasoning = response.data['choices']?[0]?['message']?['reasoning_content'] as String?;
+      return content ?? reasoning ?? '';
+    } finally {
+      if (originalKey != apiKey) {
+        _apiKey = originalKey;
+        _updateAuth();
+      }
+    }
+  }
+
   List<Map<String, String>> _buildMessages(List<Message> history, String userContent) {
     final msgs = <Map<String, String>>[];
     if (_systemPrompt.isNotEmpty) msgs.add({'role': 'system', 'content': _systemPrompt});

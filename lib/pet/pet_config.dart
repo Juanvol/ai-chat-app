@@ -5,6 +5,7 @@ enum TriggerScene { browser, document, settings, all }
 
 class PetConfig {
   static final DateTime _clearSentinel = DateTime(2000, 1, 1);
+  static DateTime get clearSentinel => _clearSentinel;
 
   final bool enabled;
   final AiFrequency aiFrequency;

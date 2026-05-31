@@ -171,6 +171,7 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
   bool _scrolling = false;
   double _frozenSecs = 0;
   bool _timerFrozen = false;
+  Future<void>? _delayedClose;
 
   double get _secs => _timerFrozen ? _frozenSecs : DateTime.now().difference(_start).inMilliseconds / 1000;
 
@@ -198,7 +199,7 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
       _timerFrozen = true;
       _ticker.stop();
       setState(() {});
-      Future.delayed(const Duration(milliseconds: 500), () {
+      _delayedClose = Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) setState(() => _open = false);
       });
     }

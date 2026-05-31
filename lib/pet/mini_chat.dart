@@ -64,6 +64,7 @@ class _MiniChatState extends State<MiniChat> {
 
   @override
   void dispose() {
+    _agentChannel.setMethodCallHandler(null);
     _cancelToken?.cancel();
     _responseTimeout?.cancel();
     _inputController.dispose();

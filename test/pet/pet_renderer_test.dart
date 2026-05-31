@@ -114,7 +114,8 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: PetRenderer(status: PetStatus.idle, moodEmoji: '💤')),
       );
-      await tester.pump();
+      // 等待 AnimatedSwitcher 的 300ms 过渡动画完成
+      await tester.pump(const Duration(milliseconds: 350));
       expect(find.text('💤'), findsOneWidget);
       expect(find.text('😊'), findsNothing);
     });

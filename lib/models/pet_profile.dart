@@ -34,7 +34,7 @@ class PetProfile {
     Map<String, int>? rejections,
   })  : interests = List.from(interests ?? []),
         growthStage =
-            growthStage ?? GrowthStageExt.fromInteractions(interactionCount ?? 0),
+            growthStage ?? GrowthStageExt.fromInteractions(interactionCount),
         rejections = Map.from(rejections ?? {});
 
   PetProfile copyWith({
