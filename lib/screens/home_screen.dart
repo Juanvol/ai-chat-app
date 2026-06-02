@@ -14,12 +14,15 @@ import '../utils/memory_extractor.dart';
 import '../utils/export.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input.dart';
+import '../widgets/home_welcome.dart';
+import '../widgets/home_message_menu.dart';
 import 'settings_screen.dart';
 import 'persona_screen.dart';
 import 'memory_screen.dart';
 import 'feedback_screen.dart';
 import 'pet_center_screen.dart';
 import '../services/pet_chat_service.dart';
+import '../services/pet_logger.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -67,7 +70,7 @@ class HomeScreen extends StatelessWidget {
           ),
           drawer: _Drawer(svc: svc),
           body: svc.currentConversation == null
-              ? _Welcome(onTap: (q) { svc.createConversation(); WidgetsBinding.instance.addPostFrameCallback((_) => svc.sendMessage(q)); })
+              ? HomeWelcome(onTap: (q) { svc.createConversation(); WidgetsBinding.instance.addPostFrameCallback((_) => svc.sendMessage(q)); })
               : _ChatView(conversation: svc.currentConversation!, loading: svc.isLoading,
                   onSend: (t) {
                     final memSvc = context.read<MemoryService>();
@@ -259,7 +262,7 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
                         padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                         child: Column(children: models.map((m) => RadioListTile<String>(
                           value: m.id, groupValue: selId,
-                          onChanged: (v) { svc.setModel(v!); Navigator.pop(ctx); },
+                          onChanged: (v) { PetLogger().info('Home', 'model switch: ${svc.storage.selModel} -> $v'); svc.setModel(v!); Navigator.pop(ctx); },
                           title: Row(children: [
                             Expanded(child: Text(m.name, style: C.body.copyWith(fontSize: 15))),
                             Text('¥${m.inputPricePerM.toStringAsFixed(m.inputPricePerM == m.inputPricePerM.roundToDouble() ? 0 : 2)} / ¥${m.outputPricePerM.toStringAsFixed(m.outputPricePerM == m.outputPricePerM.roundToDouble() ? 0 : 2)}', style: C.caption),
@@ -629,56 +632,8 @@ Widget _drawerItem(BuildContext context, IconData icon, String label, Widget pag
     dense: true,
     leading: Icon(icon, size: 17, color: const Color(0xFFA0A0AB)),
     title: Text(label, style: C.label),
-    onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => page)); },
+    onTap: () { PetLogger().info('Home', 'navigate: $label'); Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => page)); },
   );
-}
-
-class _Welcome extends StatelessWidget {
-  final void Function(String) onTap;
-  const _Welcome({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final qs = ['写一个快速排序算法', '帮我写一封商务邮件', '推荐 5 本经典小说', '解释相对论的基本原理'];
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: C.s32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 64),
-          Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(C.r16),
-              color: const Color(0xFFD6E8FB),
-            ),
-            child: const Icon(Icons.auto_awesome, size: 24, color: Color(0xFF4A90D9)),
-          ),
-          const SizedBox(height: C.s20),
-          Text('AI 助手', style: C.h1),
-          const SizedBox(height: C.s8),
-          Text('选择任意模型，即刻开始对话', style: C.caption),
-          const SizedBox(height: C.s32),
-          ...qs.map((q) => GestureDetector(
-            onTap: () => onTap(q),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: C.s8),
-              padding: const EdgeInsets.symmetric(horizontal: C.s16, vertical: C.s12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(C.r12),
-                border: Border.all(color: const Color(0xFFE8E8EF)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.lightbulb_outline, size: 15, color: Color(0xFF4A90D9)),
-                const SizedBox(width: C.s12),
-                Expanded(child: Text(q, style: C.body)),
-              ]),
-            ),
-          )),
-        ]),
-      ),
-    );
-  }
 }
 
 class _ChatView extends StatefulWidget {
@@ -803,6 +758,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
       ],
     ).then((value) {
       if (value == null || !mounted) return;
+      PetLogger().info('Home', 'messageMenu: $value on msg#$index');
       switch (value) {
         case 'copy':
           Clipboard.setData(ClipboardData(text: msg.content));
