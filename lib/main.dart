@@ -13,15 +13,24 @@ import 'services/token_stats_service.dart';
 import 'services/pet_token_service.dart';
 import 'services/pet_profile_service.dart';
 import 'services/pet_chat_service.dart';
+import 'services/pet_diary_service.dart';
 import 'services/pet_agent_core.dart';
+import 'services/pet_logger.dart';
+import 'pet/pet_controller.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
+/// MiniChat 注册的回调，接收来自 PetAgentCore 的流式响应（chatChunk/chatDone/chatError）
+/// 单引擎架构下 MethodChannel 只能有一个 handler，main.dart 统一接收后通过此回调转发
+void Function(String method, Map<String, dynamic> args)? petAgentChatSink;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PetLogger().info('App', '===== 应用启动 =====');
   final storage = StorageService();
   try {
     await storage.init();
+    await PetLogger().init();  // 与引擎#2 共享日志文件，供设置页导出
   } catch (_) {
     // 初始化失败时尝试重新初始化一次
     try { await storage.reinitialize(); } catch (_) {}
@@ -42,6 +51,8 @@ void main() async {
       ChangeNotifierProvider(create: (_) => PetTokenService()),
       ChangeNotifierProvider(create: (_) => PetProfileService()),
       ChangeNotifierProvider(create: (_) { final s = PetChatService(); s.init(); return s; }),
+      ChangeNotifierProvider(create: (_) { final s = PetDiaryService(); s.init(); return s; }),
+      ChangeNotifierProvider(create: (_) => PetController()),
     ],
     child: DeepSeekApp(storage: storage),
   ));
@@ -75,30 +86,73 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ?? [];
           final requestId = call.arguments['requestId'] as int? ?? 0;
+          PetLogger().info('App', 'chatReq rid=$requestId len=${text.length} historyRounds=${history.length}');
 
-          // 懒初始化 Agent
-          if (_petAgent == null) {
-            final tokenSvc = PetTokenService();
-            final profileSvc = PetProfileService();
-            _petAgent = PetAgentCore(
-              tokenService: tokenSvc,
-              profileService: profileSvc,
+          // 懒初始化 Agent（防并发竞态：_petAgentInitLock）
+          try {
+            await _initPetAgentOnce();
+            await _petAgent!.handleChatRequest(
+              text,
+              history: history,
+              requestId: requestId,
             );
-            final apiKey = widget.storage.apiKey;
-            await _petAgent!.init(
-              decisionApiKey: apiKey,
-              chatApiKey: apiKey,
-            );
-            _petAgent!.start();
+          } catch (e) {
+            PetLogger().error('App', 'chatReq handleChatRequest failed', e);
+            // Agent 异常 → 通过 petAgentChatSink 回传错误
+            petAgentChatSink?.call('chatError', {
+              'message': '糯糯还没准备好喵...稍等一下~',
+              'requestId': requestId,
+            });
           }
 
-          await _petAgent!.handleChatRequest(
-            text,
-            history: history,
-            requestId: requestId,
+        case 'chatChunk':
+        case 'chatDone':
+        case 'chatError':
+          // 转发给 MiniChat 注册的回调
+          petAgentChatSink?.call(
+            call.method,
+            Map<String, dynamic>.from(call.arguments as Map? ?? {}),
           );
       }
     });
+  }
+
+  Future<void>? _petAgentInitFuture;
+
+  Future<void> _initPetAgentOnce() async {
+    if (_petAgent != null) return;
+    // 防并发竞态：多个 chatReq 同时到达时只有一个执行初始化
+    if (_petAgentInitFuture != null) {
+      await _petAgentInitFuture;
+      return;
+    }
+    _petAgentInitFuture = _doInitPetAgent();
+    try {
+      await _petAgentInitFuture;
+    } finally {
+      _petAgentInitFuture = null;
+    }
+  }
+
+  Future<void> _doInitPetAgent() async {
+    // 优先复用 PetAiService 创建的共享实例（避免两个 Agent 同时运行）
+    if (PetAgentCore.shared != null) {
+      _petAgent = PetAgentCore.shared;
+      PetLogger().info('Agent', '复用共享 PetAgentCore 实例');
+      return;
+    }
+    final tokenSvc = PetTokenService();
+    final profileSvc = PetProfileService();
+    _petAgent = PetAgentCore(
+      tokenService: tokenSvc,
+      profileService: profileSvc,
+    );
+    final apiKey = widget.storage.apiKey;
+    await _petAgent!.init(
+      decisionApiKey: apiKey,
+      chatApiKey: apiKey,
+    );
+    _petAgent!.start();
   }
 
   void _loadThemeMode() {
@@ -112,6 +166,7 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    PetLogger().info('App', 'lifecycle: ${state.name}');
     if (!mounted) return;
     if (state != AppLifecycleState.resumed) return;
     try {
@@ -123,6 +178,12 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    // 仅当是自己创建的实例（非 PetAiService 共享实例）时才 dispose
+    // 直接 dispose，不调 stop() — stop() 调 notifyListeners() 会在 dispose 时触发框架断言
+    if (_petAgent != null && !identical(_petAgent, PetAgentCore.shared)) {
+      _petAgent!.dispose();
+    }
+    _petAgent = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
