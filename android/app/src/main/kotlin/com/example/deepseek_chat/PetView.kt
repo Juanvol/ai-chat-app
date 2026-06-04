@@ -41,12 +41,6 @@ class PetView(context: Context) : View(context) {
     private var idleTime = 0f
     private val passthroughDelay = 8f  // 8 秒空闲后穿透
 
-    // 重力安全阀：3 秒后强制关闭重力 + 复位（防水平弹跳永不落地）
-    private var gravityTimer = 0f
-    private val gravityTimeout = 3f
-    private var flingOriginX = 0f
-    private var flingOriginY = 0f
-
     // 视线跟随
     private var cursorX = 0f
     private var cursorY = 0f
@@ -259,20 +253,6 @@ class PetView(context: Context) : View(context) {
         // 物理
         physics.update(dt, isDragging, physics.x, physics.y)
 
-        // 重力安全阀：超过 3s 未落地，强制关闭重力 + 回弹到原点
-        if (physics.enableGravity) {
-            gravityTimer -= dt
-            if (gravityTimer <= 0f) {
-                Log.d("PetView", "gravity timeout → reset to origin (${flingOriginX}, ${flingOriginY})")
-                physics.enableGravity = false
-                physics.vx = 0f; physics.vy = 0f
-                physics.x = flingOriginX; physics.y = flingOriginY
-                gravityTimer = 0f
-            }
-        } else {
-            gravityTimer = 0f
-        }
-
         // 动画
         val animEnded = blender.update(dt)
 
@@ -414,10 +394,9 @@ class PetView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 val duration = System.currentTimeMillis() - downTime
                 if (isDragging) {
-                    // 拖拽松手 → 惯性飞行
-                    flingOriginX = physics.x; flingOriginY = physics.y  // 保存原点
-                    gravityTimer = gravityTimeout  // 启动 3s 安全阀
-                    physics.applyFling()
+                    // 拖拽松手 → 停在原地（桌面宠物不需要重力/惯性）
+                    physics.vx = 0f; physics.vy = 0f
+                    physics.enableGravity = false
                     onTouchEvent?.invoke("drag", event.rawX, event.rawY)
                 } else if (!hasMoved) {
                     if (duration < 300) {
