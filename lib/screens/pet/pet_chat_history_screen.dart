@@ -23,7 +23,12 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
 
   List<Map<String, dynamic>> _petChats = [];
   List<PopupSession> _popupSessions = [];
+  String? _activePopupId;
   bool _loading = true;
+
+  // 多选删除
+  bool _selectMode = false;
+  final _selectedIds = <String>{};
 
   @override
   void initState() {
@@ -38,49 +43,18 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
     setState(() {
       _petChats = petChats;
       _popupSessions = popupSessions;
+      _activePopupId = popupSessions.isNotEmpty ? popupSessions.first.id : null;
       _loading = false;
     });
   }
 
   Future<void> _deletePetChat(String id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除对话'),
-        content: const Text('确定要删除这条宠物聊天记录吗？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
     await widget.chatService.deleteChat(id);
     _loadAll();
   }
 
   Future<void> _deletePopupSession(String sessionId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除弹窗对话'),
-        content: const Text('确定要删除这条弹窗聊天记录吗？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
     await _popupSvc.deleteSession(sessionId);
-    _loadAll();
-  }
-
-  Future<void> _clearAllPopupSessions() async {
-    // 逐个清除所有弹窗会话
-    for (final s in _popupSessions) {
-      await _popupSvc.deleteSession(s.id);
-    }
     _loadAll();
   }
 
@@ -102,7 +76,90 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
   /// 弹窗会话被选中 → 切换活跃会话
   Future<void> _onPopupSessionTap(PopupSession session) async {
     await _popupSvc.switchSession(session.id);
-    if (mounted) await _loadAll();
+    if (mounted) {
+      setState(() => _activePopupId = session.id);
+      await _loadAll();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已切换到「${session.title}」'), duration: const Duration(seconds: 1)),
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // 多选删除
+  // ═══════════════════════════════════════════
+
+  void _toggleSelectMode() {
+    setState(() {
+      _selectMode = !_selectMode;
+      if (!_selectMode) _selectedIds.clear();
+    });
+  }
+
+  void _onSelectChanged(String id, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIds.add(id);
+      } else {
+        _selectedIds.remove(id);
+      }
+    });
+  }
+
+  Future<void> _batchDelete() async {
+    final count = _selectedIds.length;
+    if (count == 0) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定要删除选中的 $count 条记录吗？此操作不可恢复。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final ids = List<String>.from(_selectedIds);
+    for (final id in ids) {
+      final isPetChat = _petChats.any((c) => c['id'] == id);
+      if (isPetChat) {
+        await _deletePetChat(id);
+      } else {
+        await _deletePopupSession(id);
+      }
+    }
+    _selectedIds.clear();
+    setState(() => _selectMode = false);
+    await _loadAll();
+  }
+
+  Widget _buildSelectBottomBar() {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh,
+        border: Border(top: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Text('已选择 ${_selectedIds.length} 项', style: TextStyle(color: cs.onSurface)),
+            const Spacer(),
+            FilledButton.tonalIcon(
+              onPressed: _batchDelete,
+              icon: const Icon(Icons.delete_outline),
+              label: Text('删除 (${_selectedIds.length})'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -113,22 +170,29 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
         title: const Text('聊天记录'),
         centerTitle: true,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _petChats.isEmpty && _popupSessions.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.chat_bubble_outline, size: 48, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
-                      const SizedBox(height: 12),
-                      Text('暂无聊天记录', style: TextStyle(color: cs.onSurfaceVariant)),
-                      const SizedBox(height: 4),
-                      Text('去和雪乃聊聊天吧~', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant.withValues(alpha: 0.6))),
-                    ],
-                  ),
-                )
-              : _buildPanels(cs),
+      body: Column(
+        children: [
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _petChats.isEmpty && _popupSessions.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 48, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                            const SizedBox(height: 12),
+                            Text('暂无聊天记录', style: TextStyle(color: cs.onSurfaceVariant)),
+                            const SizedBox(height: 4),
+                            Text('去和雪乃聊聊天吧~', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant.withValues(alpha: 0.6))),
+                          ],
+                        ),
+                      )
+                    : _buildPanels(cs),
+          ),
+          if (_selectMode && _selectedIds.isNotEmpty) _buildSelectBottomBar(),
+        ],
+      ),
     );
   }
 
@@ -148,9 +212,13 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
             isActive: chat['id'] == widget.currentChatId,
           )).toList(),
           onNew: _newPetChat,
-          onTap: (id) => Navigator.pop(context, id), // 返回选中 ID → PetChatScreen 切换
+          onTap: (id) => Navigator.pop(context, id),
           onDelete: _deletePetChat,
-          trailingBuilder: null,
+          selectMode: _selectMode,
+          selectedIds: _selectedIds,
+          onSelectChanged: _onSelectChanged,
+          onToggleSelectMode: _toggleSelectMode,
+          showSelectButton: true,
         ),
         // ── 弹窗聊天（始终显示）──
         const SizedBox(height: 8),
@@ -162,7 +230,7 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
               title: s.title,
               subtitle: '${s.msgCount} 条消息',
               updatedAt: _formatTimeMs(s.createdAt.millisecondsSinceEpoch),
-              isActive: _popupSessions.isNotEmpty && _popupSessions.first.id == s.id,
+              isActive: _popupSessions.isNotEmpty && s.id == _activePopupId,
             )).toList(),
             onNew: _newPopupSession,
             onTap: (id) {
@@ -170,17 +238,13 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
               _onPopupSessionTap(s);
             },
             onDelete: _deletePopupSession,
-            trailingBuilder: _popupSessions.isNotEmpty ? (id) => _buildClearAllButton() : null,
+            selectMode: _selectMode,
+            selectedIds: _selectedIds,
+            onSelectChanged: _onSelectChanged,
+            onToggleSelectMode: _toggleSelectMode,
+            showSelectButton: false,
           ),
       ],
-    );
-  }
-
-  Widget? _buildClearAllButton() {
-    return TextButton.icon(
-      onPressed: _popupSessions.isEmpty ? null : _clearAllPopupSessions,
-      icon: const Icon(Icons.delete_sweep_outlined, size: 16),
-      label: const Text('清空', style: TextStyle(fontSize: 12)),
     );
   }
 
@@ -214,7 +278,12 @@ class _SessionPanel extends StatefulWidget {
   final VoidCallback onNew;
   final void Function(String id) onTap;
   final void Function(String id) onDelete;
-  final Widget? Function(String id)? trailingBuilder;
+  // 多选
+  final bool selectMode;
+  final Set<String> selectedIds;
+  final void Function(String id, bool selected) onSelectChanged;
+  final VoidCallback onToggleSelectMode;
+  final bool showSelectButton;
 
   const _SessionPanel({
     required this.title,
@@ -223,7 +292,11 @@ class _SessionPanel extends StatefulWidget {
     required this.onNew,
     required this.onTap,
     required this.onDelete,
-    this.trailingBuilder,
+    this.selectMode = false,
+    this.selectedIds = const <String>{},
+    required this.onSelectChanged,
+    required this.onToggleSelectMode,
+    this.showSelectButton = true,
   });
 
   @override
@@ -282,6 +355,13 @@ class _SessionPanelState extends State<_SessionPanel> {
                     ),
                   ),
                   const Spacer(),
+                  // 多选按钮（仅一个面板需要显示）
+                  if (widget.showSelectButton)
+                    _MiniBtn(
+                      icon: widget.selectMode ? Icons.close : Icons.checklist,
+                      tooltip: widget.selectMode ? '取消选择' : '多选',
+                      onTap: widget.onToggleSelectMode,
+                    ),
                   // 新建按钮
                   _MiniBtn(
                     icon: Icons.add,
@@ -291,9 +371,6 @@ class _SessionPanelState extends State<_SessionPanel> {
                       setState(() => _expanded = true);
                     },
                   ),
-                  // 自定义尾部按钮（如清空）
-                  if (widget.trailingBuilder != null)
-                    widget.trailingBuilder!(widget.sessions.firstOrNull?.id ?? '') ?? const SizedBox.shrink(),
                   // 展开/收起
                   _MiniBtn(
                     icon: _expanded ? Icons.expand_less : Icons.expand_more,
@@ -320,7 +397,7 @@ class _SessionPanelState extends State<_SessionPanel> {
                   ]
                 : widget.sessions.map((session) => Dismissible(
               key: Key(session.id),
-              direction: DismissDirection.endToStart,
+              direction: widget.selectMode ? DismissDirection.none : DismissDirection.endToStart,
               background: Container(
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: 20),
@@ -350,6 +427,27 @@ class _SessionPanelState extends State<_SessionPanel> {
               child: _SessionTile(
                 item: session,
                 onTap: () => widget.onTap(session.id),
+                onDelete: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('删除对话'),
+                      content: Text('确定要删除这条${widget.title}记录吗？'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true) {
+                    widget.onDelete(session.id);
+                  }
+                },
+                selectMode: widget.selectMode,
+                isSelected: widget.selectedIds.contains(session.id),
+                onSelect: () => widget.onSelectChanged(
+                  session.id, !widget.selectedIds.contains(session.id),
+                ),
               ),
             ))),
         ],
@@ -398,13 +496,26 @@ class _MiniBtn extends StatelessWidget {
 class _SessionTile extends StatelessWidget {
   final _SessionItem item;
   final VoidCallback onTap;
-  const _SessionTile({required this.item, required this.onTap});
+  final VoidCallback? onDelete;
+  // 多选
+  final bool selectMode;
+  final bool isSelected;
+  final VoidCallback? onSelect;
+
+  const _SessionTile({
+    required this.item,
+    required this.onTap,
+    this.onDelete,
+    this.selectMode = false,
+    this.isSelected = false,
+    this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkWell(
-      onTap: onTap,
+      onTap: selectMode ? onSelect : onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
@@ -414,6 +525,13 @@ class _SessionTile extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // 选择模式下的复选框
+            if (selectMode)
+              Checkbox(
+                value: isSelected,
+                onChanged: (_) => onSelect?.call(),
+                visualDensity: VisualDensity.compact,
+              ),
             CircleAvatar(
               backgroundColor: item.isActive ? cs.primaryContainer : cs.surfaceContainerHighest,
               radius: 16,
@@ -452,6 +570,17 @@ class _SessionTile extends StatelessWidget {
                 item.updatedAt!,
                 style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant.withValues(alpha: 0.6)),
               ),
+            // 删除按钮（选择模式下隐藏）
+            if (onDelete != null && !selectMode) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: Icon(Icons.delete_outline, size: 18, color: cs.error.withValues(alpha: 0.7)),
+                tooltip: '删除',
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: onDelete,
+              ),
+            ],
           ],
         ),
       ),

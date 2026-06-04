@@ -440,12 +440,14 @@ class PetAgentCore extends ChangeNotifier {
   }
 
   /// 回调版聊天流 — 供应用内 UI 使用（不依赖 MethodChannel）
+  /// [saveToHive] 弹窗聊天传 false，避免弹窗数据串到宠物聊天存储
   Future<void> chatStream({
     required String userText,
     List<Map<String, dynamic>> history = const [],
     required void Function(String fullText) onChunk,
     required void Function() onDone,
     required void Function(String error) onError,
+    bool saveToHive = true,
   }) async {
     _chatCancelToken?.cancel();
     _chatCancelToken = CancelToken();
@@ -496,7 +498,7 @@ class PetAgentCore extends ChangeNotifier {
 
       if (textBuffer.isNotEmpty) onChunk(textBuffer.toString());
       onDone();
-      await _saveChatMessage(userText, textBuffer.toString());
+      if (saveToHive) await _saveChatMessage(userText, textBuffer.toString());
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) return;
       onError('信号不好喵...待会再试试~');
@@ -574,6 +576,7 @@ class PetAgentCore extends ChangeNotifier {
     await chatStream(
       userText: userText,
       history: history,
+      saveToHive: false, // 弹窗聊天数据存 Kotlin SP，不串到宠物聊天 Hive
       onChunk: (fullText) {
         // ── Wire 1: 首个 chunk → talking 动画 ──
         if (!firstChunkSent) {
