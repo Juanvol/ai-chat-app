@@ -63,7 +63,10 @@ class PetChatService extends ChangeNotifier {
     final box = await _chats;
     final chat = await getChat(chatId);
     if (chat == null) return;
-    final messages = List<Map<String, dynamic>>.from(chat['messages'] as List? ?? []);
+    final rawList = chat['messages'] as List? ?? [];
+    final messages = rawList
+        .map((m) => Map<String, dynamic>.from(m as Map))
+        .toList();
     messages.add({
       'role': role,
       'content': content,
@@ -137,7 +140,10 @@ class PetChatService extends ChangeNotifier {
   Future<String> buildContext(String chatId, {int maxRounds = 3}) async {
     final chat = await getChat(chatId);
     if (chat == null) return '';
-    final messages = List<Map<String, dynamic>>.from(chat['messages'] as List? ?? []);
+    final rawList = chat['messages'] as List? ?? [];
+    final messages = rawList
+        .map((m) => Map<String, dynamic>.from(m as Map))
+        .toList();
     final recent = messages.reversed.take(maxRounds * 2).toList().reversed.toList();
     return recent.map((m) => '${m['role'] == 'user' ? '主人' : '糯糯'}: ${m['content']}').join('\n');
   }

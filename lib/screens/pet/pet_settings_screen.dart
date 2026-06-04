@@ -1,12 +1,18 @@
 // Flutter 3.24 / Dart 3.5
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
-import '../pet/pet_config.dart';
-import '../pet/pet_persona.dart';
-import '../services/pet_service.dart';
-import '../services/pet_token_service.dart';
-import '../models/model_config.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../pet/pet_config.dart';
+import '../../pet/pet_persona.dart';
+import '../../services/pet/pet_service.dart';
+import '../../services/pet/pet_token_service.dart';
+import '../../services/pet/pet_logger.dart';
+import '../../services/pet/pet_overlay_host.dart' show petOverlayController;
+import '../../widgets/shimmer_box.dart';
+import '../../models/model_config.dart';
 
 class PetSettingsScreen extends StatefulWidget {
   const PetSettingsScreen({super.key});
@@ -54,6 +60,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
 
   @override
   void dispose() {
+    _budgetDebounce?.cancel();
     _promptController.dispose();
     _budgetController.dispose();
     _visionKeyController.dispose();
@@ -61,6 +68,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   }
 
   Future<void> _loadConfig() async {
+    PetLogger().info('PetSettings', 'loadConfig()');
     try {
       _config = await PetService.loadConfig();
     } catch (_) {}
@@ -93,7 +101,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
 
   Future<void> _loadBudget() async {
     try {
-      final svc = PetTokenService();
+      final svc = PetTokenService.instance;
       await svc.loadBudget();
       _dailyBudget = svc.dailyBudget;
     } catch (_) {}
@@ -102,7 +110,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   Future<void> _saveBudget(int? tokens) async {
     _dailyBudget = tokens;
     try {
-      final svc = PetTokenService();
+      final svc = PetTokenService.instance;
       await svc.setBudget(tokens);
     } catch (_) {}
     if (mounted) setState(() {});
@@ -137,35 +145,54 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   }
 
   Future<void> _toggleEnabled(bool enabled) async {
-    await _saveConfig(_config.copyWith(enabled: enabled));
+    PetLogger().info('PetSettings', 'toggle enabled=$enabled');
     try {
       if (enabled) {
         final granted = await _channel.invokeMethod<bool>('isOverlayPermissionGranted') ?? false;
+        PetLogger().info('PetSettings', 'overlay permission: $granted');
         if (!granted) {
           await _channel.invokeMethod('requestOverlayPermission');
+          PetLogger().info('PetSettings', 'requested overlay permission');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('请授予悬浮窗权限后重新开启')),
             );
+            // 权限未授予 → 回退开关，不保存 enabled=true
+            setState(() => _config = _config.copyWith(enabled: false));
           }
           return;
         }
+        // 权限已授予 → 保存配置
+        await _saveConfig(_config.copyWith(enabled: true));
+        // 先注册 Dart handler，再启动 native service，防止触控事件在 handler 就绪前到达
+        petOverlayController.init();
         await _channel.invokeMethod('startPet');
+        PetLogger().info('PetSettings', 'startPet sent to platform');
+        petOverlayController.start();
       } else {
+        await _saveConfig(_config.copyWith(enabled: false));
+        petOverlayController.stop();
         await _channel.invokeMethod('stopPet');
+        PetLogger().info('PetSettings', 'stopPet sent to platform');
       }
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('PetSettings', 'toggle failed', e);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(title: const Text('🐾 弗糯糯设置')),
+        body: ListView(children: List.generate(6, (i) => const ShimmerCard(lines: 2))),
+      );
     }
     return Scaffold(
       appBar: AppBar(title: const Text('🐾 弗糯糯设置')),
       body: ListView(
         padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
         children: [
           _buildEnableSwitch(),
           const Divider(height: 32),
@@ -187,6 +214,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           const Divider(height: 32),
           _buildModelSection(),
           _buildContextRounds(),
+          _buildExportButton(),
           const Divider(height: 32),
         ],
       ),
@@ -215,7 +243,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             ButtonSegment(value: AiFrequency.chatty, label: Text('话多')),
           ],
           selected: {_config.aiFrequency},
-          onSelectionChanged: (s) => _saveConfig(_config.copyWith(aiFrequency: s.first)),
+          onSelectionChanged: (s) { PetLogger().info('PetSettings', 'aiFrequency: ${s.first.name}'); _saveConfig(_config.copyWith(aiFrequency: s.first)); },
         ),
       ],
     );
@@ -237,6 +265,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
               onSelected: (_) {
                 final scenes = Set<TriggerScene>.from(_config.triggerScenes);
                 active ? scenes.remove(scene) : scenes.add(scene);
+                PetLogger().info('PetSettings', 'triggerScenes: ${scene.name} ${active ? "off" : "on"}');
                 _saveConfig(_config.copyWith(triggerScenes: scenes));
               },
             );
@@ -271,7 +300,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           min: 0.5,
           max: 1.5,
           divisions: 10,
-          onChanged: (v) => _saveConfig(_config.copyWith(petScale: v)),
+          onChanged: (v) { PetLogger().info('PetSettings', 'petScale: ${v.toStringAsFixed(1)}'); _saveConfig(_config.copyWith(petScale: v)); petOverlayController.syncScale(); },
         ),
       ],
     );
@@ -282,7 +311,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
       title: const Text('开机自启'),
       subtitle: const Text('手机重启后自动启动弗糯糯'),
       value: _config.autoStart,
-      onChanged: (v) => _saveConfig(_config.copyWith(autoStart: v)),
+      onChanged: (v) { PetLogger().info('PetSettings', 'autoStart: $v'); _saveConfig(_config.copyWith(autoStart: v)); },
     );
   }
 
@@ -344,6 +373,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
               'clingy': '你是弗糯糯，一只超级粘人的宠物精灵。性格：粘人、撒娇、离开主人就难过。自称"糯糯"，句尾加"喵~"或"抱抱~"。保持短小可爱，不超过2句话。',
               'lazy': '你是弗糯糯，一只佛系摆烂的宠物精灵。性格：懒散、随缘、能躺着绝不坐着。自称"糯糯"，句尾加"..."或"zzZ"。保持短小，不超过2句话。',
             };
+            PetLogger().info('PetSettings', 'persona template: $v');
             _savePersona(_persona.copyWith(
               templateId: v,
               systemPrompt: prompts[v] ?? _persona.systemPrompt,
@@ -367,7 +397,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           },
         ),
         const SizedBox(height: 4),
-        Text('按回车保存', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text('按回车保存', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
       ],
     );
   }
@@ -383,7 +413,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
       children: [
         const Text('💰 Token 每日额度', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
-        Text('超出额度后 Agent 暂停 LLM 调用，仅响应规则', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        Text('超出额度后 Agent 暂停 LLM 调用，仅响应规则', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -391,6 +421,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             label: Text(labels[i]),
             selected: selectedIdx == i,
             onSelected: (_) {
+              PetLogger().info('PetSettings', 'budget: ${labels[i]}');
               _budgetController.clear();
               _saveBudget(values[i]);
             },
@@ -408,11 +439,14 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
           onChanged: (v) {
-            final n = int.tryParse(v);
-            if (n != null && n > 0) {
-              _saveBudget(n);
-              setState(() {});
-            }
+            _budgetDebounce?.cancel();
+            _budgetDebounce = Timer(const Duration(milliseconds: 500), () {
+              final n = int.tryParse(v);
+              if (n != null && n > 0 && mounted) {
+                _saveBudget(n);
+                setState(() {});
+              }
+            });
           },
         ),
       ],
@@ -430,17 +464,17 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
         .toList();
 
     final mainModel = mainModels.firstWhere(
-      (m) => m.id == _chatModel,
+      (m) => m.modelId == _chatModel,
       orElse: () => mainModels.first,
     );
-    final mainHasVision = visionModels.any((m) => m.id == _chatModel);
+    final mainHasVision = visionModels.any((m) => m.modelId == _chatModel);
 
     String visionProvider;
     if (_visionModel.isEmpty) {
       visionProvider = mainModel.providerId;
     } else {
       final vm = visionModels.firstWhere(
-        (m) => m.id == _visionModel,
+        (m) => m.modelId == _visionModel,
         orElse: () => visionModels.first,
       );
       visionProvider = vm.providerId;
@@ -453,20 +487,21 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
         const Text('🤖 模型配置', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: mainModels.any((m) => m.id == _decisionModel) ? _decisionModel : 'deepseek-chat',
+          initialValue: mainModels.any((m) => m.modelId == _decisionModel) ? _decisionModel : 'deepseek-chat',
           decoration: const InputDecoration(
             labelText: '主模型（决策+聊天）',
             border: OutlineInputBorder(),
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
           items: mainModels.map((m) => DropdownMenuItem(
-            value: m.id,
+            value: m.modelId,
             child: Text('${m.name} (${m.providerId})', style: const TextStyle(fontSize: 13)),
           )).toList(),
           onChanged: (v) {
             if (v != null) {
+              PetLogger().info('PetSettings', 'mainModel: $v');
               _decisionModel = v;
-              _chatModel = v; // 主模型同时用于决策和聊天
+              _chatModel = v;
               _saveModelSetting('decisionModel', v);
               _saveModelSetting('chatModel', v);
             }
@@ -476,13 +511,14 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
         const Text('👁️ 视觉分析', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
         Text('主模型${mainHasVision ? '支持' : '不支持'}视觉能力。可独立选择视觉模型。',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
         const SizedBox(height: 8),
         SwitchListTile(
           title: const Text('开启视觉分析'),
           subtitle: const Text('允许糯糯分析你的屏幕截图'),
           value: _visionEnabled,
           onChanged: (v) {
+            PetLogger().info('PetSettings', 'visionEnabled: $v');
             _visionEnabled = v;
             _saveModelSetting('visionEnabled', v);
             if (mounted) setState(() {});
@@ -500,7 +536,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             items: [
               const DropdownMenuItem(value: '', child: Text('跟随主模型', style: TextStyle(fontSize: 13))),
               ...visionModels.map((m) => DropdownMenuItem(
-                value: m.id,
+                value: m.modelId,
                 child: Text('${m.name} (${m.providerId})', style: const TextStyle(fontSize: 13)),
               )),
             ],
@@ -516,7 +552,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text('⚠ 当前主模型无视觉能力，建议选择其他视觉模型',
-                  style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.error)),
             ),
         ],
         if (_visionEnabled && showVisionKey) ...[
@@ -551,19 +587,103 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
         Text('每轮 = 用户消息 + AI 回复。0 轮 = 无上下文记忆',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
         Slider(
           value: _chatContextRounds.toDouble(),
           min: 0, max: 10, divisions: 10,
           label: '$_chatContextRounds 轮',
           onChanged: (v) {
             _chatContextRounds = v.round();
+            PetLogger().info('PetSettings', 'chatContextRounds: $_chatContextRounds');
             _saveModelSetting('chatContextRounds', _chatContextRounds);
             if (mounted) setState(() {});
           },
         ),
       ],
     );
+  }
+
+  Widget _buildExportButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('📋 调试日志', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          Text('导出日志文件发送给开发者分析', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
+          const SizedBox(height: 8),
+          Row(children: [
+            ElevatedButton.icon(
+              onPressed: _exportLog,
+              icon: const Icon(Icons.share, size: 16),
+              label: const Text('导出日志'),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _clearLog,
+              icon: const Icon(Icons.delete_outline, size: 16),
+              label: const Text('清空日志'),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportLog() async {
+    final logger = PetLogger();
+    final content = await logger.getContent();
+
+    if (!mounted) return;
+    if (content == null || content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无日志内容')),
+      );
+      return;
+    }
+
+    // 1. 保存 .txt 到临时目录
+    File? txtFile;
+    try { txtFile = await logger.exportTxt(); } catch (_) {}
+
+    if (txtFile == null || !txtFile.existsSync()) {
+      // 文件保存失败 → 兜底复制到剪贴板
+      await Clipboard.setData(ClipboardData(text: content));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已复制到剪贴板 (${(content.length / 1024).toStringAsFixed(1)} KB)')),
+        );
+      }
+      return;
+    }
+
+    // 2. 系统分享面板 → 直接分享 .txt 文件
+    try {
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(txtFile.path, mimeType: 'text/plain')],
+        subject: 'AI Chat 调试日志',
+        text: '${content.substring(0, content.length.clamp(0, 300))}...',
+      ));
+    } catch (_) {
+      // 分享失败 → 兜底剪贴板
+      await Clipboard.setData(ClipboardData(text: content));
+      if (mounted) {
+        final sizeKb = (content.length / 1024).toStringAsFixed(1);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('分享面板未打开，已复制到剪贴板 ($sizeKb KB)')),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearLog() async {
+    await PetLogger().clear();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('日志已清空')),
+      );
+    }
   }
 
   String _sceneLabel(TriggerScene s) => switch (s) {
