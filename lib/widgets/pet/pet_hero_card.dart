@@ -1,8 +1,9 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../pet/pet_controller.dart';
+import '../../pet/pet_controller.dart';
 
+/// 宠物头部卡片 — 精简版：猫 emoji + 名字 + 心情 + 好感
 class PetHeroCard extends StatelessWidget {
   const PetHeroCard({super.key});
 
@@ -17,46 +18,54 @@ class PetHeroCard extends StatelessWidget {
       builder: (context, ctrl, _) {
         final s = ctrl.state;
         final moodEmoji = s.mood > 60 ? '😊' : s.mood > 30 ? '😐' : '😞';
-        return Card(
-          margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            child: Column(
-              children: [
-                const Text('🐱', style: TextStyle(fontSize: 48)),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('弗糯糯',
-                        style:
-                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: Colors.deepPurple.shade400,
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Text(_levelName(s.totalInteractions),
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 11)),
+        final theme = Theme.of(context);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  // 左侧：猫 emoji
+                  const Text('🐱', style: TextStyle(fontSize: 36)),
+                  const SizedBox(width: 10),
+                  // 名字 + 等级 + 陪伴天数
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(children: [
+                          Text('弗糯糯',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                                color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(10)),
+                            child: Text(_levelName(s.totalInteractions),
+                                style: const TextStyle(color: Colors.white, fontSize: 10)),
+                          ),
+                        ]),
+                        const SizedBox(height: 2),
+                        Text('${_stageName(s.totalInteractions)} · $moodEmoji 心情${s.mood.toStringAsFixed(0)}',
+                            style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(moodEmoji, style: const TextStyle(fontSize: 16)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${_stageName(s.totalInteractions)} · 陪伴第 ${(s.totalInteractions / 3).ceil()} 天',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  // 右侧：好感度
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('❤️', style: TextStyle(fontSize: 18)),
+                      Text('${(s.affection / 10).clamp(0, 100).toInt()}',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
+                      Text('好感', style: TextStyle(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );

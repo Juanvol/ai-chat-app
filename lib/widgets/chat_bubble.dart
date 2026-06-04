@@ -50,8 +50,8 @@ class ChatBubble extends StatelessWidget {
         children: [
           if (!isUser) ...[
             Container(width: 26, height: 26, margin: const EdgeInsets.only(top: 2),
-              decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFD6E8FB)),
-              child: const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF4A90D9)),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFEDD5)),
+              child: const Icon(Icons.auto_awesome, size: 12, color: Color(0xFFF97316)),
             ),
             const SizedBox(width: C.s8),
           ],
@@ -68,12 +68,12 @@ class ChatBubble extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: highlighted
                         ? const Color(0xFFFFF3CD)
-                        : isUser ? const Color(0xFFEEF2FF) : Colors.white,
+                        : isUser ? const Color(0xFFFFEDD5) : const Color(0xFFFFFFFF),
                     border: Border.all(
                       color: highlighted
                           ? const Color(0xFFFFC107)
-                          : isUser ? const Color(0xFFD6E0FA) : const Color(0xFFE8E8EF),
-                      width: highlighted ? 2 : 1,
+                          : isUser ? const Color(0xFFFED7B0) : const Color(0xFFFED7B0),
+                      width: highlighted ? 2 : 1.5,
                     ),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(C.r12), topRight: const Radius.circular(C.r12),
@@ -91,9 +91,9 @@ class ChatBubble extends StatelessWidget {
                               },
                               styleSheet: MarkdownStyleSheet(
                                 p: C.body,
-                                code: TextStyle(color: const Color(0xFF2D2D35), backgroundColor: const Color(0xFFEEEFF5), fontSize: 14),
-                                codeblockDecoration: BoxDecoration(color: const Color(0xFFF5F5FA), borderRadius: BorderRadius.only(
-                                  bottomLeft: const Radius.circular(C.r8), bottomRight: const Radius.circular(C.r8),
+                                code: const TextStyle(color: Color(0xFF5D2E0C), backgroundColor: Color(0xFFFFF0E5), fontSize: 14),
+                                codeblockDecoration: const BoxDecoration(color: Color(0xFFFFF7ED), borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(C.r8), bottomRight: Radius.circular(C.r8),
                                 )),
                                 blockquoteDecoration: BoxDecoration(
                                   border: Border(left: BorderSide(color: cs.primary.withValues(alpha: 0.6), width: 2))),
@@ -111,19 +111,19 @@ class ChatBubble extends StatelessWidget {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     GestureDetector(
                       onTap: () => Clipboard.setData(ClipboardData(text: answerText)),
-                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFFA0A0AB)),
+                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFFC4A890)),
                     ),
                     if (onRegenerate != null) ...[
                       const SizedBox(width: C.s8),
                       GestureDetector(
                         onTap: onRegenerate,
-                        child: const Icon(Icons.refresh, size: 13, color: Color(0xFFA0A0AB)),
+                        child: const Icon(Icons.refresh, size: 13, color: Color(0xFFC4A890)),
                       ),
                     ],
                     const SizedBox(width: C.s8),
                     GestureDetector(
                       onTap: onDislike,
-                      child: const Icon(Icons.thumb_down_outlined, size: 13, color: Color(0xFFA0A0AB)),
+                      child: const Icon(Icons.thumb_down_outlined, size: 13, color: Color(0xFFC4A890)),
                     ),
                   ]),
                 ),
@@ -134,7 +134,7 @@ class ChatBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 4, top: 4),
                     child: GestureDetector(
                       onTap: () => Clipboard.setData(ClipboardData(text: msg.content)),
-                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFFA0A0AB)),
+                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFFC4A890)),
                     ),
                   ),
                 ),
@@ -144,8 +144,8 @@ class ChatBubble extends StatelessWidget {
             const SizedBox(width: C.s8),
             Container(
               width: 26, height: 26, margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE8E0F8)),
-              child: const Icon(Icons.person, size: 14, color: Color(0xFF7C6F9E)),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFEDD5)),
+              child: const Icon(Icons.person, size: 14, color: Color(0xFFF97316)),
             ),
           ],
         ],
@@ -171,7 +171,6 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
   bool _scrolling = false;
   double _frozenSecs = 0;
   bool _timerFrozen = false;
-  Future<void>? _delayedClose;
 
   double get _secs => _timerFrozen ? _frozenSecs : DateTime.now().difference(_start).inMilliseconds / 1000;
 
@@ -199,7 +198,7 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
       _timerFrozen = true;
       _ticker.stop();
       setState(() {});
-      _delayedClose = Future.delayed(const Duration(milliseconds: 500), () {
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) setState(() => _open = false);
       });
     }
@@ -246,32 +245,32 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
         child: Container(
           constraints: BoxConstraints(maxWidth: widget.mw),
           decoration: BoxDecoration(
-            color: const Color(0xFFF2F3F8), borderRadius: BorderRadius.circular(C.r12),
-            border: Border.all(color: const Color(0xFFE0E1ED)),
+            color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(C.r12),
+            border: Border.all(color: const Color(0xFFFED7B0)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Padding(
               padding: EdgeInsets.fromLTRB(C.s16, C.s12, C.s16, (widget.isThinking || _open) ? C.s8 : C.s12),
               child: Row(children: [
                 if (widget.isThinking) ...[
-                  _Bulb(pulse: true),
+                  const _Bulb(pulse: true),
                   const SizedBox(width: C.s8),
                   Text('思考中${_secs > 0 ? ' （用时${_secs.toStringAsFixed(1)}s）' : ''}',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF4A90D9))),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFFF97316))),
                   if (_hasMore && !_open) ...[
                     const Spacer(),
                     GestureDetector(
                       onTap: () => setState(() => _open = true),
-                      child: const Text('展开', style: TextStyle(fontSize: 13, color: Color(0xFF4A90D9))),
+                      child: const Text('展开', style: TextStyle(fontSize: 13, color: Color(0xFFF97316))),
                     ),
                   ],
                 ] else ...[
-                  const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFF4A90D9)),
+                  const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFF97316)),
                   const SizedBox(width: C.s8),
                   Text('已深度思考${_secs > 0 ? ' （用时${_secs.toStringAsFixed(1)}s）' : ''}',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF888891))),
+                    style: const TextStyle(fontSize: 14, color: Color(0xFFC4A890))),
                   const Spacer(),
-                  Icon(_open ? Icons.expand_less : Icons.expand_more, size: 16, color: const Color(0xFFA0A0AB)),
+                  Icon(_open ? Icons.expand_less : Icons.expand_more, size: 16, color: const Color(0xFFC4A890)),
                 ],
               ]),
             ),
@@ -327,7 +326,7 @@ class _BulbState extends State<_Bulb> with SingleTickerProviderStateMixin {
     return AnimatedBuilder(
       animation: _c,
       builder: (_, child) => Opacity(opacity: 0.5 + _c.value * 0.5, child: child),
-      child: const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFF4A90D9)),
+      child: const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFF97316)),
     );
   }
 }
@@ -343,13 +342,13 @@ class _ThreeDotsState extends State<_ThreeDots> with SingleTickerProviderStateMi
   @override
   void dispose() { _c.dispose(); super.dispose(); }
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(animation: _c, builder: (_, c) => Opacity(opacity: 0.3 + _c.value * 0.4, child: c), child: Row(mainAxisSize: MainAxisSize.min, children: const [_Dot(), SizedBox(width: 8), _Dot(), SizedBox(width: 8), _Dot()]));
+  Widget build(BuildContext context) => AnimatedBuilder(animation: _c, builder: (_, c) => Opacity(opacity: 0.3 + _c.value * 0.4, child: c), child: const Row(mainAxisSize: MainAxisSize.min, children: [_Dot(), SizedBox(width: 8), _Dot(), SizedBox(width: 8), _Dot()]));
 }
 
 class _Dot extends StatelessWidget {
   const _Dot();
   @override
-  Widget build(BuildContext context) => Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF4A90D9)));
+  Widget build(BuildContext context) => Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF97316)));
 }
 
 // ==================== 代码块 ====================
@@ -431,7 +430,7 @@ class _CodeBlockWidget extends StatelessWidget {
             ),
             child: Row(children: [
               Text(language.isNotEmpty ? language : 'code',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF888891), fontFamily: 'monospace')),
+                style: const TextStyle(fontSize: 11, color: Color(0xFFC4A890), fontFamily: 'monospace')),
               const Spacer(),
               GestureDetector(
                 onTap: () {
@@ -440,7 +439,7 @@ class _CodeBlockWidget extends StatelessWidget {
                     const SnackBar(content: Text('代码已复制'), duration: Duration(seconds: 1)),
                   );
                 },
-                child: const Icon(Icons.copy_outlined, size: 14, color: Color(0xFF888891)),
+                child: const Icon(Icons.copy_outlined, size: 14, color: Color(0xFFC4A890)),
               ),
             ]),
           ),
