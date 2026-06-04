@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'api/deepseek_client.dart';
 import 'config/theme.dart' show C;
+import 'models/model_config.dart';
 import 'screens/home_screen.dart';
 import './services/app/conversation_service.dart';
 import './services/app/storage_service.dart';
@@ -145,7 +147,26 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
       tokenService: tokenSvc,
       profileService: profileSvc,
     );
-    final apiKey = widget.storage.apiKey;
+
+    // 智能解析 API Key：先检查宠物选择的模型 → provider → provider专属key → fallback 主 api_key
+    String? apiKey = widget.storage.apiKey;
+    try {
+      final configBox = await Hive.openBox('pet_config');
+      final chatModelId = configBox.get('chatModel') as String? ?? 'deepseek-chat';
+      final modelInfo = ModelConfig.resolveModel(chatModelId);
+      if (modelInfo != null) {
+        final settingsBox = await Hive.openBox('settings');
+        final providerKey = settingsBox.get('${modelInfo.providerId}_key') as String?;
+        if (providerKey != null && providerKey.isNotEmpty) {
+          apiKey = providerKey;
+          PetLogger().info('Agent', '使用 ${modelInfo.providerId} 专属 Key');
+        }
+      }
+    } catch (e) {
+      PetLogger().warn('Agent', '解析 provider key 失败，fallback 主 key: $e');
+    }
+
+    PetLogger().info('Agent', '_doInitPetAgent apiKey=${apiKey != null ? 'SET' : 'NULL'}');
     await _petAgent!.init(
       decisionApiKey: apiKey,
       chatApiKey: apiKey,

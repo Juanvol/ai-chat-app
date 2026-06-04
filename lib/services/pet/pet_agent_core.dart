@@ -16,6 +16,8 @@ import 'pet_profile_service.dart';
 
 /// 原生浮窗动画控制通道（与 PetOverlayController 共用）
 const _overlayChannel = MethodChannel('com.example.deepseek_chat/pet_overlay');
+/// 宠物 Agent 桥接通道（用于获取弹窗聊天历史等）
+const _agentBridge = MethodChannel('com.example.deepseek_chat/pet_agent_bridge');
 
 enum AttentionLevel {
   l0,
@@ -413,9 +415,12 @@ class PetAgentCore extends ChangeNotifier {
     final persona = await _loadPersona();
     _chatClient?.setSystemPrompt(persona.systemPrompt);
 
+    // 获取弹窗聊天历史 → 合并到上下文
+    final popupHistory = await _fetchPopupHistory();
+
     // 解析模型 → provider
     final resolved = await _resolveChatProvider();
-    final prompt = _buildChatPrompt(userText, history: history);
+    final prompt = _buildChatPrompt(userText, history: history, popupHistory: popupHistory);
 
     try {
       final textBuffer = StringBuffer();
@@ -474,18 +479,37 @@ class PetAgentCore extends ChangeNotifier {
     return (baseUrl: baseUrl, apiKey: apiKey, providerId: providerId);
   }
 
-  /// 构建聊天提示词
-  String _buildChatPrompt(String userText, {List<Map<String, dynamic>> history = const []}) {
+  /// 获取弹窗聊天历史（来自原生 SharedPreferences）
+  Future<List<Map<String, dynamic>>> _fetchPopupHistory() async {
+    try {
+      final raw = await _agentBridge.invokeMethod('getPopupHistory');
+      if (raw is List) {
+        return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// 构建聊天提示词（合并宠物聊天 + 弹窗聊天的历史）
+  String _buildChatPrompt(String userText, {List<Map<String, dynamic>> history = const [], List<Map<String, dynamic>> popupHistory = const []}) {
     final buffer = StringBuffer();
+    if (popupHistory.isNotEmpty) {
+      buffer.writeln('【弹窗聊天记录】');
+      for (final m in popupHistory) {
+        final role = (m['isUser'] == true || m['role'] == 'user') ? '主人' : '雪乃';
+        buffer.writeln('$role: ${m['text'] ?? m['content'] ?? ''}');
+      }
+      buffer.writeln('');
+    }
     if (history.isNotEmpty) {
-      buffer.writeln('最近对话：');
+      buffer.writeln('【最近宠物聊天】');
       for (final m in history) {
-        final role = m['role'] == 'user' ? '主人' : '糯糯';
+        final role = m['role'] == 'user' ? '主人' : '雪乃';
         buffer.writeln('$role: ${m['content']}');
       }
     }
     buffer.writeln('主人说: $userText');
-    buffer.writeln('请以糯糯的身份回复，保持短小可爱，不超过3句话。');
+    buffer.writeln('请以雪乃的身份回复，保持短小可爱，不超过3句话。');
     return buffer.toString();
   }
 
@@ -512,18 +536,22 @@ class PetAgentCore extends ChangeNotifier {
           _sendOverlayCmd('playAnim', {'anim': 'talking'});
         }
         _sendChatChunk(fullText, requestId: requestId);
+        // 同时通过 overlay 通道发给原生聊天 Dialog
+        _sendOverlayCmd('chatChunk', {'text': fullText, 'isStreaming': true, 'requestId': requestId});
       },
       onDone: () {
         // ── Wire 1: 完成 → wave + 成功气泡 ──
         _sendOverlayCmd('playAnim', {'anim': 'wave'});
         _sendOverlayCmd('showBubble', {'text': '搞定啦~', 'durationMs': 3000});
         _sendChatDone(requestId: requestId);
+        _sendOverlayCmd('chatDone', {'requestId': requestId});
       },
       onError: (msg) {
         // ── Wire 1: 出错 → failed + 错误气泡 ──
         _sendOverlayCmd('playAnim', {'anim': 'failed'});
         _sendOverlayCmd('showBubble', {'text': msg, 'durationMs': 4000});
         _sendChatError(msg, requestId: requestId);
+        _sendOverlayCmd('chatError', {'message': msg, 'requestId': requestId});
       },
     );
   }
