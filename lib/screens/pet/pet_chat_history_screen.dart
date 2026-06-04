@@ -152,13 +152,12 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
           onDelete: _deletePetChat,
           trailingBuilder: null,
         ),
-        // ── 弹窗聊天 ──
-        if (_popupSessions.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _SessionPanel(
-            title: '弹窗聊天',
-            count: _popupSessions.length,
-            sessions: _popupSessions.map((s) => _SessionItem(
+        // ── 弹窗聊天（始终显示）──
+        const SizedBox(height: 8),
+        _SessionPanel(
+          title: '弹窗聊天',
+          count: _popupSessions.length,
+          sessions: _popupSessions.map((s) => _SessionItem(
               id: s.id,
               title: s.title,
               subtitle: '${s.msgCount} 条消息',
@@ -166,11 +165,13 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
               isActive: _popupSessions.isNotEmpty && _popupSessions.first.id == s.id,
             )).toList(),
             onNew: _newPopupSession,
-            onTap: (id) => _onPopupSessionTap(_popupSessions.firstWhere((s) => s.id == id)),
+            onTap: (id) {
+              final s = _popupSessions.firstWhere((s) => s.id == id, orElse: () => _popupSessions.first);
+              _onPopupSessionTap(s);
+            },
             onDelete: _deletePopupSession,
-            trailingBuilder: (id) => _buildClearAllButton(),
+            trailingBuilder: _popupSessions.isNotEmpty ? (id) => _buildClearAllButton() : null,
           ),
-        ],
       ],
     );
   }
@@ -305,7 +306,19 @@ class _SessionPanelState extends State<_SessionPanel> {
           ),
           // 展开列表
           if (_expanded)
-            ...widget.sessions.map((session) => Dismissible(
+            ...(widget.sessions.isEmpty
+                ? [
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Center(
+                        child: Text(
+                          '暂无${widget.title}记录',
+                          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                    ),
+                  ]
+                : widget.sessions.map((session) => Dismissible(
               key: Key(session.id),
               direction: DismissDirection.endToStart,
               background: Container(
@@ -338,7 +351,7 @@ class _SessionPanelState extends State<_SessionPanel> {
                 item: session,
                 onTap: () => widget.onTap(session.id),
               ),
-            )),
+            ))),
         ],
       ),
     );
