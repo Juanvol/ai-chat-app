@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'api/deepseek_client.dart';
 import 'config/theme.dart' show C;
-import 'models/model_config.dart';
 import 'screens/home_screen.dart';
 import './services/app/conversation_service.dart';
 import './services/app/storage_service.dart';
@@ -13,7 +11,6 @@ import './services/app/persona_service.dart';
 import './services/app/feedback_service.dart';
 import './services/app/token_stats_service.dart';
 import './services/pet/pet_token_service.dart';
-import './services/pet/pet_profile_service.dart';
 import './services/pet/pet_diary_service.dart';
 import './services/pet/pet_agent_core.dart';
 import './services/pet/pet_logger.dart';
@@ -135,43 +132,10 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
   }
 
   Future<void> _doInitPetAgent() async {
-    // 优先复用 PetAiService 创建的共享实例（避免两个 Agent 同时运行）
-    if (PetAgentCore.shared != null) {
-      _petAgent = PetAgentCore.shared;
-      PetLogger().info('Agent', '复用共享 PetAgentCore 实例');
-      return;
+    _petAgent = await PetAgentCore.ensureInitialized();
+    if (_petAgent == null) {
+      PetLogger().warn('Agent', '_doInitPetAgent: 初始化失败（无 API Key）');
     }
-    final tokenSvc = PetTokenService.instance;
-    final profileSvc = PetProfileService();
-    _petAgent = PetAgentCore(
-      tokenService: tokenSvc,
-      profileService: profileSvc,
-    );
-
-    // 智能解析 API Key：先检查宠物选择的模型 → provider → provider专属key → fallback 主 api_key
-    String? apiKey = widget.storage.apiKey;
-    try {
-      final configBox = await Hive.openBox('pet_config');
-      final chatModelId = configBox.get('chatModel') as String? ?? 'deepseek-chat';
-      final modelInfo = ModelConfig.resolveModel(chatModelId);
-      if (modelInfo != null) {
-        final settingsBox = await Hive.openBox('settings');
-        final providerKey = settingsBox.get('${modelInfo.providerId}_key') as String?;
-        if (providerKey != null && providerKey.isNotEmpty) {
-          apiKey = providerKey;
-          PetLogger().info('Agent', '使用 ${modelInfo.providerId} 专属 Key');
-        }
-      }
-    } catch (e) {
-      PetLogger().warn('Agent', '解析 provider key 失败，fallback 主 key: $e');
-    }
-
-    PetLogger().info('Agent', '_doInitPetAgent apiKey=${apiKey != null ? 'SET' : 'NULL'}');
-    await _petAgent!.init(
-      decisionApiKey: apiKey,
-      chatApiKey: apiKey,
-    );
-    _petAgent!.start();
   }
 
   void _loadThemeMode() {

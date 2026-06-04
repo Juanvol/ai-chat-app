@@ -84,6 +84,47 @@ class PetAgentCore extends ChangeNotifier {
   /// 共享实例，供 main.dart 复用（避免创建第二个 PetAgentCore）
   static PetAgentCore? shared;
 
+  /// 统一初始化入口 — 解析 API Key + 创建 + init + start
+  /// 如果已有共享实例则直接返回（幂等）
+  static Future<PetAgentCore?> ensureInitialized() async {
+    if (shared != null) {
+      PetLogger().info('Agent', 'ensureInitialized: 复用已有实例');
+      return shared;
+    }
+
+    // 1. 解析 API Key：provider 专属 key → fallback 主 api_key
+    String? apiKey;
+    try {
+      final settingsBox = await Hive.openBox('settings');
+      final configBox = await Hive.openBox('pet_config');
+      final chatModelId = configBox.get('chatModel') as String? ?? 'deepseek-chat';
+      final modelInfo = ModelConfig.resolveModel(chatModelId);
+      final providerId = modelInfo?.providerId ?? 'deepseek';
+      apiKey = settingsBox.get('${providerId}_key') as String?
+          ?? settingsBox.get('api_key') as String?;
+      if (apiKey != null && apiKey.isNotEmpty) {
+        PetLogger().info('Agent', 'ensureInitialized: provider=$providerId model=$chatModelId key=SET');
+      }
+    } catch (e) {
+      PetLogger().error('Agent', 'ensureInitialized: API Key 解析失败', e);
+    }
+
+    if (apiKey == null || apiKey.isEmpty) {
+      PetLogger().warn('Agent', 'ensureInitialized: 无可用 API Key');
+      return null;
+    }
+
+    // 2. 创建 + 初始化
+    final agent = PetAgentCore(
+      tokenService: PetTokenService.instance,
+      profileService: PetProfileService(),
+    );
+    await agent.init(decisionApiKey: apiKey, chatApiKey: apiKey);
+    agent.start();
+    PetLogger().info('Agent', 'ensureInitialized: 创建并启动完成');
+    return agent;
+  }
+
   final PetTokenService tokenService;
   final PetProfileService profileService;
 

@@ -1,12 +1,8 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import '../../services/pet/pet_agent_core.dart';
 import '../../services/pet/pet_chat_service.dart';
 import '../../services/pet/pet_logger.dart';
-import '../../services/pet/pet_token_service.dart';
-import '../../services/pet/pet_profile_service.dart';
-import '../../models/model_config.dart';
 import 'pet_chat_history_screen.dart';
 
 class PetChatScreen extends StatefulWidget {
@@ -153,32 +149,7 @@ class _PetChatScreenState extends State<PetChatScreen> {
   }
 
   Future<void> _initAgent() async {
-    try {
-      final settingsBox = await Hive.openBox('settings');
-      final petConfigBox = await Hive.openBox('pet_config');
-
-      final modelId = petConfigBox.get('chatModel') as String? ?? 'deepseek-chat';
-      final modelInfo = ModelConfig.resolveModel(modelId);
-      final providerId = modelInfo?.providerId ?? 'deepseek';
-
-      final apiKey = settingsBox.get('${providerId}_key') as String?
-          ?? settingsBox.get('api_key') as String?;
-
-      if (apiKey == null || apiKey.isEmpty) {
-        PetLogger().warn('PetChat', '_initAgent failed: no API key for provider=$providerId');
-        return;
-      }
-
-      final agent = PetAgentCore(
-        tokenService: PetTokenService.instance,
-        profileService: PetProfileService(),
-      );
-      await agent.init(decisionApiKey: apiKey, chatApiKey: apiKey);
-      agent.start();
-      PetLogger().info('PetChat', 'Agent 懒初始化完成, provider=$providerId model=$modelId');
-    } catch (e) {
-      PetLogger().error('PetChat', '_initAgent failed', e);
-    }
+    await PetAgentCore.ensureInitialized();
   }
 
   void _addMessage(String role, String content) {
