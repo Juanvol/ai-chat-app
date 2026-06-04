@@ -82,16 +82,20 @@ class PetView(context: Context) : View(context) {
     var petWidth = 156f
     var petHeight = 156f
 
+    /** 仅视觉放大的倍率（触控命中区保持原 petWidth×petHeight 不变），默认 1.5x */
+    var renderScale = 1.5f
+
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
         setBackgroundColor(Color.TRANSPARENT)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // 窗口高度 = 精灵 + 气泡预留（约 40% 精灵高度用于气泡），精灵画在底部。
-        // 触摸命中仅限底部精灵区域，气泡预留区设为透明且不响应触摸。
-        val bubbleReserve = (petHeight * 0.42f).toInt()
-        setMeasuredDimension(petWidth.toInt(), petHeight.toInt() + bubbleReserve)
+        // 窗口宽 = 取视觉缩放宽度和触控宽度的较大值（确保缩放后不裁切）
+        val displayW = (petWidth * renderScale).toInt().coerceAtLeast(petWidth.toInt())
+        val displayH = (petHeight * renderScale).toInt()
+        val bubbleReserve = (petHeight * 0.42f * renderScale).toInt()
+        setMeasuredDimension(displayW, displayH + bubbleReserve)
     }
 
     // ═══════════════════════════════════════════
@@ -388,20 +392,25 @@ class PetView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(0, PorterDuff.Mode.CLEAR)  // 透明
 
-        // 精灵帧：绘制在 View 底部（上方预留气泡空间，bubbleReserve = petHeight*0.42）
-        val bubbleReserve = measuredHeight - petHeight.toInt()
-        val drawX = 0f + drawOffsetX
-        val drawY = bubbleReserve + drawOffsetY
-        val bmp = blender.currentBitmap()
+        // 视觉缩放后的精灵尺寸
+        val visualW = petWidth * renderScale
+        val visualH = petHeight * renderScale
+        val bubbleReserve = measuredHeight - visualH.toInt()
+
+        // 精灵水平居中，底部对齐
+        val drawX = (measuredWidth - visualW) / 2f + drawOffsetX * renderScale
+        val drawY = bubbleReserve + drawOffsetY * renderScale
+
         if (drawFrameCount < 5) {
-            Log.d("PetView", "onDraw #$drawFrameCount: drawXY=($drawX,$drawY) bubbleReserve=$bubbleReserve physicsXY=(${physics.x},${physics.y}) bmp=$bmp viewSize=$width×$height")
+            val bmp = blender.currentBitmap()
+            Log.d("PetView", "onDraw #$drawFrameCount: drawXY=($drawX,$drawY) visualWH=${visualW.toInt()}x${visualH.toInt()} physicsXY=(${physics.x},${physics.y}) bmp=$bmp viewSize=$width×$height renderScale=$renderScale")
         }
         blender.draw(canvas, drawX, drawY,
-            physics.squashX * animScaleX,
-            physics.squashY * animScaleY)
+            physics.squashX * animScaleX * renderScale,
+            physics.squashY * animScaleY * renderScale)
 
-        // 气泡（绘制在精灵上方，利用预留空间）
-        bubble.draw(canvas, drawX, drawY, petWidth)
+        // 气泡（绘制在精灵上方，宽度匹配视觉尺寸）
+        bubble.draw(canvas, drawX, drawY, visualW)
         drawFrameCount++
     }
 
@@ -411,11 +420,23 @@ class PetView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // ── 命中测试：仅 ACTION_DOWN 检查是否点中精灵 ──
-        // 一旦手势开始（DOWN 通过），后续 MOVE/UP 不再检查，避免拖动时窗口跟随
-        // 手指移动导致 event.x/y 相对位置变化而意外中断拖动。
+        // FrameBlender 以 bitmap 原生尺寸为中心缩放渲染，视觉中心在 bitmap 中心，不在 petWidth*renderScale
         if (event.action == MotionEvent.ACTION_DOWN) {
-            val spriteTop = (height - petHeight).coerceAtLeast(0f)
-            val onSprite = event.x >= 0f && event.x <= petWidth &&
+            val bmp = blender.currentBitmap()
+            val bmpW = (bmp?.width ?: 192).toFloat()
+            val bmpH = (bmp?.height ?: 208).toFloat()
+            val displayW = (petWidth * renderScale).toInt().toFloat()
+            val displayH = (petHeight * renderScale).toInt().toFloat()
+            val topBarH = measuredHeight - displayH.toInt()
+            val drawX = (measuredWidth - displayW) / 2f
+            val drawY = topBarH.toFloat()
+            // 视觉中心 = FrameBlender 的缩放锚点 (bitmap 中心)
+            val visualCenterX = drawX + bmpW / 2f
+            val visualCenterY = drawY + bmpH / 2f
+            // 触控命中区 petWidth×petHeight，中心对齐视觉中心
+            val spriteLeft = visualCenterX - petWidth / 2f
+            val spriteTop = visualCenterY - petHeight / 2f
+            val onSprite = event.x >= spriteLeft && event.x <= spriteLeft + petWidth &&
                            event.y >= spriteTop && event.y <= spriteTop + petHeight
             if (!onSprite) return false
         }
@@ -437,9 +458,15 @@ class PetView(context: Context) : View(context) {
                     isDragging = true
                     // 拖拽 → 清空连击状态
                     tapTimestamps.fill(0); tapIndex = 0
-                    // 全屏自由拖动——桌面宠物可被拖到屏幕任意位置
-                    physics.x = event.rawX - petWidth / 2
-                    physics.y = event.rawY - petHeight / 2
+                    // 手指对准视觉精灵中心（FrameBlender 以 bitmap 中心为锚点）
+                    val bmp = blender.currentBitmap()
+                    val bmpW = (bmp?.width ?: 192).toFloat()
+                    val bmpH = (bmp?.height ?: 208).toFloat()
+                    val displayW = (petWidth * renderScale).toInt().toFloat()
+                    val topBarH = petHeight * 0.42f * renderScale
+                    val drawX = (measuredWidth - displayW) / 2f
+                    physics.x = event.rawX - drawX - bmpW / 2f
+                    physics.y = event.rawY - topBarH - bmpH / 2f
                 }
             }
             MotionEvent.ACTION_UP -> {

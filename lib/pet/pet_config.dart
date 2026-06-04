@@ -17,6 +17,7 @@ class PetConfig {
   final bool autoStart;
   final DateTime? quietUntil;
   final int idleTransparentMinutes;
+  final double renderScale;
 
   PetConfig({
     this.enabled = false,
@@ -29,8 +30,10 @@ class PetConfig {
     this.autoStart = false,
     this.quietUntil,
     this.idleTransparentMinutes = 5,
+    double? renderScale,
   })  : triggerScenes = Set.from(triggerScenes ?? {TriggerScene.all}),
         petScale = (petScale ?? 1.0).clamp(0.5, 1.5),
+        renderScale = (renderScale ?? 1.5).clamp(1.0, 2.0),
         assert(idleTransparentMinutes >= 1 && idleTransparentMinutes <= 120,
                'idleTransparentMinutes must be 1-120');
 
@@ -45,6 +48,7 @@ class PetConfig {
     bool? autoStart,
     DateTime? quietUntil,
     int? idleTransparentMinutes,
+    double? renderScale,
   }) {
     return PetConfig(
       enabled: enabled ?? this.enabled,
@@ -57,6 +61,7 @@ class PetConfig {
       autoStart: autoStart ?? this.autoStart,
       quietUntil: identical(quietUntil, _clearSentinel) ? null : (quietUntil ?? this.quietUntil),
       idleTransparentMinutes: (idleTransparentMinutes ?? this.idleTransparentMinutes).clamp(1, 120),
+      renderScale: (renderScale ?? this.renderScale).clamp(1.0, 2.0),
     );
   }
 
@@ -71,6 +76,7 @@ class PetConfig {
     'autoStart': autoStart,
     if (quietUntil != null) 'quietUntil': quietUntil!.toIso8601String(),
     'idleTransparentMinutes': idleTransparentMinutes,
+    'renderScale': renderScale,
   };
 
   factory PetConfig.fromJson(Map<String, dynamic> json) {
@@ -105,6 +111,11 @@ class PetConfig {
           ? DateTime.tryParse(json['quietUntil'] as String)
           : null,
       idleTransparentMinutes: ((json['idleTransparentMinutes'] as num?)?.toInt() ?? 5).clamp(1, 120),
+      // 迁移：磁盘旧默认 1.3 自动升级到新默认 1.5
+      renderScale: (() {
+        final raw = (json['renderScale'] as num?)?.toDouble();
+        return (raw == null || raw == 1.3 ? 1.5 : raw).clamp(1.0, 2.0);
+      })(),
     );
   }
 }

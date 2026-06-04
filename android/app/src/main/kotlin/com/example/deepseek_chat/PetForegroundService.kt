@@ -164,15 +164,19 @@ class PetForegroundService : Service() {
         }
 
         // physics 屏幕坐标系，起始居中偏上
-        // 全屏自由移动——桌面宠物可被拖到屏幕任意位置
-        val startX = (screenW - petW) / 2f
-        val startY = screenH * 0.25f
+        // 全屏自由移动——桌面宠物可被拖到屏幕任意位置（边界适配 renderScale 视觉尺寸）
+        val rs = petView?.renderScale ?: 1.5f
+        val visualW = petW * rs
+        val visualH = petH * rs
+        val visualBubble = petH * 0.42f * rs
+        val startX = (screenW - visualW) / 2f
+        val startY = screenH * 0.2f
         petView?.physics?.apply {
-            x = startX; y = startY
+            x = startX.coerceAtLeast(0f); y = startY.coerceAtLeast(0f)
             minX = 0f
-            maxX = (screenW - petW).toFloat()
+            maxX = (screenW - visualW).coerceAtLeast(0f)
             minY = 0f
-            maxY = (screenH - petH).toFloat()
+            maxY = (screenH - visualBubble - visualH).coerceAtLeast(0f)
         }
 
         // 加载帧
@@ -435,6 +439,27 @@ class PetForegroundService : Service() {
                 val fps = (args?.get("fps") as? Number)?.toInt() ?: 60
                 pv?.setFps(fps)
                 Log.d("PetSvc", "<<< cmd DONE setFps: $fps")
+            }
+            "setRenderScale" -> {
+                val scale = (args?.get("scale") as? Number)?.toFloat() ?: 1.5f
+                pv?.renderScale = scale.coerceIn(1.0f, 2.0f)
+                pv?.requestLayout()  // 触发 onMeasure 重算窗口尺寸
+                windowManager?.updateViewLayout(rootView, windowParams)
+                // 更新物理边界以匹配新的视觉尺寸
+                val rs = pv?.renderScale ?: 1.5f
+                val pw = pv?.petWidth ?: 156f
+                val ph = pv?.petHeight ?: 156f
+                val visualW = pw * rs
+                val visualH = ph * rs
+                val visualBubble = ph * 0.42f * rs
+                pv?.physics?.apply {
+                    maxX = (resources.displayMetrics.widthPixels - visualW).coerceAtLeast(0f)
+                    maxY = (resources.displayMetrics.heightPixels - visualBubble - visualH).coerceAtLeast(0f)
+                    // 如果当前坐标超出新边界，拉回
+                    x = x.coerceIn(minX, maxX)
+                    y = y.coerceIn(minY, maxY)
+                }
+                Log.d("PetSvc", "<<< cmd DONE setRenderScale: ${pv?.renderScale}")
             }
             "setTransparentIdle" -> {
                 val minutes = (args?.get("minutes") as? Number)?.toInt() ?: 5

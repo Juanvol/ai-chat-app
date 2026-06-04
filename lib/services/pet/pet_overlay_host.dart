@@ -11,6 +11,11 @@ import './pet_logger.dart';
 import 'pet_brain.dart';
 import 'pet_bubble_manager.dart';
 import 'pet_agent_core.dart';
+import 'knowledge/knowledge_base.dart';
+import 'knowledge/diary/diary_repository_hive.dart';
+import 'knowledge/diary/diary_store.dart';
+import 'knowledge/memory/memory_repository_hive.dart';
+import 'knowledge/memory/memory_store.dart';
 
 /// 全局宠物浮窗控制器
 final petOverlayController = PetOverlayController();
@@ -41,6 +46,9 @@ class PetOverlayController {
   // 兼容旧代码
   final _rng = Random();
   bool _bubbleShowing = false;
+
+  // ── 新知识库（D1-D2） ──
+  KnowledgeBase? _knowledgeBase;
 
   bool get isActive => _started;
 
@@ -160,6 +168,36 @@ class PetOverlayController {
 
     _aiService = PetAiService();
     await _aiService!.init();
+
+    // ── 初始化知识库（D1-D2: Diary + Memory） ──
+    if (_knowledgeBase == null) {
+      final diaryRepo = DiaryRepoHive();
+      await diaryRepo.init();
+      final memoryRepo = MemoryRepoHive();
+      await memoryRepo.init();
+
+      final memoryStore = MemoryStore(
+        repo: memoryRepo,
+        diaryRepo: diaryRepo,
+      );
+
+      final diaryStore = DiaryStore(
+        repo: diaryRepo,
+        onEventRecorded: (event) {
+          // 日记事件 → 自动提取记忆
+          memoryStore.extractFrom(event);
+        },
+      );
+
+      _knowledgeBase = KnowledgeBase(
+        diaryStore: diaryStore,
+        memoryStore: memoryStore,
+        diaryRepo: diaryRepo,
+        memoryRepo: memoryRepo,
+      );
+      PetLogger().info('Overlay', 'KnowledgeBase initialized');
+    }
+
     _aiService!.startProactiveTimer((s) {
       _suggestion = s;
       _recordDiary('suggestion', detail: s);
@@ -171,8 +209,9 @@ class PetOverlayController {
       _syncScale();
       PetService.loadConfig().then((c) {
         syncTransparentIdle(c.idleTransparentMinutes);
+        syncRenderScale(c.renderScale);
       }).catchError((e) {
-        PetLogger().error('Overlay', 'syncTransparentIdle failed', e);
+        PetLogger().error('Overlay', 'syncConfig failed', e);
       });
     });
     _startBrainLoop();
@@ -185,6 +224,8 @@ class PetOverlayController {
     _started = false;
     _aiService?.dispose();
     _aiService = null;
+    _knowledgeBase?.dispose();
+    _knowledgeBase = null;
     if (_controller != null) {
       try { PetService.saveState(_controller!.state); } catch (e) { PetLogger().error('Overlay', 'stop saveState failed', e); }
       _controller!.onStateChanged = null;
@@ -401,6 +442,12 @@ class PetOverlayController {
     _cmd('setTransparentIdle', {'minutes': minutes});
   }
 
+  /// 同步视觉缩放到 Kotlin（设置页修改后即时生效）
+  void syncRenderScale(double scale) {
+    if (!_started) return;
+    _cmd('setRenderScale', {'scale': scale});
+  }
+
   void _syncScale() {
     if (!_started) { PetLogger().warn('Overlay', '_syncScale SKIP: not started'); return; }
     PetService.loadConfig().then((config) {
@@ -426,7 +473,9 @@ class PetOverlayController {
 
   void _recordDiary(String type, {String? detail}) {
     try {
-      // fire-and-forget，不阻塞触控响应
+      // 新系统：DiaryStore（规则高亮 + 自动提取记忆）
+      _knowledgeBase?.diaryStore.recordEvent(type, detail: detail);
+      // 旧系统兼容：UI 目前仍从 PetDiaryService 读取
       PetDiaryService.instance.recordEvent(type, detail: detail);
     } catch (e) {
       PetLogger().error('Overlay', '_recordDiary failed', e);
