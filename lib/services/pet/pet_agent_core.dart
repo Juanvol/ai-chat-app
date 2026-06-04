@@ -5,23 +5,29 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
-import '../api/deepseek_client.dart';
-import '../pet/pet_persona.dart';
+import '../../api/deepseek_client.dart';
+import '../../models/model_config.dart';
+import '../../pet/pet_persona.dart';
+import '../../models/pet_state.dart';
+import 'pet_logger.dart';
 import 'pet_chat_service.dart';
 import 'pet_token_service.dart';
 import 'pet_profile_service.dart';
 
+/// 原生浮窗动画控制通道（与 PetOverlayController 共用）
+const _overlayChannel = MethodChannel('com.example.deepseek_chat/pet_overlay');
+
 enum AttentionLevel {
-  L0,
-  L1,
-  L2,
-  L3;
+  l0,
+  l1,
+  l2,
+  l3;
 
   Duration get interval => switch (this) {
-    AttentionLevel.L0 => Duration.zero,
-    AttentionLevel.L1 => const Duration(minutes: 5),
-    AttentionLevel.L2 => const Duration(minutes: 2),
-    AttentionLevel.L3 => const Duration(seconds: 60),
+    AttentionLevel.l0 => Duration.zero,
+    AttentionLevel.l1 => const Duration(minutes: 5),
+    AttentionLevel.l2 => const Duration(minutes: 2),
+    AttentionLevel.l3 => const Duration(seconds: 60),
   };
 }
 
@@ -73,25 +79,30 @@ class ActionEntry {
 }
 
 class PetAgentCore extends ChangeNotifier {
+  /// 共享实例，供 main.dart 复用（避免创建第二个 PetAgentCore）
+  static PetAgentCore? shared;
+
   final PetTokenService tokenService;
   final PetProfileService profileService;
 
   LLMClient? _decisionClient;
   LLMClient? _chatClient;
   bool _isActive = false;
-  AttentionLevel _attentionLevel = AttentionLevel.L3;
-  AgentMood _mood = AgentMood();
+  AttentionLevel _attentionLevel = AttentionLevel.l3;
+  final AgentMood _mood = AgentMood();
   Timer? _perceptionTimer;
   int _consecutiveApiFailures = 0;
   bool _isPureRuleMode = false;
   CancelToken? _chatCancelToken;
   final _rng = Random();
   PetChatService? _chatSvc;
+  String _decisionModelId = 'deepseek-chat';
+  String _chatModelId = 'deepseek-chat';
 
   PetAgentCore({
     PetTokenService? tokenService,
     PetProfileService? profileService,
-  })  : tokenService = tokenService ?? PetTokenService(),
+  })  : tokenService = tokenService ?? PetTokenService.instance,
         profileService = profileService ?? PetProfileService();
 
   bool get isActive => _isActive;
@@ -109,7 +120,10 @@ class PetAgentCore extends ChangeNotifier {
     if (chatApiKey != null && chatApiKey.isNotEmpty) {
       _chatClient = LLMClient(apiKey: chatApiKey);
     }
+    await tokenService.loadBudget();
+    PetLogger().info('Agent', 'init() budget=${tokenService.dailyBudget?.toString() ?? 'null'}');
     await _loadState();
+    shared = this; // 注册共享实例，供 main.dart 复用
   }
 
   Future<void> _loadState() async {
@@ -120,17 +134,27 @@ class PetAgentCore extends ChangeNotifier {
         final map = Map<String, dynamic>.from(raw as Map);
         _attentionLevel = AttentionLevel.values.firstWhere(
           (e) => e.name == map['attentionLevel'],
-          orElse: () => AttentionLevel.L3,
+          orElse: () => AttentionLevel.l3,
         );
       }
-    } catch (_) {}
+      // 读取用户在设置中选择的模型
+      final dm = box.get('decisionModel');
+      final cm = box.get('chatModel');
+      if (dm is String && dm.isNotEmpty) _decisionModelId = dm;
+      if (cm is String && cm.isNotEmpty) _chatModelId = cm;
+      PetLogger().info('Agent', 'model loaded: decision=$_decisionModelId chat=$_chatModelId');
+    } catch (e) {
+      PetLogger().error('Agent', '_loadState failed', e);
+    }
   }
 
   Future<void> _saveState() async {
     try {
       final box = await Hive.openBox('pet_config');
       await box.put('agent_state', {'attentionLevel': _attentionLevel.name});
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('Agent', '_saveState failed', e);
+    }
   }
 
   void setAttentionLevel(AttentionLevel level) {
@@ -141,12 +165,14 @@ class PetAgentCore extends ChangeNotifier {
 
   void start() {
     if (_isActive) return;
+    PetLogger().info('Agent', 'start()');
     _isActive = true;
     _schedulePerception();
     notifyListeners();
   }
 
   void stop() {
+    PetLogger().info('Agent', 'stop()');
     _isActive = false;
     _perceptionTimer?.cancel();
     _perceptionTimer = null;
@@ -164,15 +190,29 @@ class PetAgentCore extends ChangeNotifier {
   }
 
   Future<void> _perceive() async {
-    if (!_isActive || _isPureRuleMode) return;
-    if (!await tokenService.checkBudget()) return;
-    if (!_isActive) return; // await 后重查，防止 dispose 后继续执行
+    if (!_isActive) { PetLogger().trace('Agent', 'perceive SKIP: not active'); return; }
+    if (_isPureRuleMode) { PetLogger().trace('Agent', 'perceive SKIP: pure rule mode'); return; }
+    if (!await tokenService.checkBudget()) { PetLogger().warn('Agent', 'perceive SKIP: budget exceeded'); return; }
+    if (!_isActive) { PetLogger().trace('Agent', 'perceive SKIP: became inactive during await'); return; }
+
+    // 从 Hive 读取真实宠物状态，替代之前的硬编码值
+    int hunger = 80;
+    int energy = 80;
+    try {
+      final stateBox = await Hive.openBox('pet_state');
+      final raw = stateBox.get('state');
+      if (raw != null) {
+        final state = PetState.fromJson(Map<String, dynamic>.from(raw as Map));
+        hunger = state.hunger;
+        energy = state.energy;
+      }
+    } catch (_) {}
 
     final now = DateTime.now();
     final local = assessLocally(
       hour: now.hour,
-      hunger: 80,
-      energy: 80,
+      hunger: hunger,
+      energy: energy,
       hasRecentChat: false,
     );
 
@@ -215,8 +255,19 @@ class PetAgentCore extends ChangeNotifier {
     return AssessResult(shouldSkipLLM: true);
   }
 
+  Future<void> _refreshConfig() async {
+    try {
+      final box = await Hive.openBox('pet_config');
+      final dm = box.get('decisionModel');
+      final cm = box.get('chatModel');
+      if (dm is String && dm.isNotEmpty) _decisionModelId = dm;
+      if (cm is String && cm.isNotEmpty) _chatModelId = cm;
+    } catch (_) {}
+  }
+
   Future<void> _evaluate({String context = ''}) async {
     if (_decisionClient == null) return;
+    await _refreshConfig();
 
     try {
       await _loadPersona(); // 确保 persona 已加载到上下文
@@ -227,9 +278,28 @@ class PetAgentCore extends ChangeNotifier {
       prompt.writeln('当前心情：活跃度=${mood.activity.toStringAsFixed(2)} 毒舌度=${mood.sass.toStringAsFixed(2)} 听话度=${mood.compliance.toStringAsFixed(2)}');
       prompt.writeln('决策：你现在想做什么？回复格式：{"action":"bubble/move/flip/speak/silent","content":"..."}');
 
+      // 解析模型 → provider
+      String resolvedBaseUrl = 'https://api.deepseek.com';
+      String? resolvedApiKey = _decisionClient?.apiKey;
+      String resolvedProviderId = 'deepseek';
+      final modelInfo = ModelConfig.resolveModel(_decisionModelId);
+      if (modelInfo != null) {
+        resolvedBaseUrl = modelInfo.baseUrl;
+        resolvedProviderId = modelInfo.providerId;
+        try {
+          final settingsBox = await Hive.openBox('settings');
+          final key = settingsBox.get('${modelInfo.providerId}_key') as String?;
+          if (key != null && key.isNotEmpty) resolvedApiKey = key;
+        } catch (_) {}
+      }
+
       final result = await _decisionClient!.send(
         history: [],
         userContent: prompt.toString(),
+        model: _decisionModelId,
+        baseUrl: resolvedBaseUrl,
+        apiKey: resolvedApiKey,
+        providerId: resolvedProviderId,
         maxTokens: 64,
         thinkingEnabled: false,
       );
@@ -254,6 +324,7 @@ class PetAgentCore extends ChangeNotifier {
       _consecutiveApiFailures++;
       if (_consecutiveApiFailures >= 3 && !_isPureRuleMode) {
         _isPureRuleMode = true;
+        PetLogger().warn('Agent', 'switching to pure rule mode after $_consecutiveApiFailures failures');
         debugPrint('PetAgentCore: 连续 3 次 API 失败，切到纯规则模式');
         notifyListeners();
       }
@@ -290,7 +361,9 @@ class PetAgentCore extends ChangeNotifier {
       final box = await Hive.openBox('agent_action');
       await box.put('current', action.toJson());
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('Agent', '_publishAction failed', e);
+    }
   }
 
   Future<PetPersona> _loadPersona() async {
@@ -319,23 +392,90 @@ class PetAgentCore extends ChangeNotifier {
     }
   }
 
-  /// 处理引擎 #2 通过 MethodChannel 发来的聊天请求
-  Future<void> handleChatRequest(
-    String userText, {
+  /// 回调版聊天流 — 供应用内 UI 使用（不依赖 MethodChannel）
+  Future<void> chatStream({
+    required String userText,
     List<Map<String, dynamic>> history = const [],
-    int requestId = 0,
+    required void Function(String fullText) onChunk,
+    required void Function() onDone,
+    required void Function(String error) onError,
   }) async {
     _chatCancelToken?.cancel();
     _chatCancelToken = CancelToken();
 
+    PetLogger().info('Agent', 'chatStream len=${userText.length}');
     if (_chatClient == null) {
-      _sendChatError('糯糯还没准备好喵...稍等一下~', requestId: requestId);
+      onError('糯糯还没准备好喵...稍等一下~');
       return;
     }
 
+    await _refreshConfig();
     final persona = await _loadPersona();
     _chatClient?.setSystemPrompt(persona.systemPrompt);
 
+    // 解析模型 → provider
+    final resolved = await _resolveChatProvider();
+    final prompt = _buildChatPrompt(userText, history: history);
+
+    try {
+      final textBuffer = StringBuffer();
+      DateTime lastChunkTime = DateTime.now();
+
+      await for (final chunk in _chatClient!.sendStream(
+        history: [],
+        userContent: prompt,
+        model: _chatModelId,
+        baseUrl: resolved.baseUrl,
+        apiKey: resolved.apiKey,
+        providerId: resolved.providerId,
+        thinkingEnabled: false,
+        maxTokens: 512,
+        cancelToken: _chatCancelToken,
+      )) {
+        textBuffer.write(chunk.text);
+        if (chunk.usage != null) {
+          await tokenService.recordTokens(chat: chunk.usage!['total_tokens'] ?? 0);
+        }
+
+        final now = DateTime.now();
+        if (now.difference(lastChunkTime).inMilliseconds < 50) continue;
+        lastChunkTime = now;
+
+        onChunk(textBuffer.toString());
+      }
+
+      if (textBuffer.isNotEmpty) onChunk(textBuffer.toString());
+      onDone();
+      await _saveChatMessage(userText, textBuffer.toString());
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) return;
+      onError('信号不好喵...待会再试试~');
+    } catch (e) {
+      debugPrint('PetAgentCore.chatStream failed: $e');
+      onError('信号不好喵...待会再试试~');
+    }
+  }
+
+  /// 解析聊天模型 → (baseUrl, apiKey, providerId)
+  Future<({String baseUrl, String? apiKey, String providerId})> _resolveChatProvider() async {
+    String baseUrl = 'https://api.deepseek.com';
+    String? apiKey = _chatClient?.apiKey;
+    String providerId = 'deepseek';
+    final modelInfo = ModelConfig.resolveModel(_chatModelId);
+    if (modelInfo != null) {
+      baseUrl = modelInfo.baseUrl;
+      providerId = modelInfo.providerId;
+      try {
+        final settingsBox = await Hive.openBox('settings');
+        final key = settingsBox.get('${modelInfo.providerId}_key') as String?;
+        if (key != null && key.isNotEmpty) apiKey = key;
+      } catch (_) {}
+    }
+    return (baseUrl: baseUrl, apiKey: apiKey, providerId: providerId);
+  }
+
+  /// 构建聊天提示词
+  String _buildChatPrompt(String userText, {List<Map<String, dynamic>> history = const []}) {
     final buffer = StringBuffer();
     if (history.isNotEmpty) {
       buffer.writeln('最近对话：');
@@ -346,85 +486,118 @@ class PetAgentCore extends ChangeNotifier {
     }
     buffer.writeln('主人说: $userText');
     buffer.writeln('请以糯糯的身份回复，保持短小可爱，不超过3句话。');
+    return buffer.toString();
+  }
 
-    try {
-      final textBuffer = StringBuffer();
-      DateTime lastChunkTime = DateTime.now();
+  /// 处理引擎 #2 通过 MethodChannel 发来的聊天请求
+  Future<void> handleChatRequest(
+    String userText, {
+    List<Map<String, dynamic>> history = const [],
+    int requestId = 0,
+  }) async {
+    PetLogger().info('Agent', 'handleChatRequest rid=$requestId len=${userText.length}');
 
-      await for (final chunk in _chatClient!.sendStream(
-        history: [],
-        userContent: buffer.toString(),
-        thinkingEnabled: false,
-        maxTokens: 512,
-        cancelToken: _chatCancelToken,
-      )) {
-        textBuffer.write(chunk.text);
+    // ── Wire 1: 开始处理 → run 动画 + 思考气泡 ──
+    _sendOverlayCmd('playAnim', {'anim': 'run'});
+    _sendOverlayCmd('showBubble', {'text': '正在思考...', 'durationMs': 5000});
+    bool firstChunkSent = false;
 
-        final now = DateTime.now();
-        if (now.difference(lastChunkTime).inMilliseconds < 50) continue;
-        lastChunkTime = now;
-
-        _sendChatChunk(textBuffer.toString(), requestId: requestId);
-      }
-
-      if (textBuffer.isNotEmpty) {
-        _sendChatChunk(textBuffer.toString(), requestId: requestId);
-      }
-      _sendChatDone(requestId: requestId);
-
-      await _saveChatMessage(userText, textBuffer.toString());
-    } on DioException catch (e) {
-      if (e.type == DioExceptionType.cancel) { /* 请求被取消，正常 */ }
-      else { rethrow; }
-    } catch (e) {
-      debugPrint('PetAgentCore.handleChatRequest failed: $e');
-      _sendChatError('信号不好喵...待会再试试~', requestId: requestId);
-    }
+    await chatStream(
+      userText: userText,
+      history: history,
+      onChunk: (fullText) {
+        // ── Wire 1: 首个 chunk → talking 动画 ──
+        if (!firstChunkSent) {
+          firstChunkSent = true;
+          _sendOverlayCmd('playAnim', {'anim': 'talking'});
+        }
+        _sendChatChunk(fullText, requestId: requestId);
+      },
+      onDone: () {
+        // ── Wire 1: 完成 → wave + 成功气泡 ──
+        _sendOverlayCmd('playAnim', {'anim': 'wave'});
+        _sendOverlayCmd('showBubble', {'text': '搞定啦~', 'durationMs': 3000});
+        _sendChatDone(requestId: requestId);
+      },
+      onError: (msg) {
+        // ── Wire 1: 出错 → failed + 错误气泡 ──
+        _sendOverlayCmd('playAnim', {'anim': 'failed'});
+        _sendOverlayCmd('showBubble', {'text': msg, 'durationMs': 4000});
+        _sendChatError(msg, requestId: requestId);
+      },
+    );
   }
 
   void _sendChatChunk(String fullText, {required int requestId}) {
     try {
-      MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+      const MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
           .invokeMethod('chatChunk', {
         'fullText': fullText,
         'requestId': requestId,
       });
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('Agent', '_sendChatChunk failed', e);
+    }
   }
 
   void _sendChatDone({required int requestId}) {
     try {
-      MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+      const MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
           .invokeMethod('chatDone', {'requestId': requestId});
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('Agent', '_sendChatDone failed', e);
+    }
   }
 
   void _sendChatError(String message, {required int requestId}) {
     try {
-      MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+      const MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
           .invokeMethod('chatError', {
         'message': message,
         'requestId': requestId,
       });
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('Agent', '_sendChatError failed', e);
+    }
+  }
+
+  /// Wire 1+2: 向原生浮窗发送动画/气泡指令
+  /// 通过 pet_overlay channel → PetForegroundService.handleCommand()
+  void _sendOverlayCmd(String cmd, Map<String, dynamic> args) {
+    try {
+      _overlayChannel.invokeMethod('cmd', {
+        'cmd': cmd,
+        'args': args,
+      });
+    } catch (e) {
+      PetLogger().error('Agent', '_sendOverlayCmd($cmd) failed', e);
+    }
   }
 
   Future<void> _saveChatMessage(String userText, String assistantText) async {
     try {
       _chatSvc ??= PetChatService();
       final chatBox = await Hive.openBox('pet_chats');
-      final currentId = chatBox.get('currentId') as String?;
-      if (currentId != null) {
-        await _chatSvc!.addMessage(currentId, 'user', userText);
-        await _chatSvc!.addMessage(currentId, 'assistant', assistantText);
+      var currentId = chatBox.get('currentId') as String?;
+      if (currentId == null) {
+        currentId = await _chatSvc!.createChat();
+        PetLogger().info('Agent', 'chat session auto-created: $currentId');
       }
-    } catch (_) {}
+      await _chatSvc!.addMessage(currentId, 'user', userText);
+      await _chatSvc!.addMessage(currentId, 'assistant', assistantText);
+    } catch (e) {
+      PetLogger().error('Agent', '_saveChatMessage failed', e);
+    }
   }
 
   @override
   void dispose() {
+    if (identical(shared, this)) shared = null;
     _chatCancelToken?.cancel();
-    stop();
+    // 直接清理资源，不调 stop() — stop() 调 notifyListeners() 会在 dispose 时触发框架断言
+    _perceptionTimer?.cancel();
+    _perceptionTimer = null;
+    _isActive = false;
     super.dispose();
   }
 }
