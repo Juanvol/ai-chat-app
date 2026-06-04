@@ -1,7 +1,7 @@
 name: deepseek_chat
 description: 满血 DeepSeek V4 Pro AI 聊天助手
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -16,7 +16,10 @@ dependencies:
   flutter_markdown: ^0.6.22
   flutter_highlight: ^0.7.0
   highlight: ^0.7.0
+  markdown: ^7.3.1
   path_provider: ^2.1.2
+  share_plus: ^13.1.0
+  flutter_animate: ^4.5.0
 
 dev_dependencies:
   flutter_test:
