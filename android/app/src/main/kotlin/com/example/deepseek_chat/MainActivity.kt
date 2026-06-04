@@ -80,6 +80,15 @@ class MainActivity : FlutterActivity() {
                     EngineBridge.invokePetWindow(call.method, call.arguments as Map<String, Any?>)
                     result.success(null)
                 }
+                "getPopupHistory" -> {
+                    val history = PetForegroundService.instance?.getPopupHistory()
+                        ?: emptyList<Map<String, Any>>()
+                    result.success(history)
+                }
+                "clearPopupHistory" -> {
+                    PetForegroundService.instance?.clearPopupHistory()
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

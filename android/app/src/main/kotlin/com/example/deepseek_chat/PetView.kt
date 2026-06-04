@@ -68,15 +68,9 @@ class PetView(context: Context) : View(context) {
     /** 空闲超时 → Service 启用穿透 */
     var onIdleTimeout: (() -> Unit)? = null
 
-    // 宠物尺寸（由外部设置）
-    var petWidth = 120f
-    var petHeight = 120f
-
-    // 小窗内宠物绘制位置（由 Service 按 density 设置）
-    var drawPadLeft = 60f
-    var drawPadTop = 90f
-    var drawPadRight = 60f
-    var drawPadBottom = 60f
+    // 宠物尺寸（由外部设置，默认 156dp = 120dp × 1.3）
+    var petWidth = 156f
+    var petHeight = 156f
 
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
@@ -84,9 +78,10 @@ class PetView(context: Context) : View(context) {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val w = (drawPadLeft + petWidth + drawPadRight).toInt()
-        val h = (drawPadTop + petHeight + drawPadBottom).toInt()
-        setMeasuredDimension(w, h)
+        // 窗口高度 = 精灵 + 气泡预留（约 40% 精灵高度用于气泡），精灵画在底部。
+        // 触摸命中仅限底部精灵区域，气泡预留区设为透明且不响应触摸。
+        val bubbleReserve = (petHeight * 0.42f).toInt()
+        setMeasuredDimension(petWidth.toInt(), petHeight.toInt() + bubbleReserve)
     }
 
     // ═══════════════════════════════════════════
@@ -348,18 +343,19 @@ class PetView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(0, PorterDuff.Mode.CLEAR)  // 透明
 
-        // 精灵帧：小窗固定绘制位（浮窗随宠物重定位，宠物始终在 view 内同一位置）
-        val drawX = drawPadLeft + drawOffsetX
-        val drawY = drawPadTop + drawOffsetY
+        // 精灵帧：绘制在 View 底部（上方预留气泡空间，bubbleReserve = petHeight*0.42）
+        val bubbleReserve = measuredHeight - petHeight.toInt()
+        val drawX = 0f + drawOffsetX
+        val drawY = bubbleReserve + drawOffsetY
         val bmp = blender.currentBitmap()
         if (drawFrameCount < 5) {
-            Log.d("PetView", "onDraw #$drawFrameCount: drawXY=($drawX,$drawY) padLT=($drawPadLeft,$drawPadTop) physicsXY=(${physics.x},${physics.y}) bmp=$bmp bmpSize=${bmp?.width}x${bmp?.height} viewSize=$width×$height squash=(${physics.squashX},${physics.squashY})")
+            Log.d("PetView", "onDraw #$drawFrameCount: drawXY=($drawX,$drawY) bubbleReserve=$bubbleReserve physicsXY=(${physics.x},${physics.y}) bmp=$bmp viewSize=$width×$height")
         }
         blender.draw(canvas, drawX, drawY,
             physics.squashX * animScaleX,
             physics.squashY * animScaleY)
 
-        // 气泡（跟随偏移后的位置）
+        // 气泡（绘制在精灵上方，利用预留空间）
         bubble.draw(canvas, drawX, drawY, petWidth)
         drawFrameCount++
     }
@@ -371,13 +367,22 @@ class PetView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (passthroughEnabled) return false
 
+        // ── 命中测试：仅 ACTION_DOWN 检查是否点中精灵 ──
+        // 一旦手势开始（DOWN 通过），后续 MOVE/UP 不再检查，避免拖动时窗口跟随
+        // 手指移动导致 event.x/y 相对位置变化而意外中断拖动。
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            val spriteTop = (height - petHeight).coerceAtLeast(0f)
+            val onSprite = event.x >= 0f && event.x <= petWidth &&
+                           event.y >= spriteTop && event.y <= spriteTop + petHeight
+            if (!onSprite) return false
+        }
+
         idleTime = 0f  // 任何触控重置空闲计时
         onUserInteraction?.invoke()  // 通知 Service 禁用穿透
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 downTime = System.currentTimeMillis()
-                // 全屏模式：physics 使用屏幕坐标，触控也用屏幕坐标
                 downX = event.rawX
                 downY = event.rawY
                 hasMoved = false
@@ -387,6 +392,7 @@ class PetView(context: Context) : View(context) {
                 if (abs(event.rawX - downX) > 15f || abs(event.rawY - downY) > 15f) {
                     hasMoved = true
                     isDragging = true
+                    // 全屏自由拖动——桌面宠物可被拖到屏幕任意位置
                     physics.x = event.rawX - petWidth / 2
                     physics.y = event.rawY - petHeight / 2
                 }
@@ -412,7 +418,7 @@ class PetView(context: Context) : View(context) {
                             pokeTimer = 0f
                             onTouchEvent?.invoke("tap", event.rawX, event.rawY)
                             onPokeCount?.invoke(pokeCount)
-                            // 触控反馈：缩放弹跳（在下一帧的physics中体现）
+                            // 触控反馈：缩放弹跳
                             physics.squashX = 1.15f
                             physics.squashY = 0.85f
                         }
@@ -425,8 +431,6 @@ class PetView(context: Context) : View(context) {
                 hasMoved = false
             }
             MotionEvent.ACTION_CANCEL -> {
-                // 新窗口弹出等场景会取消当前触控序列
-                // 重置拖拽状态防止残留在半拖状态导致位置异常
                 isDragging = false
                 hasMoved = false
             }

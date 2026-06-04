@@ -80,8 +80,8 @@ class PetForegroundService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "弗糯糯电子宠物", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "弗糯糯正在陪伴你"
+                NotificationChannel(CHANNEL_ID, "雪乃电子宠物", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "雪乃正在陪伴你"
                     setShowBadge(false)
                 }
             )
@@ -97,13 +97,13 @@ class PetForegroundService : Service() {
         val ipi = PendingIntent.getService(this, 1, interact, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("弗糯糯").setContentText("糯糯正在陪你...")
+                .setContentTitle("雪乃").setContentText("雪乃正在陪你...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentIntent(pi)
                 .addAction(android.R.drawable.ic_menu_edit, "交互", ipi)
                 .addAction(android.R.drawable.ic_media_pause, "关闭", spi).setOngoing(true).build()
         else @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("弗糯糯").setContentText("糯糯正在陪你...")
+                .setContentTitle("雪乃").setContentText("雪乃正在陪你...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentIntent(pi).setOngoing(true).build()
     }
 
@@ -112,7 +112,7 @@ class PetForegroundService : Service() {
     // ═══════════════════════════════════════════
 
     private fun showPetWindow() {
-        Log.d("PetSvc", "=== showPetWindow v4 (dynamic window) ===")
+        Log.d("PetSvc", "=== showPetWindow v5 (sprite-sized window) ===")
         startForeground(NOTIFICATION_ID, buildNotification())
 
         if (rootView?.parent != null) return
@@ -122,14 +122,10 @@ class PetForegroundService : Service() {
         val screenH = resources.displayMetrics.heightPixels
         Log.d("PetSvc", "screen: ${screenW}x$screenH, density=$density")
 
-        // 小窗边距（dp → px）：左右各 60dp，上 90dp（气泡），下 60dp
-        val padH = (60 * density).toInt()
-        val padTop = (90 * density).toInt()
-        val padBottom = (60 * density).toInt()
-        val petW = (120 * density)
-        val petH = (120 * density)
+        val petW = (156 * density)  // 120dp × 1.3
+        val petH = (156 * density)
 
-        // 创建 PetView — WRAP_CONTENT，onMeasure 决定实际尺寸
+        // 创建 PetView — 窗口大小 = 宠物精灵大小（onMeasure 返回 petW×petH）
         petView = PetView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -137,14 +133,10 @@ class PetForegroundService : Service() {
             )
             petWidth = petW
             petHeight = petH
-            drawPadLeft = padH.toFloat()
-            drawPadTop = padTop.toFloat()
-            drawPadRight = padH.toFloat()
-            drawPadBottom = padBottom.toFloat()
 
-            // 位置变化 → Service 重定位浮窗
+            // 位置变化 → Service 重定位浮窗（窗口=精灵，无需 padding 偏移）
             onPositionChanged = { px, py ->
-                repositionWindow(px - padH, py - padTop)
+                repositionWindow(px, py)
             }
             // 用户触摸 → 禁用穿透
             onUserInteraction = {
@@ -182,12 +174,15 @@ class PetForegroundService : Service() {
         }
 
         // physics 屏幕坐标系，起始居中偏上
+        // 全屏自由移动——桌面宠物可被拖到屏幕任意位置
         val startX = (screenW - petW) / 2f
         val startY = screenH * 0.25f
         petView?.physics?.apply {
             x = startX; y = startY
-            maxX = screenW.toFloat(); maxY = screenH.toFloat()
-            minX = 0f; minY = 0f
+            minX = 0f
+            maxX = (screenW - petW).toFloat()
+            minY = 0f
+            maxY = (screenH - petH).toFloat()
         }
 
         // 加载帧
@@ -201,8 +196,10 @@ class PetForegroundService : Service() {
             Log.e("PetSvc", "NO ANIMATIONS LOADED — pet will be invisible!")
         }
 
-        // 小窗容器
+        // 小窗容器 — clipChildren=false 让气泡能绘制在 PetView 边界之外
         rootView = FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
@@ -225,8 +222,8 @@ class PetForegroundService : Service() {
             type, flags, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = (startX - padH).toInt()
-            y = (startY - padTop).toInt()
+            x = startX.toInt()
+            y = startY.toInt()
         }
 
         windowManager?.addView(rootView, windowParams)
@@ -323,16 +320,25 @@ class PetForegroundService : Service() {
             var stream: InputStream? = null
             try {
                 stream = assets.open(spritesheetPath)
-                val bmp = BitmapFactory.decodeStream(stream)
-                if (bmp == null) return false
-                Log.d("PetSvc", "spritesheet decoded: ${bmp.width}×${bmp.height}")
+                val opts = BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.ARGB_8888  // 保留 alpha 通道
+                }
+                val bmp = BitmapFactory.decodeStream(stream, null, opts)
+                if (bmp == null) {
+                    Log.e("PetSvc", "spritesheet decode FAILED — BitmapFactory returned null")
+                    return false
+                }
+                Log.d("PetSvc", "spritesheet decoded: ${bmp.width}×${bmp.height}, cells=${bmp.width/FrameBlender.SPRITESHEET_COLS}×${bmp.height/FrameBlender.SPRITESHEET_ROWS}")
 
                 val loaded = petView?.blender?.loadSpritesheet(bmp) ?: emptySet()
                 Log.d("PetSvc", "spritesheet loaded ${loaded.size} anims: $loaded")
+                if (loaded.isEmpty()) {
+                    Log.e("PetSvc", "spritesheet load returned 0 anims — wrong dimensions? w/8=${bmp.width/8} h/9=${bmp.height/9}")
+                }
                 return loaded.isNotEmpty()
             } finally { stream?.close() }
         } catch (e: Exception) {
-            Log.e("PetSvc", "spritesheet load failed: ${e.message}")
+            Log.e("PetSvc", "spritesheet load failed: ${e.message}", e)
             return false
         }
     }
@@ -367,6 +373,25 @@ class PetForegroundService : Service() {
                 pv?.bubble?.hide()
                 Log.d("PetSvc", "<<< cmd DONE hideBubble")
             }
+            // ── 聊天流式响应 → 更新 Dialog 消息列表 ──
+            "chatChunk" -> {
+                val text = (args?.get("text") as? String) ?: ""
+                val isStreaming = args?.get("isStreaming") as? Boolean ?: true
+                val rid = (args?.get("requestId") as? Number)?.toInt() ?: 0
+                updateChatDialog(rid, text, isStreaming, null)
+                Log.d("PetSvc", "<<< cmd DONE chatChunk: len=${text.length}")
+            }
+            "chatDone" -> {
+                val rid = (args?.get("requestId") as? Number)?.toInt() ?: 0
+                updateChatDialog(rid, null, false, true)
+                Log.d("PetSvc", "<<< cmd DONE chatDone")
+            }
+            "chatError" -> {
+                val msg = (args?.get("message") as? String) ?: "出错了喵..."
+                val rid = (args?.get("requestId") as? Number)?.toInt() ?: 0
+                updateChatDialog(rid, msg, false, false)
+                Log.d("PetSvc", "<<< cmd DONE chatError")
+            }
             "showEmoji" -> {
                 // Emoji 已通过 PetView 的 BubbleAnimator 处理
                 val emoji = (args?.get("emoji") as? String) ?: ""
@@ -383,15 +408,13 @@ class PetForegroundService : Service() {
                 val y = (args?.get("y") as? Number)?.toFloat() ?: 400f
                 pv?.physics?.x = x
                 pv?.physics?.y = y
-                // 小窗跟随
-                val padH = pv?.drawPadLeft ?: 0f
-                val padTop = pv?.drawPadTop ?: 0f
-                repositionWindow(x - padH, y - padTop)
+                // 窗口=精灵大小，直接跟随
+                repositionWindow(x, y)
                 Log.d("PetSvc", "<<< cmd DONE setPos: ($x, $y)")
             }
             "setSize" -> {
-                val w = (args?.get("width") as? Number)?.toFloat() ?: 120f
-                val h = (args?.get("height") as? Number)?.toFloat() ?: 120f
+                val w = (args?.get("width") as? Number)?.toFloat() ?: 156f
+                val h = (args?.get("height") as? Number)?.toFloat() ?: 156f
                 pv?.petWidth = w * density
                 pv?.petHeight = h * density
                 pv?.requestLayout()  // 触发 onMeasure 重算小窗尺寸
@@ -430,114 +453,184 @@ class PetForegroundService : Service() {
         }
     }
 
-    /** Wire 3: 弹出迷你聊天对话框 — 高级暗调风格 */
+    /** Wire 3: 弹出迷你聊天对话框 — 含完整对话历史 + 流式响应 + 空闲自动关闭 */
     private fun showChatDialog() {
         val petView = this.petView ?: return
         val ctx = this@PetForegroundService
         val density = resources.displayMetrics.density
         val dp = { n: Int -> (n * density).toInt() }
 
-        // ── 颜色常量（高级暗调） ──
-        val colorBg = 0xFF212124.toInt()      // 深炭灰底
-        val colorCard = 0xFF2E2E32.toInt()    // 卡片
-        val colorBorder = 0xFF3A3A3E.toInt()  // 隐线
-        val colorAccent = 0xFFB8935D.toInt()  // 哑铜金
-        val colorText = 0xFFE4DFD8.toInt()    // 暖白字
-        val colorHint = 0xFF5E5A54.toInt()    // 暗灰 placeholder
-        val colorInputBg = 0xFF28282C.toInt() // 输入框底色
+        // ── 颜色常量 ──
+        val colorBg = 0xFF212124.toInt()
+        val colorCard = 0xFF2E2E32.toInt()
+        val colorBorder = 0xFF3A3A3E.toInt()
+        val colorAccent = 0xFFB8935D.toInt()
+        val colorText = 0xFFE4DFD8.toInt()
+        val colorHint = 0xFF5E5A54.toInt()
+        val colorInputBg = 0xFF28282C.toInt()
+        val colorUserBubble = 0xFF3D3524.toInt()
+        val colorUserBorder = 0xFFB8935D.toInt()
+
+        // 重置状态
+        chatMessages.clear()
+        chatRequestId = System.currentTimeMillis().toInt()
+        chatIdleTimer?.cancel()
+
+        // 获取状态栏高度
+        val statusBarH = resources.getIdentifier("status_bar_height", "dimen", "android")
+            .takeIf { it > 0 }?.let { resources.getDimensionPixelSize(it) } ?: dp(24)
 
         // ── 根容器 ──
         val root = android.widget.FrameLayout(ctx).apply {
-            setPadding(dp(20), dp(20), dp(20), dp(16))
+            setPadding(dp(16), dp(16), dp(16), dp(12))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(colorBg)
                 cornerRadius = dp(14).toFloat()
                 setStroke(dp(1), colorBorder)
             }
-            elevation = dp(8).toFloat()
+            elevation = dp(12).toFloat()
         }
 
-        // ── 纵向布局 ──
+        // ── 主列：header(fixed) + body(scrollable) + input(fixed) ──
         val column = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(dp(8), dp(12), dp(8), dp(8))
         }
 
-        // ── 标题 ──
+        // ── 标题栏（固定）──
+        val header = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(4), dp(10))
+        }
         val title = android.widget.TextView(ctx).apply {
-            text = "和糯糯聊天"
+            text = "和雪乃聊天"
             setTextColor(colorText)
-            textSize = 16f
+            textSize = 15f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-            setPadding(dp(4), 0, dp(4), dp(14))
         }
-        column.addView(title)
+        header.addView(title)
+        header.addView(android.widget.Space(ctx).apply { layoutParams = android.widget.LinearLayout.LayoutParams(0, 1, 1f) })
+        val closeBtn = android.widget.TextView(ctx).apply {
+            text = "✕"
+            setTextColor(colorHint)
+            textSize = 18f
+            setPadding(dp(8), dp(4), 0, dp(4))
+            setOnClickListener { dismissChatDialog() }
+        }
+        header.addView(closeBtn)
+        column.addView(header)
 
-        // ── 输入框 ──
+        // ── 消息列表 (ScrollView > LinearLayout) ──
+        val scrollView = android.widget.ScrollView(ctx).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                dp(280), 0, 1f  // weight=1 填满剩余空间
+            )
+            setPadding(0, 0, 0, dp(4))
+            setVerticalScrollBarEnabled(false)
+        }
+        val msgContainer = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(4), 0, dp(4), 0)
+        }
+        val welcomeHint = android.widget.TextView(ctx).apply {
+            text = "和雪乃聊聊吧~ 💬"
+            setTextColor(colorHint)
+            textSize = 12f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, dp(20), 0, dp(20))
+        }
+        msgContainer.addView(welcomeHint)
+        scrollView.addView(msgContainer)
+        column.addView(scrollView)
+
+        // ── 加载指示器（默认隐藏）──
+        val loadingRow = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(dp(12), dp(4), 0, dp(4))
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            visibility = android.view.View.GONE
+        }
+        val loadingDots = android.widget.TextView(ctx).apply {
+            text = "● ● ●"
+            setTextColor(colorAccent)
+            textSize = 10f
+            setPadding(0, 0, dp(6), 0)
+        }
+        val loadingLabel = android.widget.TextView(ctx).apply {
+            text = "雪乃思考中..."
+            setTextColor(colorHint)
+            textSize = 12f
+        }
+        loadingRow.addView(loadingDots)
+        loadingRow.addView(loadingLabel)
+        column.addView(loadingRow)
+
+        // ── 输入区（固定）──
+        val inputRow = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
         val input = android.widget.EditText(ctx).apply {
             hint = "想说点什么？"
             setHintTextColor(colorHint)
             setTextColor(colorText)
-            textSize = 14f
-            setSingleLine(false)
-            maxLines = 3
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            textSize = 13f
+            setSingleLine(true)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            // 显式设置光标颜色（Android 9+ 通过 textCursorDrawable 控制）
+            try {
+                val cursorField = android.widget.TextView::class.java.getDeclaredField("mCursorDrawableRes")
+                cursorField.isAccessible = true
+                cursorField.set(this, 0)  // 0 = 使用 textColor 作为光标色
+            } catch (_: Exception) {}
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(colorInputBg)
                 cornerRadius = dp(8).toFloat()
                 setStroke(dp(1), colorBorder)
             }
-            setLineSpacing(0f, 1.3f)
+            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) resetChatIdleTimer()
+            }
+            setOnClickListener { resetChatIdleTimer() }
+            // 每次输入文字都重置空闲计时——防止打字打到一半键盘被收走
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    resetChatIdleTimer()
+                }
+                override fun afterTextChanged(s: android.text.Editable?) {}
+            })
         }
-        column.addView(input)
+        inputRow.addView(input)
 
-        // ── 间距 ──
-        column.addView(android.widget.Space(ctx).apply { minimumHeight = dp(16) })
-
-        // ── 按钮行 ──
-        val btnRow = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.END
-        }
-
-        // 取消按钮
-        val cancelBtn = android.widget.TextView(ctx).apply {
-            text = "取消"
-            setTextColor(colorHint)
-            textSize = 14f
-            setPadding(dp(16), dp(10), dp(12), dp(10))
-            setOnClickListener { dismissChatDialog() }
-        }
-        btnRow.addView(cancelBtn)
-
-        // 发送按钮 — 哑铜金
         val sendBtn = android.widget.TextView(ctx).apply {
             text = "发送"
             setTextColor(0xFF212124.toInt())
-            textSize = 14f
+            textSize = 13f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-            setPadding(dp(20), dp(10), dp(20), dp(10))
+            setPadding(dp(16), dp(10), dp(16), dp(10))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(colorAccent)
                 cornerRadius = dp(8).toFloat()
             }
-            setOnClickListener {
-                val text = input.text.toString().trim()
-                if (text.isNotEmpty()) {
-                    EngineBridge.invokeMain("chatReq", mapOf(
-                        "text" to text,
-                        "requestId" to System.currentTimeMillis().toInt(),
-                        "history" to emptyList<Map<String, Any>>()
-                    ))
-                    petView.showBubble(text, 2000)
-                }
-                dismissChatDialog()
-            }
+            setOnClickListener { sendChatMessage(input, ctx, dp, colorText, colorUserBubble, colorUserBorder, colorCard, colorBorder, colorAccent, colorHint, scrollView, msgContainer, welcomeHint, loadingRow, petView) }
         }
-        btnRow.addView(sendBtn)
-        column.addView(btnRow)
+        inputRow.addView(sendBtn)
+        column.addView(inputRow)
 
         root.addView(column)
+
+        // ── 保存引用 ──
+        chatMsgContainer = msgContainer
+        chatScrollView = scrollView
+        chatInput = input
+        chatLoadingView = loadingRow
+        chatDialogView = root
+
+        // ── 加载历史消息 ──
+        loadChatHistory(msgContainer, dp, colorUserBubble, colorUserBorder, colorCard, colorBorder, colorAccent, colorHint, welcomeHint)
 
         // ── 窗口参数 ──
         val type = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
@@ -545,23 +638,27 @@ class PetForegroundService : Service() {
         else @Suppress("DEPRECATION")
             android.view.WindowManager.LayoutParams.TYPE_PHONE
 
+        val screenH = resources.displayMetrics.heightPixels
+        // 弹窗紧贴状态栏下方，高度自适应（最多 420dp），确保在任何屏幕上都完整可见
+        val dialogMaxH = minOf(dp(420), screenH - statusBarH - dp(40))  // 底部留 40dp 给键盘区域
+
         val dialogParams = android.view.WindowManager.LayoutParams(
-            dp(280),
-            android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+            dp(300),
+            dialogMaxH,
             type,
             android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
             android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             android.graphics.PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = android.view.Gravity.CENTER
-            // 入场动画
+            gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
+            y = statusBarH
             windowAnimations = android.R.style.Animation_Dialog
         }
 
         // ── 半透明遮罩 ──
         val overlay = android.view.View(ctx).apply {
-            setBackgroundColor(0x33000000)
-            setOnClickListener { dismissChatDialog() } // 点击遮罩关闭
+            setBackgroundColor(0x44000000)
+            setOnClickListener { dismissChatDialog() }
         }
         val overlayParams = android.view.WindowManager.LayoutParams(
             android.view.WindowManager.LayoutParams.MATCH_PARENT,
@@ -572,24 +669,382 @@ class PetForegroundService : Service() {
         )
 
         chatOverlayView = overlay
-        chatDialogView = root
         windowManager?.addView(overlay, overlayParams)
         windowManager?.addView(root, dialogParams)
+
+        // 聚焦输入框
+        input.postDelayed({
+            input.requestFocus()
+            val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            imm?.showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }, 200)
+    }
+
+    /** 发送聊天消息 */
+    private fun sendChatMessage(
+        input: android.widget.EditText,
+        ctx: android.content.Context,
+        dp: (Int) -> Int,
+        colorText: Int,
+        colorUserBubble: Int,
+        colorUserBorder: Int,
+        colorCard: Int,
+        colorBorder: Int,
+        colorAccent: Int,
+        colorHint: Int,
+        scrollView: android.widget.ScrollView,
+        msgContainer: android.widget.LinearLayout,
+        welcomeHint: android.widget.TextView,
+        loadingRow: android.widget.LinearLayout,
+        petView: PetView
+    ) {
+        val text = input.text.toString().trim()
+        if (text.isEmpty()) return
+
+        // 隐藏欢迎提示
+        welcomeHint.visibility = android.view.View.GONE
+        // 添加用户消息气泡
+        addChatBubble(msgContainer, true, text, colorUserBubble, colorUserBorder, dp)
+        input.text.clear()
+
+        // 显示加载指示器
+        loadingRow.visibility = android.view.View.VISIBLE
+        scrollView.postDelayed({
+            scrollView.fullScroll(android.view.View.FOCUS_DOWN)
+        }, 100)
+
+        // 发送到 Flutter
+        chatRequestId = System.currentTimeMillis().toInt()
+        chatMessages.add(ChatMsg(true, text))
+        // 预留 AI 消息槽位
+        chatMessages.add(ChatMsg(false, "", true))
+
+        // 构建历史上下文（排除当前轮的空 AI 槽位）
+        val historyList = mutableListOf<Map<String, Any>>()
+        for (i in 0 until chatMessages.size - 2) {
+            val m = chatMessages[i]
+            if (m.text.isNotEmpty()) {
+                historyList.add(mapOf("role" to if (m.isUser) "user" else "assistant", "content" to m.text))
+            }
+        }
+        EngineBridge.invokeMain("chatReq", mapOf(
+            "text" to text,
+            "requestId" to chatRequestId,
+            "history" to historyList
+        ))
+
+        // 重置空闲计时
+        resetChatIdleTimer()
+    }
+
+    /** 添加聊天气泡到消息容器 */
+    private fun addChatBubble(
+        container: android.widget.LinearLayout,
+        isUser: Boolean,
+        text: String,
+        userBg: Int,
+        userBorder: Int,
+        dp: (Int) -> Int
+    ) {
+        val ctx = this@PetForegroundService
+        val colorText = 0xFFE4DFD8.toInt()
+        val colorCard = 0xFF2E2E32.toInt()
+        val colorBorder = 0xFF3A3A3E.toInt()
+        val colorAccent = 0xFFB8935D.toInt()
+        val colorHint = 0xFF8B857D.toInt()
+
+        // 气泡容器
+        val bubbleRow = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = if (isUser) android.view.Gravity.END else android.view.Gravity.START
+            setPadding(0, dp(3), 0, dp(3))
+        }
+
+        // 间隔
+        if (!isUser) {
+            bubbleRow.addView(android.widget.Space(ctx).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(dp(4), 1)
+            })
+        }
+
+        val bubble = android.widget.TextView(ctx).apply {
+            this.text = text
+            setTextColor(if (isUser) colorText else colorText)
+            textSize = 13f
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            maxWidth = dp(200)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(if (isUser) 0xFF3D3524.toInt() else colorCard)
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), if (isUser) colorAccent else colorBorder)
+            }
+        }
+        bubbleRow.addView(bubble)
+
+        if (isUser) {
+            bubbleRow.addView(android.widget.Space(ctx).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(dp(4), 1)
+            })
+        }
+
+        container.addView(bubbleRow)
+    }
+
+    /** 更新聊天 Dialog 中的 AI 回复（流式 / 完成 / 错误） */
+    private fun updateChatDialog(rid: Int, chunkText: String?, isStreaming: Boolean, doneOrNull: Boolean?) {
+        val container = chatMsgContainer ?: return
+        val scrollView = chatScrollView ?: return
+        val loadingRow = chatLoadingView ?: return
+
+        // chatDone / chatError → 隐藏加载指示器
+        if (doneOrNull != null) {
+            loadingRow.visibility = android.view.View.GONE
+        }
+
+        // 更新最后一条 AI 消息
+        val lastIdx = chatMessages.indexOfLast { !it.isUser }
+        if (lastIdx >= 0) {
+            val newText: String = when {
+                doneOrNull == false -> chunkText ?: "出错了喵..."
+                chunkText != null -> chunkText
+                else -> chatMessages[lastIdx].text
+            }
+            chatMessages[lastIdx] = ChatMsg(false, newText, isStreaming)
+        }
+
+        // 重建消息列表（简化实现：清空重建）
+        val dp = { n: Int -> (n * resources.displayMetrics.density).toInt() }
+        val userBg = 0xFF3D3524.toInt()
+        val userBorder = 0xFFB8935D.toInt()
+
+        // 只重建 AI 消息部分（最后一条），不重建全部（避免闪烁）
+        // 计算当前 AI 消息在容器中的位置
+        var msgViewIndex = -1
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i)
+            // user bubbles have a space on the right, AI bubbles have a space on the left
+            // 我们通过 tag 来识别
+            if (child.tag == "ai_msg_$rid" || (child.tag == null && i > 0)) {
+                msgViewIndex = i
+            }
+        }
+
+        // 移除旧的 AI 流式消息并添加新的
+        val aiViewTag = "ai_msg_$rid"
+        val oldAiView = container.findViewWithTag<android.view.View>(aiViewTag)
+        oldAiView?.let { container.removeView(it) }
+
+        if (chatMessages.isNotEmpty()) {
+            val lastMsg = chatMessages.last()
+            if (!lastMsg.isUser) {
+                val bubbleRow = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.START
+                    setPadding(0, dp(3), 0, dp(3))
+                    tag = aiViewTag
+                }
+                bubbleRow.addView(android.widget.Space(this).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(4), 1)
+                })
+                val bubble = android.widget.TextView(this).apply {
+                    text = lastMsg.text
+                    setTextColor(0xFFE4DFD8.toInt())
+                    textSize = 13f
+                    setPadding(dp(10), dp(7), dp(10), dp(7))
+                    maxWidth = dp(200)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(0xFF2E2E32.toInt())
+                        cornerRadius = dp(10).toFloat()
+                        setStroke(dp(1), 0xFF3A3A3E.toInt())
+                    }
+                }
+                bubbleRow.addView(bubble)
+                container.addView(bubbleRow)
+
+                // 流式完成时添加反馈按钮
+                if (doneOrNull == true && lastMsg.text.isNotEmpty()) {
+                    val fbRow = android.widget.LinearLayout(this).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                        setPadding(dp(8), dp(2), 0, dp(6))
+                        gravity = android.view.Gravity.START
+                    }
+                    val likeBtn = android.widget.TextView(this).apply {
+                        text = "👍"
+                        textSize = 14f
+                        setPadding(0, 0, dp(12), 0)
+                        setOnClickListener {
+                            EngineBridge.invokeMain("feedback", mapOf("liked" to true))
+                            this.text = "👍 ✓"
+                            it.isEnabled = false
+                            (fbRow.getChildAt(1) as? android.widget.TextView)?.isEnabled = false
+                        }
+                    }
+                    val dislikeBtn = android.widget.TextView(this).apply {
+                        text = "👎"
+                        textSize = 14f
+                        setOnClickListener {
+                            EngineBridge.invokeMain("feedback", mapOf("liked" to false))
+                            this.text = "👎 ✓"
+                            it.isEnabled = false
+                            (fbRow.getChildAt(0) as? android.widget.TextView)?.isEnabled = false
+                        }
+                    }
+                    fbRow.addView(likeBtn)
+                    fbRow.addView(dislikeBtn)
+                    container.addView(fbRow)
+                }
+            }
+        }
+
+        // 滚动到底部
+        scrollView.postDelayed({
+            scrollView.fullScroll(android.view.View.FOCUS_DOWN)
+        }, 100)
+
+        // 流式完成 → 立即持久化 + 启动空闲自动关闭计时
+        if (doneOrNull == true) {
+            saveChatHistory()  // 防止进程被杀死丢失本轮对话
+            resetChatIdleTimer()
+        }
+    }
+
+    /** 重置空闲关闭计时器（5 秒无交互自动关闭） */
+    private fun resetChatIdleTimer() {
+        chatIdleTimer?.cancel()
+        chatIdleTimer = java.util.Timer().apply {
+            schedule(object : java.util.TimerTask() {
+                override fun run() {
+                    val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                    chatInput?.let { imm?.hideSoftInputFromWindow(it.windowToken, 0) }
+                    android.os.Handler(mainLooper).post { dismissChatDialog() }
+                }
+            }, 5000)
+        }
     }
 
     /** 关闭聊天弹窗 */
     private fun dismissChatDialog() {
+        chatIdleTimer?.cancel()
+        chatIdleTimer = null
+        // 持久化当前聊天记录
+        saveChatHistory()
         try {
             chatDialogView?.let { windowManager?.removeView(it) }
             chatOverlayView?.let { windowManager?.removeView(it) }
         } catch (_: Exception) {}
         chatDialogView = null
         chatOverlayView = null
+        chatMsgContainer = null
+        chatScrollView = null
+        chatInput = null
+        chatLoadingView = null
+        chatMessages.clear()
+        currentChatSessionId = null
+    }
+
+    /** 加载上一次的聊天历史到消息列表 */
+    private fun loadChatHistory(
+        container: android.widget.LinearLayout,
+        dp: (Int) -> Int,
+        userBg: Int, userBorder: Int,
+        cardBg: Int, border: Int,
+        accent: Int, hint: Int,
+        welcomeHint: android.widget.TextView
+    ) {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val sessionId = prefs.getString("last_session_id", null) ?: return
+            val msgCount = prefs.getInt("msg_count_$sessionId", 0)
+            if (msgCount == 0) return
+
+            currentChatSessionId = sessionId
+            welcomeHint.visibility = android.view.View.GONE
+
+            for (i in 0 until msgCount) {
+                val isUser = prefs.getBoolean("msg_${sessionId}_${i}_isUser", false)
+                val text = prefs.getString("msg_${sessionId}_${i}_text", "") ?: ""
+                if (text.isNotEmpty()) {
+                    addChatBubble(container, isUser, text, userBg, userBorder, dp)
+                    chatMessages.add(ChatMsg(isUser, text, false))
+                }
+            }
+            Log.d("PetSvc", "loaded $msgCount history messages, session=$sessionId")
+        } catch (e: Exception) {
+            Log.e("PetSvc", "loadChatHistory failed: ${e.message}")
+        }
+    }
+
+    /** 获取弹窗聊天历史（供 Flutter 侧 MethodChannel 调用） */
+    fun getPopupHistory(): List<Map<String, Any>> {
+        try {
+            if (chatMessages.isNotEmpty()) return chatMessages.map { mapOf("isUser" to it.isUser, "text" to it.text) }
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val sessionId = prefs.getString("last_session_id", null) ?: return emptyList()
+            val msgCount = prefs.getInt("msg_count_$sessionId", 0)
+            val result = mutableListOf<Map<String, Any>>()
+            for (i in 0 until msgCount) {
+                val isUser = prefs.getBoolean("msg_${sessionId}_${i}_isUser", false)
+                val text = prefs.getString("msg_${sessionId}_${i}_text", "") ?: ""
+                if (text.isNotEmpty()) result.add(mapOf("isUser" to isUser, "text" to text))
+            }
+            return result
+        } catch (e: Exception) { return emptyList() }
+    }
+
+    /** 清除弹窗聊天历史（供 Flutter 侧 MethodChannel 调用） */
+    fun clearPopupHistory() {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val sessionId = currentChatSessionId ?: prefs.getString("last_session_id", null)
+            if (sessionId != null) {
+                val editor = prefs.edit()
+                val msgCount = prefs.getInt("msg_count_$sessionId", 0)
+                for (i in 0 until msgCount) {
+                    editor.remove("msg_${sessionId}_${i}_isUser")
+                    editor.remove("msg_${sessionId}_${i}_text")
+                }
+                editor.remove("msg_count_$sessionId")
+                editor.remove("last_session_id")
+                editor.apply()
+            }
+            chatMessages.clear(); currentChatSessionId = null
+        } catch (_: Exception) {}
+    }
+
+    /** 持久化当前聊天记录到 SharedPreferences */
+    private fun saveChatHistory() {
+        if (chatMessages.isEmpty()) return
+        try {
+            val sessionId = currentChatSessionId ?: System.currentTimeMillis().toString()
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            editor.putString("last_session_id", sessionId)
+            editor.putInt("msg_count_$sessionId", chatMessages.size)
+            for (i in chatMessages.indices) {
+                val m = chatMessages[i]
+                editor.putBoolean("msg_${sessionId}_${i}_isUser", m.isUser)
+                editor.putString("msg_${sessionId}_${i}_text", m.text)
+            }
+            editor.apply()
+            Log.d("PetSvc", "saved ${chatMessages.size} history messages, session=$sessionId")
+        } catch (e: Exception) {
+            Log.e("PetSvc", "saveChatHistory failed: ${e.message}")
+        }
     }
 
     /** 聊天弹窗引用（用于关闭） */
     private var chatDialogView: android.view.View? = null
     private var chatOverlayView: android.view.View? = null
+    // 聊天消息状态
+    private val chatMessages = mutableListOf<ChatMsg>()
+    private var chatMsgContainer: android.widget.LinearLayout? = null
+    private var chatScrollView: android.widget.ScrollView? = null
+    private var chatInput: android.widget.EditText? = null
+    private var chatLoadingView: android.view.View? = null
+    private var chatIdleTimer: java.util.Timer? = null
+    private var chatRequestId = 0
+    private var currentChatSessionId: String? = null  // 持久化会话 ID
+    private data class ChatMsg(val isUser: Boolean, val text: String, val isStreaming: Boolean = false)
 
     // ═══════════════════════════════════════════
     // 长按快捷菜单
