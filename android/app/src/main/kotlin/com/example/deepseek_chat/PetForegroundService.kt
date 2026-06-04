@@ -1261,6 +1261,29 @@ class PetForegroundService : Service() {
         } catch (e: Exception) { return emptyList() }
     }
 
+    /** 保存单条消息到指定会话（供 Flutter 侧弹窗聊天持久化） */
+    fun savePopupMessage(sessionId: String, isUser: Boolean, text: String) {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val msgCount = prefs.getInt("msg_count_$sessionId", 0)
+            prefs.edit()
+                .putBoolean("msg_${sessionId}_${msgCount}_isUser", isUser)
+                .putString("msg_${sessionId}_${msgCount}_text", text)
+                .putInt("msg_count_$sessionId", msgCount + 1)
+                .putString("last_session_id", sessionId)
+                .apply()
+            currentChatSessionId = sessionId
+            ensureSessionIndex()
+            val title = if (isUser)
+                (if (text.length <= 20) text else text.substring(0, 20) + "...")
+            else null
+            updateSessionMeta(sessionId, title, msgCount + 1)
+            Log.d("PetSvc", "savePopupMessage: sid=$sessionId isUser=$isUser len=${text.length}")
+        } catch (e: Exception) {
+            Log.e("PetSvc", "savePopupMessage failed: ${e.message}")
+        }
+    }
+
     /** 持久化当前聊天记录到 SharedPreferences */
     private fun saveChatHistory() {
         if (chatMessages.isEmpty()) return

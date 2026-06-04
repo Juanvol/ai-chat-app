@@ -117,6 +117,13 @@ class MainActivity : FlutterActivity() {
                 "isPetRunning" -> {
                     result.success(PetForegroundService.instance != null)
                 }
+                "savePopupMessage" -> {
+                    val sessionId = call.argument<String>("sessionId") ?: ""
+                    val isUser = call.argument<Boolean>("isUser") ?: true
+                    val text = call.argument<String>("text") ?: ""
+                    PetForegroundService.instance?.savePopupMessage(sessionId, isUser, text)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

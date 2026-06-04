@@ -99,6 +99,17 @@ class PopupChatService {
     } catch (_) {}
   }
 
+  /// 保存单条消息到指定弹窗会话（共享到原生 SharedPreferences）
+  Future<void> saveMessage(String sessionId, {required bool isUser, required String text}) async {
+    try {
+      await _agentBridge.invokeMethod('savePopupMessage', {
+        'sessionId': sessionId,
+        'isUser': isUser,
+        'text': text,
+      });
+    } catch (_) {}
+  }
+
   /// 宠物服务是否正在运行
   Future<bool> isPetRunning() async {
     try {
