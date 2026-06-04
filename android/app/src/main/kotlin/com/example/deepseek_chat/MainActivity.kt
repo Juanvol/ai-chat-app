@@ -89,6 +89,34 @@ class MainActivity : FlutterActivity() {
                     PetForegroundService.instance?.clearPopupHistory()
                     result.success(null)
                 }
+                "listPopupSessions" -> {
+                    val sessions = PetForegroundService.instance?.listPopupSessions()
+                        ?: emptyList<Map<String, Any>>()
+                    result.success(sessions)
+                }
+                "createPopupSession" -> {
+                    val id = PetForegroundService.instance?.createPopupSession() ?: ""
+                    result.success(id)
+                }
+                "deletePopupSession" -> {
+                    val sessionId = call.argument<String>("sessionId") ?: ""
+                    PetForegroundService.instance?.deletePopupSession(sessionId)
+                    result.success(null)
+                }
+                "switchPopupSession" -> {
+                    val sessionId = call.argument<String>("sessionId") ?: ""
+                    PetForegroundService.instance?.switchPopupSession(sessionId)
+                    result.success(null)
+                }
+                "getPopupSessionMessages" -> {
+                    val sessionId = call.argument<String>("sessionId")
+                    val msgs = PetForegroundService.instance?.getPopupSessionMessages(sessionId)
+                        ?: emptyList<Map<String, Any>>()
+                    result.success(msgs)
+                }
+                "isPetRunning" -> {
+                    result.success(PetForegroundService.instance != null)
+                }
                 else -> result.notImplemented()
             }
         }
