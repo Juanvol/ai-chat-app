@@ -14,6 +14,9 @@ import kotlin.math.abs
  * 宠物渲染 Custom View — 整合物理/动画/气泡/触控。
  * Choreographer 驱动 60fps，LAYER_TYPE_HARDWARE GPU 加速。
  */
+/** 透明模式状态 */
+enum class TransparencyState { NORMAL, TRANSPARENT }
+
 class PetView(context: Context) : View(context) {
 
     // 核心组件
@@ -36,10 +39,16 @@ class PetView(context: Context) : View(context) {
     private var pokeCount = 0
     private var pokeTimer = 0f
 
-    // 点击穿透
-    private var passthroughEnabled = false
+    // 透明模式
+    var transparentState = TransparencyState.NORMAL
+        private set
+    /** 空闲超时分钟数（由 Dart 端同步），默认 5 分钟 */
+    var transparentIdleMinutes = 5
     private var idleTime = 0f
-    private val passthroughDelay = 8f  // 8 秒空闲后穿透
+
+    // 3连击检测（环形缓冲区）
+    private val tapTimestamps = LongArray(3) { 0 }
+    private var tapIndex = 0
 
     // 视线跟随
     private var cursorX = 0f
@@ -65,8 +74,6 @@ class PetView(context: Context) : View(context) {
     var onPositionChanged: ((Float, Float) -> Unit)? = null
     /** 用户触摸 → Service 禁用穿透 */
     var onUserInteraction: (() -> Unit)? = null
-    /** 空闲超时 → Service 启用穿透 */
-    var onIdleTimeout: (() -> Unit)? = null
 
     // 宠物尺寸（由外部设置，默认 156dp = 120dp × 1.3）
     var petWidth = 156f
@@ -104,15 +111,14 @@ class PetView(context: Context) : View(context) {
 
     fun setFps(fps: Int) { targetFps = fps }
 
-    /** 重置空闲计时（Service 禁用穿透时调用） */
+    /** 重置空闲计时（不退出透明模式） */
     fun resetIdleTimer() {
         idleTime = 0f
-        idleTimeoutFired = false
     }
 
+    // 旧 passthrough 接口保留 stub，避免编译错误
     fun setPassthrough(enabled: Boolean) {
-        passthroughEnabled = enabled
-        // 实际的 FLAG_NOT_TOUCHABLE 由 PetForegroundService 管理
+        // 已由透明模式替代，保留空实现兼容旧调用
     }
 
     // ═══════════════════════════════════════════
@@ -193,6 +199,40 @@ class PetView(context: Context) : View(context) {
         blender.facingLeft = left
     }
 
+    // ═══════════════════════════════════════════
+    // 透明模式
+    // ═══════════════════════════════════════════
+
+    private fun isTripleTap(): Boolean {
+        val now = System.currentTimeMillis()
+        val allFilled = tapTimestamps.all { it > 0L }
+        val oldest = tapTimestamps.min()
+        return allFilled && (now - oldest) < 1500
+    }
+
+    fun toggleTransparent() {
+        when (transparentState) {
+            TransparencyState.NORMAL -> enterTransparent("manual")
+            TransparencyState.TRANSPARENT -> exitTransparent("tripleTap")
+        }
+    }
+
+    private fun enterTransparent(reason: String) {
+        if (transparentState == TransparencyState.TRANSPARENT) return
+        transparentState = TransparencyState.TRANSPARENT
+        alpha = 0.3f
+        idleTime = 0f
+        Log.d("PetView", "transparency: ENTER (reason=$reason)")
+    }
+
+    private fun exitTransparent(reason: String) {
+        if (transparentState == TransparencyState.NORMAL) return
+        transparentState = TransparencyState.NORMAL
+        alpha = 1.0f
+        idleTime = 0f
+        Log.d("PetView", "transparency: EXIT (reason=$reason)")
+    }
+
     fun listAnimNames(): Set<String> = blender.listAnims()
 
     // ═══════════════════════════════════════════
@@ -222,20 +262,17 @@ class PetView(context: Context) : View(context) {
 
     private var lastReportedX = -1f
     private var lastReportedY = -1f
-    private var idleTimeoutFired = false
 
     private fun update(dt: Float) {
-        // 空闲计时（穿透用）：不拖拽、不漫步、物理静止时计时
+        // 空闲计时：不拖拽、不漫步、物理静止时计时
         if (!isDragging && !isWandering && !physics.isMoving) {
             idleTime += dt
-            if (idleTime >= passthroughDelay && !idleTimeoutFired) {
-                idleTimeoutFired = true
-                onIdleTimeout?.invoke()
-                Log.d("PetView", "idle timeout → request passthrough")
+            // 自动进入透明模式
+            if (transparentState == TransparencyState.NORMAL && idleTime > transparentIdleMinutes * 60f) {
+                enterTransparent("idle")
             }
         } else {
             idleTime = 0f
-            idleTimeoutFired = false
         }
 
         // 连戳计时
@@ -365,8 +402,6 @@ class PetView(context: Context) : View(context) {
     // ═══════════════════════════════════════════
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (passthroughEnabled) return false
-
         // ── 命中测试：仅 ACTION_DOWN 检查是否点中精灵 ──
         // 一旦手势开始（DOWN 通过），后续 MOVE/UP 不再检查，避免拖动时窗口跟随
         // 手指移动导致 event.x/y 相对位置变化而意外中断拖动。
@@ -392,6 +427,8 @@ class PetView(context: Context) : View(context) {
                 if (abs(event.rawX - downX) > 15f || abs(event.rawY - downY) > 15f) {
                     hasMoved = true
                     isDragging = true
+                    // 拖拽 → 清空连击状态
+                    tapTimestamps.fill(0); tapIndex = 0
                     // 全屏自由拖动——桌面宠物可被拖到屏幕任意位置
                     physics.x = event.rawX - petWidth / 2
                     physics.y = event.rawY - petHeight / 2
@@ -406,25 +443,41 @@ class PetView(context: Context) : View(context) {
                     onTouchEvent?.invoke("drag", event.rawX, event.rawY)
                 } else if (!hasMoved) {
                     if (duration < 300) {
-                        // 单击 or 双击
-                        if (duration < 300 && (System.currentTimeMillis() - lastClickTime) < 400) {
-                            // 双击
+                        // 记录 tap 时间戳（用于 3连击检测）
+                        tapTimestamps[tapIndex % 3] = System.currentTimeMillis()
+                        tapIndex = (tapIndex + 1) % 3
+
+                        // ── 3连击检测（优先级最高）──
+                        if (isTripleTap()) {
+                            toggleTransparent()
+                            tapTimestamps.fill(0); tapIndex = 0
+                            lastClickTime = 0
+                            Log.d("PetView", "tripleTap → transparentState=$transparentState")
+                        } else if ((System.currentTimeMillis() - lastClickTime) < 400) {
+                            // 双击 — 透明模式下也响应
                             lastClickTime = 0
                             onTouchEvent?.invoke("doubleTap", event.rawX, event.rawY)
                         } else {
                             // 单击
                             lastClickTime = System.currentTimeMillis()
-                            pokeCount++
-                            pokeTimer = 0f
-                            onTouchEvent?.invoke("tap", event.rawX, event.rawY)
-                            onPokeCount?.invoke(pokeCount)
-                            // 触控反馈：缩放弹跳
-                            physics.squashX = 1.15f
-                            physics.squashY = 0.85f
+                            if (transparentState == TransparencyState.NORMAL) {
+                                // 正常模式：弹跳
+                                pokeCount++
+                                pokeTimer = 0f
+                                onTouchEvent?.invoke("tap", event.rawX, event.rawY)
+                                onPokeCount?.invoke(pokeCount)
+                                physics.squashX = 1.15f
+                                physics.squashY = 0.85f
+                            }
+                            // 透明模式：忽略单击（概念穿透）
                         }
                     } else if (duration >= 500) {
                         // 长按
-                        onTouchEvent?.invoke("longPress", event.rawX, event.rawY)
+                        tapTimestamps.fill(0); tapIndex = 0
+                        if (transparentState == TransparencyState.NORMAL) {
+                            onTouchEvent?.invoke("longPress", event.rawX, event.rawY)
+                        }
+                        // 透明模式：忽略长按
                     }
                 }
                 isDragging = false
@@ -439,16 +492,15 @@ class PetView(context: Context) : View(context) {
     }
 
     override fun onHoverEvent(event: MotionEvent): Boolean {
+        // 透明模式下不响应悬停（保持透明 alpha）
+        if (transparentState == TransparencyState.TRANSPARENT) return false
         when (event.action) {
             MotionEvent.ACTION_HOVER_ENTER -> {
-                passthroughEnabled = false
-                // 悬停 = 半透明
-                alpha = 0.3f
+                alpha = 0.7f  // 轻微半透明提示可交互
             }
             MotionEvent.ACTION_HOVER_MOVE -> {
                 cursorX = event.x
                 cursorY = event.y
-                // 视线跟随：头部微偏
                 val dx = event.x - petWidth / 2
                 lookOffset = (dx / petWidth).coerceIn(-0.1f, 0.1f)
             }

@@ -169,6 +169,11 @@ class PetOverlayController {
     Future.delayed(const Duration(milliseconds: 500), () {
       _syncAnim();
       _syncScale();
+      PetService.loadConfig().then((c) {
+        syncTransparentIdle(c.idleTransparentMinutes);
+      }).catchError((e) {
+        PetLogger().error('Overlay', 'syncTransparentIdle failed', e);
+      });
     });
     _startBrainLoop();
     _scheduleIdleSecond();
@@ -389,6 +394,12 @@ class PetOverlayController {
 
   /// 供外部调用（如设置页修改大小后即时生效）
   void syncScale() => _syncScale();
+
+  /// 同步空闲透明超时到 Kotlin（设置页修改后即时生效）
+  void syncTransparentIdle(int minutes) {
+    if (!_started) return;
+    _cmd('setTransparentIdle', {'minutes': minutes});
+  }
 
   void _syncScale() {
     if (!_started) { PetLogger().warn('Overlay', '_syncScale SKIP: not started'); return; }

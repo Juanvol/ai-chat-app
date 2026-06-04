@@ -16,6 +16,7 @@ class PetConfig {
   final String skinName;
   final bool autoStart;
   final DateTime? quietUntil;
+  final int idleTransparentMinutes;
 
   PetConfig({
     this.enabled = false,
@@ -27,8 +28,11 @@ class PetConfig {
     this.skinName = 'funuonuo',
     this.autoStart = false,
     this.quietUntil,
+    this.idleTransparentMinutes = 5,
   })  : triggerScenes = Set.from(triggerScenes ?? {TriggerScene.all}),
-        petScale = (petScale ?? 1.0).clamp(0.5, 1.5);
+        petScale = (petScale ?? 1.0).clamp(0.5, 1.5),
+        assert(idleTransparentMinutes >= 1 && idleTransparentMinutes <= 120,
+               'idleTransparentMinutes must be 1-120');
 
   PetConfig copyWith({
     bool? enabled,
@@ -40,6 +44,7 @@ class PetConfig {
     String? skinName,
     bool? autoStart,
     DateTime? quietUntil,
+    int? idleTransparentMinutes,
   }) {
     return PetConfig(
       enabled: enabled ?? this.enabled,
@@ -51,6 +56,7 @@ class PetConfig {
       skinName: skinName ?? this.skinName,
       autoStart: autoStart ?? this.autoStart,
       quietUntil: identical(quietUntil, _clearSentinel) ? null : (quietUntil ?? this.quietUntil),
+      idleTransparentMinutes: (idleTransparentMinutes ?? this.idleTransparentMinutes).clamp(1, 120),
     );
   }
 
@@ -64,6 +70,7 @@ class PetConfig {
     'skinName': skinName,
     'autoStart': autoStart,
     if (quietUntil != null) 'quietUntil': quietUntil!.toIso8601String(),
+    'idleTransparentMinutes': idleTransparentMinutes,
   };
 
   factory PetConfig.fromJson(Map<String, dynamic> json) {
@@ -97,6 +104,7 @@ class PetConfig {
       quietUntil: json['quietUntil'] != null
           ? DateTime.tryParse(json['quietUntil'] as String)
           : null,
+      idleTransparentMinutes: ((json['idleTransparentMinutes'] as num?)?.toInt() ?? 5).clamp(1, 120),
     );
   }
 }

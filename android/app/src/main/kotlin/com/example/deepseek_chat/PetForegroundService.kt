@@ -138,32 +138,22 @@ class PetForegroundService : Service() {
             onPositionChanged = { px, py ->
                 repositionWindow(px, py)
             }
-            // 用户触摸 → 禁用穿透
-            onUserInteraction = {
-                if (isPassthrough) setPassthrough(false)
-            }
-            // 空闲超时 → 启用穿透
-            onIdleTimeout = {
-                if (!isPassthrough) setPassthrough(true)
-            }
 
             // 触控回调
+            // 新交互方案：单击→弹跳，双击→聊天，长按→快捷菜单
             onTouchEvent = { type, x, y ->
                 Log.d("PetSvc", "touch: $type ($x, $y)")
                 when (type) {
                     "tap" -> {
-                        // 单击 → 弹出迷你聊天
-                        this@apply.post { showChatDialog() }
+                        // 单击 → 弹跳（PetView 已处理连戳计数+squash）
+                        petView?.playAnim("jump")
                     }
                     "doubleTap" -> {
-                        // 双击 → 抚摸：跳起 + 爱心粒子
-                        petView?.playAnim("jump")
-                        petView?.showBubble("💕", 1500)
-                        touchConsumer?.invoke("pet", x, y)  // 通知 Dart 加好感+心情
-                        Log.d("PetSvc", "doubleTap → petting + affection")
+                        // 双击 → 弹出迷你聊天
+                        this@apply.post { showChatDialog() }
                     }
                     "longPress" -> {
-                        // 长按 → 快捷菜单
+                        // 长按 → 快捷菜单（4s 自动消失）
                         this@apply.post { showQuickMenu(x, y) }
                     }
                     else -> touchConsumer?.invoke(type, x, y)
@@ -446,6 +436,11 @@ class PetForegroundService : Service() {
                 pv?.setFps(fps)
                 Log.d("PetSvc", "<<< cmd DONE setFps: $fps")
             }
+            "setTransparentIdle" -> {
+                val minutes = (args?.get("minutes") as? Number)?.toInt() ?: 5
+                pv?.transparentIdleMinutes = minutes.coerceIn(1, 120)
+                Log.d("PetSvc", "<<< cmd DONE setTransparentIdle: ${pv?.transparentIdleMinutes}min")
+            }
             "close" -> {
                 Log.d("PetSvc", "<<< cmd DONE close -> hidePetWindow")
                 hidePetWindow()
@@ -455,7 +450,11 @@ class PetForegroundService : Service() {
 
     /** Wire 3: 弹出迷你聊天对话框 — 含完整对话历史 + 流式响应 + 空闲自动关闭 */
     private fun showChatDialog() {
-        val petView = this.petView ?: return
+        val petView = this.petView
+        val wm = windowManager
+        Log.d("PetSvc", "showChatDialog() called — petView=${petView != null} wm=${wm != null}")
+        if (petView == null) { Log.w("PetSvc", "showChatDialog ABORT: petView is null"); return }
+        if (wm == null) { Log.w("PetSvc", "showChatDialog ABORT: windowManager is null"); return }
         val ctx = this@PetForegroundService
         val density = resources.displayMetrics.density
         val dp = { n: Int -> (n * density).toInt() }
@@ -702,6 +701,8 @@ class PetForegroundService : Service() {
             gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
             y = statusBarH
             windowAnimations = android.R.style.Animation_Dialog
+            // 键盘弹出时不缩放弹窗，保持跟主应用一致的体验
+            softInputMode = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         }
 
         // ── 半透明遮罩 ──
@@ -780,6 +781,8 @@ class PetForegroundService : Service() {
         chatMessages.add(ChatMsg(true, text))
         // 预留 AI 消息槽位
         chatMessages.add(ChatMsg(false, "", true))
+        // 立即持久化用户消息，防止进程被杀死丢失
+        saveChatHistory()
 
         // 构建历史上下文（排除当前轮的空 AI 槽位）
         val historyList = mutableListOf<Map<String, Any>>()
@@ -1162,10 +1165,16 @@ class PetForegroundService : Service() {
                         put("createdAt", id.toLongOrNull() ?: now); put("msgCount", msgCount)
                     })
                 }
-                // 按 createdAt 降序重建
+                // 按 createdAt 降序重建（用单个 Iterator 遍历，避免多次 keys() 都返回首个 key）
                 val sorted = (0 until arr.length()).map { i ->
                     val obj = arr.getJSONObject(i)
-                    (0 until obj.length()).associate { k -> obj.keys().next() to obj.get(obj.keys().next()) }
+                    val map = mutableMapOf<String, Any?>()
+                    val keyIter = obj.keys()
+                    while (keyIter.hasNext()) {
+                        val k = keyIter.next()
+                        map[k] = obj.opt(k)
+                    }
+                    map
                 }.sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
                 p.edit().putString("popup_sessions", toJSONArray(sorted).toString()).apply()
             } catch (e: Exception) {
@@ -1339,10 +1348,16 @@ class PetForegroundService : Service() {
                 })
             }
 
-            // 转 Map 排序 → 重建
+            // 转 Map 排序 → 重建（用单个 Iterator 遍历，避免多次 keys() 都返回首个 key）
             val sessions = (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
-                (0 until obj.length()).associate { k -> obj.keys().next() to obj.get(obj.keys().next()) }
+                val map = mutableMapOf<String, Any?>()
+                val keyIter = obj.keys()
+                while (keyIter.hasNext()) {
+                    val k = keyIter.next()
+                    map[k] = obj.opt(k)
+                }
+                map
             }.sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
             prefs.edit().putString("popup_sessions", PopupSessionStore.toJSONArray(sessions).toString()).apply()
         } catch (e: Exception) {
@@ -1606,10 +1621,25 @@ class PetForegroundService : Service() {
             y = py.toInt() - dp(140)  // 菜单出现在手指上方
         }
 
+        // ── 透明遮罩（点击外部关闭菜单）──
+        val overlay = android.view.View(ctx).apply {
+            setBackgroundColor(0x00000000)  // 完全透明，不影响视觉
+            setOnClickListener { dismissQuickMenu() }
+        }
+        val overlayParams = android.view.WindowManager.LayoutParams(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            android.graphics.PixelFormat.TRANSLUCENT
+        )
+
+        quickMenuOverlayView = overlay
         quickMenuView = root
+        windowManager?.addView(overlay, overlayParams)
         windowManager?.addView(root, params)
 
-        // 3 秒自动消失
+        // 4 秒自动消失
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             dismissQuickMenu()
         }, 4000)
@@ -1618,11 +1648,14 @@ class PetForegroundService : Service() {
     private fun dismissQuickMenu() {
         try {
             quickMenuView?.let { windowManager?.removeView(it) }
+            quickMenuOverlayView?.let { windowManager?.removeView(it) }
         } catch (_: Exception) {}
         quickMenuView = null
+        quickMenuOverlayView = null
     }
 
     private var quickMenuView: android.view.View? = null
+    private var quickMenuOverlayView: android.view.View? = null
 
     // ═══════════════════════════════════════════
     // 点击穿透
@@ -1645,7 +1678,6 @@ class PetForegroundService : Service() {
     /** 通知栏"交互"按钮 → 唤醒宠物 */
     private fun enableInteraction() {
         Log.d("PetSvc", "enableInteraction — waking pet")
-        setPassthrough(false)
         petView?.resetIdleTimer()
     }
 
