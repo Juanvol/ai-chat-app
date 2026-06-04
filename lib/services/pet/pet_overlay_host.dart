@@ -2,12 +2,12 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
-import '../pet/pet_controller.dart';
-import '../pet/pet_state.dart';
-import '../services/pet_service.dart';
-import '../services/pet_ai_service.dart';
-import '../services/pet_diary_service.dart';
-import '../services/pet_logger.dart';
+import '../../pet/pet_controller.dart';
+import '../../models/pet_state.dart';
+import './pet_service.dart';
+import './pet_ai_service.dart';
+import './pet_diary_service.dart';
+import './pet_logger.dart';
 import 'pet_brain.dart';
 import 'pet_bubble_manager.dart';
 import 'pet_agent_core.dart';
@@ -17,11 +17,12 @@ final petOverlayController = PetOverlayController();
 
 class PetOverlayController {
   static const _overlay = MethodChannel('com.example.deepseek_chat/pet_overlay');
-  static const _petSvc = MethodChannel('com.example.deepseek_chat/pet_service');
 
   PetController? _controller;
   PetAiService? _aiService;
+  // ignore: unused_field — write-only state tracker
   String? _suggestion;
+  // ignore: unused_field — write-only state tracker
   bool _screenOn = true;
   int _batteryLevel = 100;
   bool _charging = false;
@@ -95,9 +96,24 @@ class PetOverlayController {
               if (_batteryLevel < 15 && !_charging && !_bubbleShowing) {
                 _showBubbleWithDismiss('好困…电量不足了💤', duration: const Duration(seconds: 5));
               }
+            case 'arrive':
+              PetLogger().trace('Overlay', 'pet arrived at ($x, $y)');
+            case 'pokeCount':
+              final count = (a?['count'] as num?)?.toInt() ?? 0;
+              PetLogger().trace('Overlay', 'pokeCount=$count');
           }
       }
     });
+  }
+
+  /// Wire 2: 从 main.dart Provider 创建时绑定 Controller 的生命周期
+  void attachController(PetController controller) {
+    _controller = controller;
+    // ── Wire 2: 状态变更 → 原生动画 ──
+    _controller!.onStateChanged = (state) {
+      PetLogger().trace('Overlay', 'onStateChanged: status=${state.status.name}');
+      _syncAnim();
+    };
   }
 
   Future<void> start() async {
@@ -108,13 +124,24 @@ class PetOverlayController {
     PetState saved = PetState();
     try { saved = await PetService.loadState(); } catch (e) { PetLogger().error('Overlay', 'loadState failed', e); }
 
-    _controller = PetController(
-      initialState: saved,
-      onStateChanged: (s) {
+    // 复用 Provider 创建的共享 PetController，确保应用内按钮和浮窗操作同一状态
+    final shared = PetController.shared;
+    if (shared != null) {
+      shared.restoreFromState(saved);
+      shared.onStateChanged = (s) {
         try { PetService.saveState(s); } catch (e) { PetLogger().error('Overlay', 'saveState failed', e); }
         _syncState();
-      },
-    );
+      };
+      _controller = shared;
+    } else {
+      _controller = PetController(
+        initialState: saved,
+        onStateChanged: (s) {
+          try { PetService.saveState(s); } catch (e) { PetLogger().error('Overlay', 'saveState failed', e); }
+          _syncState();
+        },
+      );
+    }
     _controller!.start();
 
     _aiService = PetAiService();
@@ -141,7 +168,11 @@ class PetOverlayController {
     _aiService = null;
     if (_controller != null) {
       try { PetService.saveState(_controller!.state); } catch (e) { PetLogger().error('Overlay', 'stop saveState failed', e); }
-      _controller!.dispose();
+      _controller!.onStateChanged = null;
+      _controller!.stop();       // 停止衰减定时器
+      if (!identical(_controller, PetController.shared)) {
+        _controller!.dispose();  // 仅 dispose 非共享实例
+      }
       _controller = null;
     }
     _cmd('close');
@@ -208,7 +239,7 @@ class PetOverlayController {
   void _brainTick() {
     final now = DateTime.now();
     final s = _controller?.state;
-    final al = PetAgentCore.shared?.attentionLevel ?? AttentionLevel.L3;
+    final al = PetAgentCore.shared?.attentionLevel ?? AttentionLevel.l3;
 
     _brain.applyContext(
       hour: now.hour,
@@ -236,10 +267,10 @@ class PetOverlayController {
         final tx = rng.nextDouble() * 800 + 50;
         final ty = rng.nextDouble() * 1000 + 200;
         _cmd('moveTo', {'x': tx, 'y': ty, 'speed': 150});
-        _cmd('playAnim', {'anim': 'idle'}); // 走动画尚未生成，用 idle 代替
+        _cmd('playAnim', {'anim': 'walk'});
 
       case 'sitDown':
-        _cmd('playAnim', {'anim': 'sleeping'}); // sit 帧未生成，用 sleeping 代替
+        _cmd('playAnim', {'anim': 'sit'});
         // 2 分钟后站起
         Future.delayed(const Duration(minutes: 2), () {
           _cmd('playAnim', {'anim': 'idle'});
@@ -289,18 +320,45 @@ class PetOverlayController {
     _cmd('showEmoji', {'emoji': emoji});
   }
 
+  /// Wire 2: 根据 Controller 当前状态同步原生动画 + 气泡
   void _syncAnim() {
     if (!_started) { PetLogger().warn('Overlay', '_syncAnim SKIP: not started'); return; }
     if (_controller == null) { PetLogger().warn('Overlay', '_syncAnim SKIP: controller is null'); return; }
     final s = _controller!.state;
-    final anim = switch (s.status) {
-      PetStatus.hungry || PetStatus.eating => 'hungry',
-      PetStatus.sleepy || PetStatus.sleeping => 'sleeping',
-      PetStatus.talking => 'talking',
-      _ => 'idle',
-    };
-    PetLogger().info('Overlay', 'anim sync: ${s.status.name} → $anim');
-    _cmd('playAnim', {'anim': anim});
+    final status = s.status;
+
+    switch (status) {
+      case PetStatus.hungry:
+        _cmd('playAnim', {'anim': 'hungry'});
+        _showBubbleIfNeeded('好饿喵...🍖');
+        break;
+      case PetStatus.sleepy:
+        _cmd('playAnim', {'anim': 'sleeping'});
+        _showBubbleIfNeeded('好困...💤');
+        break;
+      case PetStatus.eating:
+        _cmd('playAnim', {'anim': 'talking'});
+        break;
+      case PetStatus.happy:
+        _cmd('playAnim', {'anim': 'wave'});
+        break;
+      case PetStatus.talking:
+        _cmd('playAnim', {'anim': 'talking'});
+        break;
+      case PetStatus.sleeping:
+        _cmd('playAnim', {'anim': 'sleeping'});
+        break;
+      case PetStatus.idle:
+        _cmd('playAnim', {'anim': 'idle'});
+        break;
+    }
+  }
+
+  /// 防重复气泡：仅在当前无气泡时发送
+  void _showBubbleIfNeeded(String text) {
+    if (!_bubbleShowing) {
+      _showBubbleWithDismiss(text);
+    }
   }
 
   /// 供外部调用（如设置页修改大小后即时生效）
@@ -310,7 +368,7 @@ class PetOverlayController {
     if (!_started) { PetLogger().warn('Overlay', '_syncScale SKIP: not started'); return; }
     PetService.loadConfig().then((config) {
       final scale = config.petScale;
-      final baseSize = 120.0;
+      const baseSize = 120.0;
       final w = (baseSize * scale).round();
       final h = (baseSize * scale).round();
       PetLogger().info('Overlay', 'scale sync: ${scale.toStringAsFixed(1)} → ${w}x${h}dp');
@@ -332,7 +390,7 @@ class PetOverlayController {
   void _recordDiary(String type, {String? detail}) {
     try {
       // fire-and-forget，不阻塞触控响应
-      PetDiaryService().recordEvent(type, detail: detail);
+      PetDiaryService.instance.recordEvent(type, detail: detail);
     } catch (e) {
       PetLogger().error('Overlay', '_recordDiary failed', e);
     }

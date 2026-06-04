@@ -4,19 +4,19 @@ import 'package:provider/provider.dart';
 import 'api/deepseek_client.dart';
 import 'config/theme.dart' show C;
 import 'screens/home_screen.dart';
-import 'services/conversation_service.dart';
-import 'services/storage_service.dart';
-import 'services/memory_service.dart';
-import 'services/persona_service.dart';
-import 'services/feedback_service.dart';
-import 'services/token_stats_service.dart';
-import 'services/pet_token_service.dart';
-import 'services/pet_profile_service.dart';
-import 'services/pet_chat_service.dart';
-import 'services/pet_diary_service.dart';
-import 'services/pet_agent_core.dart';
-import 'services/pet_logger.dart';
+import './services/app/conversation_service.dart';
+import './services/app/storage_service.dart';
+import './services/app/memory_service.dart';
+import './services/app/persona_service.dart';
+import './services/app/feedback_service.dart';
+import './services/app/token_stats_service.dart';
+import './services/pet/pet_token_service.dart';
+import './services/pet/pet_profile_service.dart';
+import './services/pet/pet_diary_service.dart';
+import './services/pet/pet_agent_core.dart';
+import './services/pet/pet_logger.dart';
 import 'pet/pet_controller.dart';
+import 'services/pet/pet_overlay_host.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 
@@ -48,11 +48,9 @@ void main() async {
       ChangeNotifierProvider(create: (_) => PersonaService(storage: storage)),
       ChangeNotifierProvider(create: (_) => FeedbackService(storage: storage)),
       ChangeNotifierProvider(create: (_) => TokenStatsService(storage: storage)),
-      ChangeNotifierProvider(create: (_) => PetTokenService()),
-      ChangeNotifierProvider(create: (_) => PetProfileService()),
-      ChangeNotifierProvider(create: (_) { final s = PetChatService(); s.init(); return s; }),
-      ChangeNotifierProvider(create: (_) { final s = PetDiaryService(); s.init(); return s; }),
-      ChangeNotifierProvider(create: (_) => PetController()),
+      ChangeNotifierProvider(create: (_) => PetTokenService.instance),
+      ChangeNotifierProvider(create: (_) { PetDiaryService.instance.init(); return PetDiaryService.instance; }),
+      ChangeNotifierProvider(create: (_) { final c = PetController(); PetController.shared = c; petOverlayController.attachController(c); return c; }),
     ],
     child: DeepSeekApp(storage: storage),
   ));
@@ -77,7 +75,7 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
   }
 
   void _setupPetAgentBridge() {
-    MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+    const MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
         .setMethodCallHandler((call) async {
       switch (call.method) {
         case 'chatReq':
@@ -141,7 +139,7 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
       PetLogger().info('Agent', '复用共享 PetAgentCore 实例');
       return;
     }
-    final tokenSvc = PetTokenService();
+    final tokenSvc = PetTokenService.instance;
     final profileSvc = PetProfileService();
     _petAgent = PetAgentCore(
       tokenService: tokenSvc,
