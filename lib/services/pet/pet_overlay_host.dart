@@ -272,7 +272,19 @@ class PetOverlayController {
     final tier = IdleTierExt.fromIdleSeconds(_idleSeconds);
 
     final action = _brain.pickAction();
-    PetLogger().trace('Overlay', 'brainTick: $action tier=${tier.name} idle=${_idleSeconds}s');
+
+    // ── P2-②: Agent 动作冷却 — 如果 PetAgentCore 最近有动作，Brain 进入安静模式 ──
+    final agentCooldown = PetAgentCore.lastActionAt != null &&
+        now.difference(PetAgentCore.lastActionAt!).inSeconds < 45;
+    final quietMode = agentCooldown && _idleSeconds < 120;
+
+    PetLogger().trace('Overlay', 'brainTick: $action tier=${tier.name} idle=${_idleSeconds}s quiet=$quietMode');
+
+    // 安静模式下只允许最基础的 idle 行为，避免覆盖 Agent 的决策
+    if (quietMode && action != 'idleBreath' && action != 'lookAround') {
+      PetLogger().trace('Overlay', 'brainTick SKIP (quiet mode): $action suppressed');
+      return;
+    }
 
     switch (action) {
       case 'wander':

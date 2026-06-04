@@ -590,6 +590,18 @@ class PetForegroundService : Service() {
         loadingRow.addView(loadingLabel)
         column.addView(loadingRow)
 
+        // 加载动画：文字透明度呼吸 0.35 → 1.0
+        loadingAnimator = android.animation.ValueAnimator.ofFloat(0.35f, 1.0f).apply {
+            duration = 800
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            addUpdateListener { anim ->
+                val alpha = anim.animatedValue as Float
+                loadingDots.alpha = alpha
+                loadingLabel.alpha = alpha
+            }
+        }
+
         // ── 输入区（固定）──
         val inputRow = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
@@ -639,6 +651,14 @@ class PetForegroundService : Service() {
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(colorAccent)
                 cornerRadius = dp(8).toFloat()
+            }
+            // 按下反馈
+            setOnTouchListener { v, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> v.alpha = 0.7f
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> v.alpha = 1f
+                }
+                false
             }
             setOnClickListener { sendChatMessage(input, ctx, dp, colorText, colorUserBubble, colorUserBorder, colorCard, colorBorder, colorAccent, colorHint, scrollView, msgContainer, welcomeHint, loadingRow, petView) }
         }
@@ -698,6 +718,18 @@ class PetForegroundService : Service() {
         windowManager?.addView(overlay, overlayParams)
         windowManager?.addView(root, dialogParams)
 
+        // ── 入场动画：遮罩淡入 + 弹窗缩放 ──
+        overlay.alpha = 0f
+        overlay.animate().alpha(1f).setDuration(250).setInterpolator(
+            android.view.animation.DecelerateInterpolator()
+        ).start()
+        root.scaleX = 0.9f; root.scaleY = 0.9f; root.alpha = 0f
+        root.animate()
+            .scaleX(1f).scaleY(1f).alpha(1f)
+            .setDuration(300)
+            .setInterpolator(android.view.animation.OvershootInterpolator(0.6f))
+            .start()
+
         // 聚焦输入框
         input.postDelayed({
             input.requestFocus()
@@ -735,6 +767,7 @@ class PetForegroundService : Service() {
 
         // 显示加载指示器
         loadingRow.visibility = android.view.View.VISIBLE
+        loadingAnimator?.start()
         scrollView.postDelayed({
             scrollView.fullScroll(android.view.View.FOCUS_DOWN)
         }, 100)
@@ -825,6 +858,7 @@ class PetForegroundService : Service() {
         // chatDone / chatError → 隐藏加载指示器
         if (doneOrNull != null) {
             loadingRow.visibility = android.view.View.GONE
+            loadingAnimator?.cancel()
         }
 
         // 更新最后一条 AI 消息
@@ -952,6 +986,8 @@ class PetForegroundService : Service() {
     private fun dismissChatDialog() {
         chatIdleTimer?.cancel()
         chatIdleTimer = null
+        loadingAnimator?.cancel()
+        loadingAnimator = null
         // 持久化当前聊天记录
         saveChatHistory()
         try {
@@ -1265,6 +1301,7 @@ class PetForegroundService : Service() {
     private var chatIdleTimer: java.util.Timer? = null
     private var chatRequestId = 0
     private var currentChatSessionId: String? = null  // 持久化会话 ID
+    private var loadingAnimator: android.animation.ValueAnimator? = null
     private data class ChatMsg(val isUser: Boolean, val text: String, val isStreaming: Boolean = false)
 
     // ═══════════════════════════════════════════

@@ -84,6 +84,9 @@ class PetAgentCore extends ChangeNotifier {
   /// 共享实例，供 main.dart 复用（避免创建第二个 PetAgentCore）
   static PetAgentCore? shared;
 
+  /// 最后一次 Agent 动作时间戳，供 PetBrain 决策循环读取，避免两个决策系统互相覆盖
+  static DateTime? lastActionAt;
+
   /// 统一初始化入口 — 解析 API Key + 创建 + init + start
   /// 如果已有共享实例则直接返回（幂等）
   static Future<PetAgentCore?> ensureInitialized() async {
@@ -400,6 +403,7 @@ class PetAgentCore extends ChangeNotifier {
   }
 
   Future<void> _publishAction(ActionEntry action) async {
+    lastActionAt = DateTime.now();
     try {
       final box = await Hive.openBox('agent_action');
       await box.put('current', action.toJson());
