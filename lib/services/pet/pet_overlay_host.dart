@@ -382,7 +382,7 @@ class PetOverlayController {
     if (!_started) { PetLogger().warn('Overlay', '_syncScale SKIP: not started'); return; }
     PetService.loadConfig().then((config) {
       final scale = config.petScale;
-      const baseSize = 120.0;
+      const baseSize = 156.0;
       final w = (baseSize * scale).round();
       final h = (baseSize * scale).round();
       PetLogger().info('Overlay', 'scale sync: ${scale.toStringAsFixed(1)} → ${w}x${h}dp');

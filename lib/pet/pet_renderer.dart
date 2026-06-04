@@ -11,7 +11,7 @@ class PetRenderer extends StatefulWidget {
   const PetRenderer({
     super.key,
     required this.status,
-    this.size = 120,
+    this.size = 156,
     this.ecoMode = false,
     this.moodEmoji,
   });
