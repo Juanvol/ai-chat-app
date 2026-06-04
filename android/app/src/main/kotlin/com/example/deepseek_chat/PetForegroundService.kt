@@ -1081,6 +1081,45 @@ class PetForegroundService : Service() {
         private const val PREFS_NAME = "pet_chat"
         private fun prefs(ctx: android.content.Context) = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
 
+        /** 安全构建 JSONArray——逐个 put JSONObject，避免 JSONArray(Collection) 把字符串当纯文本 */
+        fun toJSONArray(maps: List<Map<String, Any?>>): org.json.JSONArray {
+            val arr = org.json.JSONArray()
+            for (map in maps) {
+                val obj = org.json.JSONObject()
+                for ((k, v) in map) { if (v != null) obj.put(k, v) }
+                arr.put(obj)
+            }
+            return arr
+        }
+
+        /** 从可能损坏的 JSON 字符串安全解析 JSONArray，检测到旧版格式时自动修复 SP */
+        fun parseSessionsArray(raw: String, ctx: android.content.Context? = null): org.json.JSONArray {
+            return try {
+                val arr = org.json.JSONArray(raw)
+                // 检测是否旧版损坏格式（数组元素是 String 而非 JSONObject）
+                if (arr.length() > 0) {
+                    try { arr.getJSONObject(0) }
+                    catch (_: org.json.JSONException) {
+                        // 迁移：字符串数组 → 对象数组
+                        val fixed = org.json.JSONArray()
+                        for (i in 0 until arr.length()) {
+                            try { fixed.put(org.json.JSONObject(arr.getString(i))) }
+                            catch (_: Exception) {}
+                        }
+                        // 自动写回正确格式
+                        if (ctx != null) {
+                            prefs(ctx).edit().putString("popup_sessions", fixed.toString()).apply()
+                            Log.d("PopupStore", "auto-repaired corrupted popup_sessions (${fixed.length()} sessions)")
+                        }
+                        return fixed
+                    }
+                }
+                arr
+            } catch (_: Exception) {
+                org.json.JSONArray()
+            }
+        }
+
         private fun ensureIndex(ctx: android.content.Context) {
             val p = prefs(ctx)
             if (p.contains("popup_sessions")) return
@@ -1094,19 +1133,19 @@ class PetForegroundService : Service() {
                     if (t.isNotEmpty()) { title = if (t.length <= 20) t else t.substring(0, 20) + "..."; break }
                 }
             }
-            val sessions = mutableListOf(mapOf(
+            val arr = toJSONArray(listOf(mapOf(
                 "id" to lastId, "title" to title,
                 "createdAt" to (lastId.toLongOrNull() ?: System.currentTimeMillis()),
                 "msgCount" to msgCount
-            ))
-            p.edit().putString("popup_sessions", org.json.JSONArray(sessions.map { org.json.JSONObject(it).toString() }).toString()).apply()
+            )))
+            p.edit().putString("popup_sessions", arr.toString()).apply()
         }
 
         private fun updateMeta(ctx: android.content.Context, id: String, title: String?, msgCount: Int) {
             try {
                 val p = prefs(ctx)
                 val raw = p.getString("popup_sessions", null) ?: "[]"
-                val arr = org.json.JSONArray(raw)
+                val arr = parseSessionsArray(raw, ctx)
                 val now = System.currentTimeMillis()
                 var found = false
                 for (i in 0 until arr.length()) {
@@ -1118,18 +1157,17 @@ class PetForegroundService : Service() {
                     }
                 }
                 if (!found) {
-                    val t = title ?: "新对话"
                     arr.put(org.json.JSONObject().apply {
-                        put("id", id); put("title", t)
+                        put("id", id); put("title", title ?: "新对话")
                         put("createdAt", id.toLongOrNull() ?: now); put("msgCount", msgCount)
                     })
                 }
-                // 重建排序数组
+                // 按 createdAt 降序重建
                 val sorted = (0 until arr.length()).map { i ->
                     val obj = arr.getJSONObject(i)
                     (0 until obj.length()).associate { k -> obj.keys().next() to obj.get(obj.keys().next()) }
                 }.sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
-                p.edit().putString("popup_sessions", org.json.JSONArray(sorted.map { org.json.JSONObject(it).toString() }).toString()).apply()
+                p.edit().putString("popup_sessions", toJSONArray(sorted).toString()).apply()
             } catch (e: Exception) {
                 Log.e("PopupStore", "updateMeta failed: ${e.message}")
             }
@@ -1140,7 +1178,7 @@ class PetForegroundService : Service() {
                 ensureIndex(ctx)
                 val p = prefs(ctx)
                 val raw = p.getString("popup_sessions", null) ?: return emptyList()
-                val arr = org.json.JSONArray(raw)
+                val arr = parseSessionsArray(raw, ctx)
                 val result = mutableListOf<Map<String, Any>>()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
@@ -1173,13 +1211,19 @@ class PetForegroundService : Service() {
                     editor.remove("msg_${sessionId}_${i}_text")
                 }
                 editor.remove("msg_count_$sessionId").apply()
+
                 val raw = p.getString("popup_sessions", null) ?: "[]"
-                val arr = org.json.JSONArray(raw)
-                val filtered = (0 until arr.length()).mapNotNull { i ->
+                val arr = parseSessionsArray(raw, ctx)
+                // 过滤掉被删除的 session，保留为 JSONObject
+                val kept = (0 until arr.length()).mapNotNull { i ->
                     val obj = arr.getJSONObject(i)
-                    if (obj.getString("id") != sessionId) obj.toString() else null
+                    if (obj.getString("id") != sessionId) obj else null
                 }
-                p.edit().putString("popup_sessions", org.json.JSONArray(filtered).toString()).apply()
+                // 重建数组
+                val newArr = org.json.JSONArray()
+                kept.forEach { newArr.put(it) }
+                p.edit().putString("popup_sessions", newArr.toString()).apply()
+
                 val lastId = p.getString("last_session_id", null)
                 if (lastId == sessionId) {
                     val sessions = listSessions(ctx)
@@ -1259,14 +1303,12 @@ class PetForegroundService : Service() {
             }
         }
 
-        val sessions = mutableListOf(mapOf(
+        val arr = PopupSessionStore.toJSONArray(listOf(mapOf(
             "id" to lastId, "title" to title,
             "createdAt" to (lastId.toLongOrNull() ?: System.currentTimeMillis()),
             "msgCount" to msgCount
-        ))
-        prefs.edit().putString("popup_sessions", org.json.JSONArray(sessions.map { map ->
-            org.json.JSONObject(map).toString()
-        }).toString()).apply()
+        )))
+        prefs.edit().putString("popup_sessions", arr.toString()).apply()
         Log.d("PetSvc", "session index migrated: $lastId ($msgCount msgs)")
     }
 
@@ -1275,12 +1317,11 @@ class PetForegroundService : Service() {
         try {
             val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
             val raw = prefs.getString("popup_sessions", null) ?: "[]"
-            val arr = org.json.JSONArray(raw)
+            val arr = PopupSessionStore.parseSessionsArray(raw, this)
             val now = System.currentTimeMillis()
 
             // 查找已有记录并更新
             var found = false
-            val sessions = mutableListOf<MutableMap<String, Any?>>()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 if (obj.getString("id") == id) {
@@ -1288,29 +1329,22 @@ class PetForegroundService : Service() {
                     if (title != null) obj.put("title", title)
                     obj.put("msgCount", msgCount)
                 }
-                sessions.add((0 until obj.length()).associate { k ->
-                    obj.keys().next() to obj.get(obj.keys().next())
-                }.toMutableMap())
             }
 
             if (!found) {
                 // 新会话：追加到索引
-                val t = title ?: "新对话"
-                val entry = org.json.JSONObject().apply {
-                    put("id", id); put("title", t)
+                arr.put(org.json.JSONObject().apply {
+                    put("id", id); put("title", title ?: "新对话")
                     put("createdAt", id.toLongOrNull() ?: now); put("msgCount", msgCount)
-                }
-                sessions.add((0 until entry.length()).associate { k ->
-                    entry.keys().next() to entry.get(entry.keys().next())
-                }.toMutableMap())
+                })
             }
 
-            // 写回（按 createdAt 降序排序）
-            sessions.sortByDescending { (it["createdAt"] as? Long) ?: 0L }
-            val newArr = org.json.JSONArray(sessions.map { s ->
-                org.json.JSONObject(s).toString()
-            })
-            prefs.edit().putString("popup_sessions", newArr.toString()).apply()
+            // 转 Map 排序 → 重建
+            val sessions = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                (0 until obj.length()).associate { k -> obj.keys().next() to obj.get(obj.keys().next()) }
+            }.sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
+            prefs.edit().putString("popup_sessions", PopupSessionStore.toJSONArray(sessions).toString()).apply()
         } catch (e: Exception) {
             Log.e("PetSvc", "updateSessionMeta failed: ${e.message}")
         }
@@ -1322,7 +1356,7 @@ class PetForegroundService : Service() {
             ensureSessionIndex()
             val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
             val raw = prefs.getString("popup_sessions", null) ?: return emptyList()
-            val arr = org.json.JSONArray(raw)
+            val arr = PopupSessionStore.parseSessionsArray(raw, this)
             val result = mutableListOf<Map<String, Any>>()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
@@ -1363,15 +1397,14 @@ class PetForegroundService : Service() {
 
             // 从索引移除
             val raw = prefs.getString("popup_sessions", null) ?: "[]"
-            val arr = org.json.JSONArray(raw)
-            val filtered = mutableListOf<String>()
+            val arr = PopupSessionStore.parseSessionsArray(raw, this)
+            val newArr = org.json.JSONArray()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 if (obj.getString("id") != sessionId) {
-                    filtered.add(obj.toString())
+                    newArr.put(obj)
                 }
             }
-            val newArr = org.json.JSONArray(filtered)
             prefs.edit().putString("popup_sessions", newArr.toString()).apply()
 
             // 如果删除的是当前会话 → 指向剩余最新的
