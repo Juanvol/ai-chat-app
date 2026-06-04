@@ -523,14 +523,16 @@ class PetForegroundService : Service() {
                 chatMessages.clear()
                 val newId = createPopupSession()
                 currentChatSessionId = newId
-                // 清空消息列表 UI
-                msgContainer.removeAllViews()
-                msgContainer.addView(welcomeHint)
-                welcomeHint.visibility = android.view.View.VISIBLE
+                // 清空消息列表 UI（使用类字段，避免前向引用编译错误）
+                chatMsgContainer?.removeAllViews()
+                chatWelcomeHint?.let { hint ->
+                    chatMsgContainer?.addView(hint)
+                    hint.visibility = android.view.View.VISIBLE
+                }
                 // 隐藏加载指示器
-                loadingRow.visibility = android.view.View.GONE
+                chatLoadingView?.visibility = android.view.View.GONE
                 // 聚焦输入框
-                input.requestFocus()
+                chatInput?.requestFocus()
                 Log.d("PetSvc", "new popup chat session: $newId")
             }
         }
@@ -672,6 +674,7 @@ class PetForegroundService : Service() {
         chatScrollView = scrollView
         chatInput = input
         chatLoadingView = loadingRow
+        chatWelcomeHint = welcomeHint
         chatDialogView = root
 
         // ── 加载历史消息 ──
@@ -1000,6 +1003,7 @@ class PetForegroundService : Service() {
         chatScrollView = null
         chatInput = null
         chatLoadingView = null
+        chatWelcomeHint = null
         chatMessages.clear()
         currentChatSessionId = null
     }
@@ -1059,7 +1063,7 @@ class PetForegroundService : Service() {
             val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
             val sessionId = currentChatSessionId ?: prefs.getString("last_session_id", null)
             if (sessionId != null) {
-                clearPopupSession(sessionId)
+                deletePopupSession(sessionId)
             }
             chatMessages.clear(); currentChatSessionId = null
         } catch (_: Exception) {}
@@ -1298,6 +1302,7 @@ class PetForegroundService : Service() {
     private var chatScrollView: android.widget.ScrollView? = null
     private var chatInput: android.widget.EditText? = null
     private var chatLoadingView: android.view.View? = null
+    private var chatWelcomeHint: android.widget.TextView? = null
     private var chatIdleTimer: java.util.Timer? = null
     private var chatRequestId = 0
     private var currentChatSessionId: String? = null  // 持久化会话 ID
