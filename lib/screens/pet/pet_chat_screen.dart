@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import '../../services/pet/pet_agent_core.dart';
+import '../../services/pet/pet_chat_service.dart';
 import '../../services/pet/pet_logger.dart';
 import '../../services/pet/pet_token_service.dart';
 import '../../services/pet/pet_profile_service.dart';
 import '../../models/model_config.dart';
+import 'pet_chat_history_screen.dart';
 
 class PetChatScreen extends StatefulWidget {
   const PetChatScreen({super.key});
@@ -20,6 +22,42 @@ class _PetChatScreenState extends State<PetChatScreen> {
   final _scrollController = ScrollController();
   bool _isLoading = false;
 
+  final PetChatService _chatService = PetChatService();
+  String? _chatId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initChat();
+  }
+
+  Future<void> _initChat() async {
+    await _chatService.init();
+    // 创建或恢复最近的会话
+    String? chatId = _chatService.currentId;
+    if (chatId != null) {
+      final chat = await _chatService.getChat(chatId);
+      if (chat != null) {
+        final rawMsgs = chat['messages'] as List? ?? [];
+        final msgs = rawMsgs
+            .map((m) => Map<String, String>.from({
+                  'role': '${m['role'] ?? ''}',
+                  'content': '${m['content'] ?? ''}',
+                }))
+            .toList();
+        setState(() {
+          _chatId = chatId;
+          _messages.addAll(msgs);
+        });
+        _scrollToBottom();
+        return;
+      }
+    }
+    // 无历史 → 创建新会话
+    chatId = await _chatService.createChat();
+    setState(() => _chatId = chatId);
+  }
+
   @override
   void dispose() {
     _inputController.dispose();
@@ -32,16 +70,24 @@ class _PetChatScreenState extends State<PetChatScreen> {
     if (text.isEmpty || _isLoading) return;
     _inputController.clear();
 
-    // 懒初始化 Agent（如果尚未初始化）
+    // 懒初始化 Agent
     if (PetAgentCore.shared == null) {
       await _initAgent();
     }
 
     final agent = PetAgentCore.shared;
     if (agent == null) {
-      _addMessage('assistant', '糯糯还在睡觉喵...请先在设置中配置 API Key~');
+      _addMessage('assistant', '雪乃还在睡觉喵...请先在设置中配置 API Key~');
       return;
     }
+
+    // 确保有会话
+    if (_chatId == null) {
+      _chatId = await _chatService.createChat();
+    }
+
+    // 持久化用户消息
+    await _chatService.addMessage(_chatId!, 'user', text);
 
     setState(() {
       _messages.add({'role': 'user', 'content': text});
@@ -63,9 +109,14 @@ class _PetChatScreenState extends State<PetChatScreen> {
         });
         _scrollToBottom();
       },
-      onDone: () {
+      onDone: () async {
         if (!mounted) return;
         setState(() => _isLoading = false);
+        // 持久化 AI 回复
+        final aiText = _messages[aiIndex]['content'] ?? '';
+        if (aiText.isNotEmpty && _chatId != null) {
+          await _chatService.addMessage(_chatId!, 'assistant', aiText);
+        }
         PetLogger().info('PetChat', 'chat done, ${_messages.length} msgs');
       },
       onError: (error) {
@@ -80,9 +131,8 @@ class _PetChatScreenState extends State<PetChatScreen> {
   }
 
   List<Map<String, dynamic>> _buildHistory() {
-    // 取最近 N 轮对话作为上下文（排除当前轮和空回复）
     final history = <Map<String, dynamic>>[];
-    final end = _messages.length - 1; // 排除刚加的 user+assistant
+    final end = _messages.length - 1;
     for (int i = end - 1; i >= 1; i -= 2) {
       if (i - 1 >= 0 &&
           _messages[i - 1]['role'] == 'user' &&
@@ -97,23 +147,20 @@ class _PetChatScreenState extends State<PetChatScreen> {
           'content': _messages[i]['content'],
         });
       }
-      if (history.length >= 6) break; // 最多 3 轮
+      if (history.length >= 6) break;
     }
     return history;
   }
 
-  /// 懒初始化 PetAgentCore（当 shared 尚未由 main.dart 或 PetAiService 初始化时）
   Future<void> _initAgent() async {
     try {
       final settingsBox = await Hive.openBox('settings');
       final petConfigBox = await Hive.openBox('pet_config');
 
-      // 1. 读取用户在宠物设置中选择的模型
       final modelId = petConfigBox.get('chatModel') as String? ?? 'deepseek-chat';
       final modelInfo = ModelConfig.resolveModel(modelId);
       final providerId = modelInfo?.providerId ?? 'deepseek';
 
-      // 2. 读取对应 provider 的 API Key（优先 provider 专属 key，fallback 主 api_key）
       final apiKey = settingsBox.get('${providerId}_key') as String?
           ?? settingsBox.get('api_key') as String?;
 
@@ -151,16 +198,78 @@ class _PetChatScreenState extends State<PetChatScreen> {
     });
   }
 
+  /// 打开聊天记录页面
+  Future<void> _openHistory() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PetChatHistoryScreen(
+          chatService: _chatService,
+          currentChatId: _chatId,
+        ),
+      ),
+    );
+    // 用户选择了某个历史会话 → 加载它
+    if (result != null && result != _chatId) {
+      await _loadChat(result);
+    }
+  }
+
+  Future<void> _loadChat(String chatId) async {
+    final chat = await _chatService.getChat(chatId);
+    if (chat == null) return;
+    final rawMsgs = chat['messages'] as List? ?? [];
+    final msgs = rawMsgs
+        .map((m) => Map<String, String>.from({
+              'role': '${m['role'] ?? ''}',
+              'content': '${m['content'] ?? ''}',
+            }))
+        .toList();
+    await _chatService.switchChat(chatId);
+    setState(() {
+      _chatId = chatId;
+      _messages.clear();
+      _messages.addAll(msgs);
+    });
+    _scrollToBottom();
+  }
+
+  /// 新建对话
+  Future<void> _newChat() async {
+    final newId = await _chatService.createChat();
+    setState(() {
+      _chatId = newId;
+      _messages.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('和雪乃聊天'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_comment_outlined, size: 20),
+            tooltip: '新建对话',
+            onPressed: _newChat,
+          ),
+          IconButton(
+            icon: const Icon(Icons.history, size: 20),
+            tooltip: '聊天记录',
+            onPressed: _openHistory,
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
             child: _messages.isEmpty
-                ? const Center(
-                    child: Text('开始和糯糯聊天吧~',
-                        style: TextStyle(color: Colors.grey)),
+                ? Center(
+                    child: Text('开始和雪乃聊天吧~',
+                        style: TextStyle(color: cs.onSurfaceVariant)),
                   )
                 : ListView.builder(
                     controller: _scrollController,
@@ -175,13 +284,13 @@ class _PetChatScreenState extends State<PetChatScreen> {
                     ),
                   ),
           ),
-          _buildInputBar(),
+          _buildInputBar(cs),
         ],
       ),
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar(ColorScheme cs) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -190,12 +299,15 @@ class _PetChatScreenState extends State<PetChatScreen> {
             Expanded(
               child: TextField(
                 controller: _inputController,
-                decoration: const InputDecoration(
-                  hintText: '和糯糯说点什么...',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: '和雪乃说点什么...',
+                  border: const OutlineInputBorder(),
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  filled: true,
+                  fillColor: cs.surfaceContainerHighest,
                 ),
+                style: TextStyle(color: cs.onSurface),
                 maxLines: 3,
                 minLines: 1,
                 onSubmitted: (_) => _send(),
@@ -207,7 +319,7 @@ class _PetChatScreenState extends State<PetChatScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.send),
+                  : Icon(Icons.send, color: cs.primary),
               onPressed: _isLoading ? null : _send,
             ),
           ],
@@ -226,6 +338,7 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = msg['role'] == 'user';
     final content = msg['content'] ?? '';
+    final cs = Theme.of(context).colorScheme;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -233,11 +346,8 @@ class _MessageBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isUser
-              ? Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.1)
-              : Colors.grey.shade100,
+              ? cs.primary.withValues(alpha: 0.1)
+              : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
         constraints:
@@ -251,7 +361,8 @@ class _MessageBubble extends StatelessWidget {
                         width: 12,
                         height: 12,
                         child: CircularProgressIndicator(strokeWidth: 2))))
-            : Text(content, style: const TextStyle(fontSize: 15)),
+            : Text(content,
+                style: TextStyle(fontSize: 15, color: cs.onSurface)),
       ),
     );
   }

@@ -145,7 +145,7 @@ class PetChatService extends ChangeNotifier {
         .map((m) => Map<String, dynamic>.from(m as Map))
         .toList();
     final recent = messages.reversed.take(maxRounds * 2).toList().reversed.toList();
-    return recent.map((m) => '${m['role'] == 'user' ? '主人' : '糯糯'}: ${m['content']}').join('\n');
+    return recent.map((m) => '${m['role'] == 'user' ? '主人' : '雪乃'}: ${m['content']}').join('\n');
   }
 
   Future<int> importMemories(List<Map<String, dynamic>> summaries) async {
