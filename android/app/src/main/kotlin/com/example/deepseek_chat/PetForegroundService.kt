@@ -161,7 +161,8 @@ class PetForegroundService : Service() {
                 when (type) {
                     "tap" -> {
                         // ── Wire 3: 点击宠物 → 弹出迷你聊天 ──
-                        showChatDialog()
+                        // post 延迟：避免 dialog.show() 在触控链内同步创建窗口导致 WindowManager 干扰 PetView 事件处理
+                        this@apply.post { showChatDialog() }
                     }
                     else -> touchConsumer?.invoke(type, x, y)
                 }
@@ -419,49 +420,190 @@ class PetForegroundService : Service() {
         }
     }
 
-    /** Wire 3: 弹出迷你聊天对话框 */
+    /** Wire 3: 弹出迷你聊天对话框 — Claymorphism 风格 */
     private fun showChatDialog() {
         val petView = this.petView ?: return
         val ctx = this@PetForegroundService
+        val density = resources.displayMetrics.density
+        val dp = { n: Int -> (n * density).toInt() }
 
-        // 创建输入框
-        val input = android.widget.EditText(ctx).apply {
-            hint = "想对糯糯说什么？"
-            setSingleLine(false)
-            maxLines = 3
-            setPadding(32, 16, 32, 16)
-            setTextColor(android.graphics.Color.BLACK)
+        // ── 颜色常量（糯糯 Claymorphism 设计系统） ──
+        val colorBg = 0xFFFFF7ED.toInt()     // 暖白背景
+        val colorPrimary = 0xFFF97316.toInt() // 活力橙
+        val colorText = 0xFF9A3412.toInt()     // 深棕文字
+        val colorHint = 0xFFD6CCC0.toInt()    // 浅棕 placeholder
+        val colorInputBg = 0xFFFFFFFF.toInt() // 输入框白底
+        val colorShadow = 0x33000000.toInt()  // 半透明阴影
+        val colorCancel = 0xFFB0A090.toInt()  // 取消按钮
+
+        // ── 根容器 ──
+        val root = android.widget.FrameLayout(ctx).apply {
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            // 圆角背景 + 双阴影（Claymorphism 核心）
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(colorBg)
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(3), colorPrimary and 0x33FFFFFF.toInt() or 0xFFFEDDC7.toInt()) // 浅橙厚边框
+            }
+            // 双阴影：外阴影大而虚 + 内阴影小而实
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                outlineSpotShadowColor = colorPrimary
+                elevation = dp(12).toFloat()
+            }
         }
 
-        val dialog = android.app.AlertDialog.Builder(ctx, android.R.style.Theme_DeviceDefault_Light_Dialog)
-            .setTitle("和糯糯聊天")
-            .setView(input)
-            .setPositiveButton("发送") { _, _ ->
+        // ── 纵向布局 ──
+        val column = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(8), dp(12), dp(8), dp(8))
+        }
+
+        // ── 标题 ──
+        val title = android.widget.TextView(ctx).apply {
+            text = "💬 和糯糯聊天"
+            setTextColor(colorText)
+            textSize = 20f
+            setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
+            setPadding(dp(4), 0, dp(4), dp(12))
+        }
+        column.addView(title)
+
+        // ── 输入框卡片 ──
+        val inputCard = android.widget.FrameLayout(ctx).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(colorInputBg)
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(2), 0xFFFED7B0.toInt()) // 浅橙细边框
+            }
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+        val input = android.widget.EditText(ctx).apply {
+            hint = "想对糯糯说什么？"
+            setHintTextColor(colorHint)
+            setTextColor(colorText)
+            textSize = 15f
+            setSingleLine(false)
+            maxLines = 3
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = null  // 去掉自带下划线
+            setLineSpacing(0f, 1.2f)
+        }
+        inputCard.addView(input)
+        column.addView(inputCard)
+
+        // ── 间距 ──
+        column.addView(android.widget.Space(ctx).apply { minimumHeight = dp(14) })
+
+        // ── 按钮行 ──
+        val btnRow = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.END
+        }
+
+        // 取消按钮
+        val cancelBtn = android.widget.TextView(ctx).apply {
+            text = "取消"
+            setTextColor(colorCancel)
+            textSize = 15f
+            setPadding(dp(20), dp(10), dp(16), dp(10))
+            setOnClickListener {
+                dismissChatDialog()
+            }
+        }
+        btnRow.addView(cancelBtn)
+
+        // 发送按钮 — Claymorphism 风格
+        val sendBtn = android.widget.TextView(ctx).apply {
+            text = "发送 ✦"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 15f
+            setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
+            setPadding(dp(24), dp(10), dp(24), dp(10))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(colorPrimary)
+                cornerRadius = dp(20).toFloat()
+            }
+            // 按下缩放反馈（200ms）
+            setOnTouchListener { v, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).start()
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                    }
+                }
+                false
+            }
+            setOnClickListener {
                 val text = input.text.toString().trim()
                 if (text.isNotEmpty()) {
-                    // 通过 EngineBridge → Flutter PetAgentCore
                     EngineBridge.invokeMain("chatReq", mapOf(
                         "text" to text,
                         "requestId" to System.currentTimeMillis().toInt(),
                         "history" to emptyList<Map<String, Any>>()
                     ))
-                    // 显示用户输入的气泡（即时反馈）
                     petView.showBubble(text, 2000)
                 }
+                dismissChatDialog()
             }
-            .setNegativeButton("取消", null)
-            .create()
+        }
+        btnRow.addView(sendBtn)
+        column.addView(btnRow)
 
-        // 使用 TYPE_APPLICATION_OVERLAY 弹出（覆盖在其他 app 之上）
-        dialog.window?.setType(
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
-                android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                @Suppress("DEPRECATION")
-                android.view.WindowManager.LayoutParams.TYPE_PHONE
+        root.addView(column)
+
+        // ── 窗口参数 ──
+        val type = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+            android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else @Suppress("DEPRECATION")
+            android.view.WindowManager.LayoutParams.TYPE_PHONE
+
+        val dialogParams = android.view.WindowManager.LayoutParams(
+            dp(280),
+            android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            android.graphics.PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = android.view.Gravity.CENTER
+            // 入场动画
+            windowAnimations = android.R.style.Animation_Dialog
+        }
+
+        // ── 半透明遮罩 ──
+        val overlay = android.view.View(ctx).apply {
+            setBackgroundColor(0x33000000)
+            setOnClickListener { dismissChatDialog() } // 点击遮罩关闭
+        }
+        val overlayParams = android.view.WindowManager.LayoutParams(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            android.graphics.PixelFormat.TRANSLUCENT
         )
-        dialog.show()
+
+        chatOverlayView = overlay
+        chatDialogView = root
+        windowManager?.addView(overlay, overlayParams)
+        windowManager?.addView(root, dialogParams)
     }
+
+    /** 关闭聊天弹窗 */
+    private fun dismissChatDialog() {
+        try {
+            chatDialogView?.let { windowManager?.removeView(it) }
+            chatOverlayView?.let { windowManager?.removeView(it) }
+        } catch (_: Exception) {}
+        chatDialogView = null
+        chatOverlayView = null
+    }
+
+    /** 聊天弹窗引用（用于关闭） */
+    private var chatDialogView: android.view.View? = null
+    private var chatOverlayView: android.view.View? = null
 
     // ═══════════════════════════════════════════
     // 点击穿透
@@ -558,6 +700,7 @@ class PetForegroundService : Service() {
     override fun onDestroy() {
         Log.d("PetSvc", "===== Service onDestroy v2 =====")
         instance = null
+        dismissChatDialog()  // 清理聊天弹窗
         hidePetWindow()
         super.onDestroy()
     }

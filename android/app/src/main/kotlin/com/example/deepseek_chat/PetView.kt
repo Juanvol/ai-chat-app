@@ -39,26 +39,54 @@ class PetView(context: Context) : View(context) {
     // 点击穿透
     private var passthroughEnabled = false
     private var idleTime = 0f
-    private val passthroughDelay = 3f  // 3 秒空闲后穿透
+    private val passthroughDelay = 8f  // 8 秒空闲后穿透
 
     // 视线跟随
     private var cursorX = 0f
     private var cursorY = 0f
     private var lookOffset = 0f  // 头部微偏角度
 
+    // 动画修饰器（代码模拟动画，无需新帧）
+    var currentAnimName = "idle"
+    private var drawOffsetX = 0f
+    private var drawOffsetY = 0f
+    private var animScaleX = 1f
+    private var animScaleY = 1f
+    private var walkPhase = 0f
+    private var talkPhase = 0f
+    private var hungryPhase = 0f
+
     // 回调（Dart 端通过 MethodChannel 接收）
     var onTouchEvent: ((String, Float, Float) -> Unit)? = null
     var onArrive: ((Float, Float) -> Unit)? = null
     var onAnimEnd: ((String) -> Unit)? = null
     var onPokeCount: ((Int) -> Unit)? = null
+    /** 宠物屏幕位置变化 → Service 重定位浮窗 */
+    var onPositionChanged: ((Float, Float) -> Unit)? = null
+    /** 用户触摸 → Service 禁用穿透 */
+    var onUserInteraction: (() -> Unit)? = null
+    /** 空闲超时 → Service 启用穿透 */
+    var onIdleTimeout: (() -> Unit)? = null
 
     // 宠物尺寸（由外部设置）
     var petWidth = 120f
     var petHeight = 120f
 
+    // 小窗内宠物绘制位置（由 Service 按 density 设置）
+    var drawPadLeft = 60f
+    var drawPadTop = 90f
+    var drawPadRight = 60f
+    var drawPadBottom = 60f
+
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
         setBackgroundColor(Color.TRANSPARENT)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = (drawPadLeft + petWidth + drawPadRight).toInt()
+        val h = (drawPadTop + petHeight + drawPadBottom).toInt()
+        setMeasuredDimension(w, h)
     }
 
     // ═══════════════════════════════════════════
@@ -70,7 +98,7 @@ class PetView(context: Context) : View(context) {
         isRenderLoopRunning = true
         targetFps = fps
         lastFrameTime = System.nanoTime()
-        Log.d("PetView", "render loop start @${fps}fps")
+        Log.d("PetView", "render loop start @${fps}fps, anims=${blender.listAnims()}, currentDef=${blender.currentBitmap()?.let{"${it.width}x${it.height}"} ?: "NULL"}")
         Choreographer.getInstance().postFrameCallback(renderLoop)
     }
 
@@ -81,9 +109,59 @@ class PetView(context: Context) : View(context) {
 
     fun setFps(fps: Int) { targetFps = fps }
 
+    /** 重置空闲计时（Service 禁用穿透时调用） */
+    fun resetIdleTimer() {
+        idleTime = 0f
+        idleTimeoutFired = false
+    }
+
     fun setPassthrough(enabled: Boolean) {
         passthroughEnabled = enabled
         // 实际的 FLAG_NOT_TOUCHABLE 由 PetForegroundService 管理
+    }
+
+    // ═══════════════════════════════════════════
+    // 随机漫步
+    // ═══════════════════════════════════════════
+
+    private var wanderHandler: android.os.Handler? = null
+    private var wanderRunnable: Runnable? = null
+    private var isWandering = false
+    private var screenW = 1080
+    private var screenH = 1920
+
+    fun startWandering(sw: Int, sh: Int) {
+        screenW = sw; screenH = sh
+        wanderHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        scheduleWander()
+        Log.d("PetView", "wandering started, screen=${sw}x${sh}")
+    }
+
+    fun stopWandering() {
+        wanderHandler?.removeCallbacks(wanderRunnable ?: return)
+        wanderHandler = null
+        isWandering = false
+    }
+
+    private fun scheduleWander() {
+        val h = wanderHandler ?: return
+        val runnable = object : Runnable {
+            override fun run() {
+                // 仅当 idle 且不拖拽时发起漫步
+                if (currentAnimName == "idle" && !physics.isMoving && !isDragging) {
+                    val margin = petWidth * 2
+                    val tx = (margin + Math.random() * (screenW - margin * 2)).toFloat()
+                    val ty = (screenH * 0.1f + Math.random() * (screenH * 0.6f)).toFloat()
+                    moveTo(tx, ty, 60f)
+                    playAnim("run")
+                    isWandering = true
+                    Log.d("PetView", "wander → ($tx, $ty)")
+                }
+                h.postDelayed(this, 4000L + (Math.random() * 6000).toLong())
+            }
+        }
+        wanderRunnable = runnable
+        h.postDelayed(runnable, 5000L)
     }
 
     fun registerAnim(name: String, frames: List<android.graphics.Bitmap>, intervalMs: Long, loop: Boolean = true) {
@@ -91,7 +169,16 @@ class PetView(context: Context) : View(context) {
     }
 
     fun playAnim(name: String) {
+        // 仅当同名动画已在播放时跳过，避免重复 switchTo 导致帧跳回第0帧
+        if (name == currentAnimName && blender.currentBitmap() != null) return
+        Log.d("PetView", "playAnim('$name'): currentAnimName='$currentAnimName' currentBitmap=${blender.currentBitmap()}")
+        currentAnimName = name
         blender.switchTo(name)
+        Log.d("PetView", "playAnim('$name'): after switchTo, currentDef.frames.size=${blender.currentBitmap()?.let { "ok" } ?: "NULL"}")
+        // 重置动画修饰器
+        drawOffsetX = 0f; drawOffsetY = 0f
+        animScaleX = 1f; animScaleY = 1f
+        walkPhase = 0f; talkPhase = 0f; hungryPhase = 0f
     }
 
     fun showBubble(text: String, durationMs: Long = 3000) {
@@ -138,12 +225,22 @@ class PetView(context: Context) : View(context) {
         }
     }
 
+    private var lastReportedX = -1f
+    private var lastReportedY = -1f
+    private var idleTimeoutFired = false
+
     private fun update(dt: Float) {
-        // 空闲计时（穿透用）
-        if (!isDragging) {
+        // 空闲计时（穿透用）：不拖拽、不漫步、物理静止时计时
+        if (!isDragging && !isWandering && !physics.isMoving) {
             idleTime += dt
+            if (idleTime >= passthroughDelay && !idleTimeoutFired) {
+                idleTimeoutFired = true
+                onIdleTimeout?.invoke()
+                Log.d("PetView", "idle timeout → request passthrough")
+            }
         } else {
             idleTime = 0f
+            idleTimeoutFired = false
         }
 
         // 连戳计时
@@ -159,37 +256,112 @@ class PetView(context: Context) : View(context) {
         // 动画
         val animEnded = blender.update(dt)
 
-        // 到达检测
-        if (!physics.isMoving && !isDragging) {
-            // 速度归零 → 到达
-            // onArrive 由 Dart 端在收到速度归零后调用
+        // 动画修饰器（代码模拟动画效果）
+        updateAnimModifiers(dt)
+
+        // 到达检测：漫步到达目的地 → 切回 idle，清零速度防残留下坠
+        if (!physics.isMoving && !isDragging && isWandering) {
+            isWandering = false
+            physics.vx = 0f; physics.vy = 0f
+            if (currentAnimName == "run") {
+                playAnim("idle")
+                Log.d("PetView", "wander arrived → idle, velocity zeroed")
+            }
+        }
+
+        // 位置变化 → 通知 Service 重定位浮窗（小窗模式）
+        if (abs(physics.x - lastReportedX) > 0.5f || abs(physics.y - lastReportedY) > 0.5f) {
+            lastReportedX = physics.x; lastReportedY = physics.y
+            onPositionChanged?.invoke(physics.x, physics.y)
         }
 
         // 气泡
         bubble.update(dt)
     }
 
-    // ═══════════════════════════════════════════
-    // 绘制
-    // ═══════════════════════════════════════════
+    private fun updateAnimModifiers(dt: Float) {
+        when (currentAnimName) {
+            "walk" -> {
+                // 走路：正弦摇摆 + 上下弹跳，8步/秒
+                walkPhase += dt * 8f
+                drawOffsetY = kotlin.math.sin(walkPhase * 2f) * 5f      // 上下弹跳 ±5px
+                drawOffsetX = kotlin.math.cos(walkPhase) * 3f            // 左右摇摆 ±3px
+                val step = kotlin.math.abs(kotlin.math.sin(walkPhase * 2f))
+                animScaleY = 1f - step * 0.12f                            // 踩地时压缩
+                animScaleX = 1f + step * 0.08f                            // 踩地时拉宽
+            }
+            "sit" -> {
+                // 坐下：持续Y轴压缩 + 下沉，缓慢过渡
+                val targetScale = 0.72f
+                animScaleY += (targetScale - animScaleY) * 3f * dt       // 平滑过渡到 0.72x
+                animScaleX += (1f / targetScale - animScaleX) * 3f * dt  // 保持体积，X 轴膨胀
+                drawOffsetY += (12f - drawOffsetY) * 3f * dt              // 下沉 12px
+                drawOffsetX *= kotlin.math.max(0f, 1f - 4f * dt)         // X 衰减
+            }
+            "sleeping" -> {
+                // 睡觉：呼吸式缩放（极慢，5秒一个周期）
+                val breathe = kotlin.math.sin(System.currentTimeMillis() / 5000.0).toFloat()
+                animScaleX = 1f + breathe * 0.03f
+                animScaleY = 1f + breathe * 0.04f
+                drawOffsetX *= 0.9f
+                drawOffsetY *= 0.9f
+            }
+            "talking" -> {
+                // 说话：微小Y轴弹跳，6次/秒
+                talkPhase += dt * 6f
+                drawOffsetY = kotlin.math.sin(talkPhase * 2f) * 2f
+                animScaleY = 1f + kotlin.math.abs(kotlin.math.sin(talkPhase * 2f)) * 0.04f
+                drawOffsetX *= 0.9f
+            }
+            "hungry" -> {
+                // 饿了：微颤 + 轻微摇摆
+                hungryPhase += dt * 3f
+                drawOffsetX = kotlin.math.sin(hungryPhase) * 2f
+                drawOffsetY = kotlin.math.cos(hungryPhase * 1.3f) * 2f
+                animScaleX = 1f + kotlin.math.sin(hungryPhase * 0.7f) * 0.02f
+                animScaleY = 1f - kotlin.math.sin(hungryPhase * 0.7f) * 0.02f
+            }
+            "idle" -> {
+                // 呼吸动画：~4秒周期，幅度 ±2%，模拟活物感
+                val idlePhase = (System.currentTimeMillis() / 1000.0).toFloat()
+                val breathe = kotlin.math.sin(idlePhase * 1.5f)  // ~4.2s 周期
+                animScaleX = 1f + breathe * 0.025f
+                animScaleY = 1f + breathe * 0.03f
+                // 微小Y轴浮动，模拟站立时的身体微晃
+                drawOffsetY = breathe * 1.5f
+                drawOffsetX *= kotlin.math.max(0f, 1f - 3f * dt)
+                // 踩地时squash恢复（从其他动画切换来时）
+                if (kotlin.math.abs(animScaleX - 1f) < 0.01f) { animScaleX = 1f; animScaleY = 1f }
+            }
+            else -> {
+                // 未知动画：缓慢归位
+                drawOffsetX *= 0.9f
+                drawOffsetY *= 0.9f
+                animScaleX += (1f - animScaleX) * 2f * dt
+                animScaleY += (1f - animScaleY) * 2f * dt
+            }
+        }
+    }
+
+    private var drawFrameCount = 0
 
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(0, PorterDuff.Mode.CLEAR)  // 透明
 
-        // 落地粒子
-        for (p in physics.particles) {
-            val paint = android.graphics.Paint().apply {
-                color = Color.argb((p.alpha * 255).toInt(), 180, 180, 180)
-                style = android.graphics.Paint.Style.FILL
-            }
-            canvas.drawCircle(p.x, p.y, 3f, paint)
+        // 精灵帧：小窗固定绘制位（浮窗随宠物重定位，宠物始终在 view 内同一位置）
+        val drawX = drawPadLeft + drawOffsetX
+        val drawY = drawPadTop + drawOffsetY
+        val bmp = blender.currentBitmap()
+        if (drawFrameCount < 5) {
+            Log.d("PetView", "onDraw #$drawFrameCount: drawXY=($drawX,$drawY) padLT=($drawPadLeft,$drawPadTop) physicsXY=(${physics.x},${physics.y}) bmp=$bmp bmpSize=${bmp?.width}x${bmp?.height} viewSize=$width×$height squash=(${physics.squashX},${physics.squashY})")
         }
+        blender.draw(canvas, drawX, drawY,
+            physics.squashX * animScaleX,
+            physics.squashY * animScaleY)
 
-        // 精灵帧
-        blender.draw(canvas, physics.x, physics.y, physics.squashX, physics.squashY)
-
-        // 气泡
-        bubble.draw(canvas, physics.x, physics.y, petWidth)
+        // 气泡（跟随偏移后的位置）
+        bubble.draw(canvas, drawX, drawY, petWidth)
+        drawFrameCount++
     }
 
     // ═══════════════════════════════════════════
@@ -200,10 +372,12 @@ class PetView(context: Context) : View(context) {
         if (passthroughEnabled) return false
 
         idleTime = 0f  // 任何触控重置空闲计时
+        onUserInteraction?.invoke()  // 通知 Service 禁用穿透
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 downTime = System.currentTimeMillis()
+                // 全屏模式：physics 使用屏幕坐标，触控也用屏幕坐标
                 downX = event.rawX
                 downY = event.rawY
                 hasMoved = false
@@ -246,6 +420,12 @@ class PetView(context: Context) : View(context) {
                         onTouchEvent?.invoke("longPress", event.rawX, event.rawY)
                     }
                 }
+                isDragging = false
+                hasMoved = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                // 新窗口弹出等场景会取消当前触控序列
+                // 重置拖拽状态防止残留在半拖状态导致位置异常
                 isDragging = false
                 hasMoved = false
             }

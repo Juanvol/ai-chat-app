@@ -47,6 +47,9 @@ class PetPhysics(
 
     val isMoving: Boolean get() = abs(vx) > 5f || abs(vy) > 5f
 
+    // 重力开关：桌宠默认不落体，只在被扔/fling时启用
+    var enableGravity = false
+
     /**
      * 每帧调用一次。dt 单位：秒。
      */
@@ -58,6 +61,7 @@ class PetPhysics(
             x = dragX
             y = dragY
             vx = 0f; vy = 0f
+            enableGravity = false
             squashX = 1.08f; squashY = 0.92f  // 被抓时微挤压
             particles.clear()
             return
@@ -77,8 +81,15 @@ class PetPhysics(
             return
         }
 
-        // 应用重力
-        vy += gravity * dt
+        // 重力：仅在被扔后启用，速度衰减到 0 后关闭
+        if (enableGravity) {
+            vy += gravity * dt
+            // 落地后关闭重力
+            if (y >= maxY - 1f && abs(vy) < 10f) {
+                enableGravity = false
+                vy = 0f
+            }
+        }
 
         // 应用速度
         x += vx * dt
@@ -97,16 +108,21 @@ class PetPhysics(
                 squashX = maxSquash; squashY = 1f + (1f - maxSquash)
                 spawnLandingParticles()
             }
-            // 微小弹跳后如果速度很小就停住
-            if (abs(vy) < 50f) vy = 0f
+            // 扔出后的弹跳：一次弹跳后立即停住（避免摩擦+重力均衡导致无限弹跳不下坠）
+            if (enableGravity) {
+                enableGravity = false
+                vy = 0f; vx = 0f
+            } else if (abs(vy) < 50f) {
+                vy = 0f
+            }
         }
 
         // 壁面滑落：碰竖边时保持 vy
         // （已通过上面的 x 边界碰撞实现）
 
-        // 摩擦力
+        // 摩擦力（两轴始终衰减 — 修复漫步 vy 在空中无摩擦导致持续下坠）
         vx *= friction
-        if (!isStuck && y >= maxY - 1f) vy *= friction
+        vy *= friction
 
         // 挤压恢复
         recoverSquash()
@@ -124,6 +140,7 @@ class PetPhysics(
         val (px2, py2) = positionHistory[(historyIndex - 1) % 10]
         vx = (px2 - px1) * 3f  // 系数放大
         vy = (py2 - py1) * 3f
+        enableGravity = true   // 被扔后启用重力
         historyIndex = 0
     }
 
