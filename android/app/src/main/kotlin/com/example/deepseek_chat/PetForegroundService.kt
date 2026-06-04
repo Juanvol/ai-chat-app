@@ -510,6 +510,31 @@ class PetForegroundService : Service() {
         }
         header.addView(title)
         header.addView(android.widget.Space(ctx).apply { layoutParams = android.widget.LinearLayout.LayoutParams(0, 1, 1f) })
+        // ── 新建对话按钮 ──
+        val newChatBtn = android.widget.TextView(ctx).apply {
+            text = "+"
+            setTextColor(colorAccent)
+            textSize = 20f
+            setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
+            setPadding(dp(8), dp(2), dp(8), dp(4))
+            setOnClickListener {
+                // 保存当前会话 → 创建新会话 → 清空界面
+                saveChatHistory()
+                chatMessages.clear()
+                val newId = createPopupSession()
+                currentChatSessionId = newId
+                // 清空消息列表 UI
+                msgContainer.removeAllViews()
+                msgContainer.addView(welcomeHint)
+                welcomeHint.visibility = android.view.View.VISIBLE
+                // 隐藏加载指示器
+                loadingRow.visibility = android.view.View.GONE
+                // 聚焦输入框
+                input.requestFocus()
+                Log.d("PetSvc", "new popup chat session: $newId")
+            }
+        }
+        header.addView(newChatBtn)
         val closeBtn = android.widget.TextView(ctx).apply {
             text = "✕"
             setTextColor(colorHint)
@@ -630,6 +655,7 @@ class PetForegroundService : Service() {
         chatDialogView = root
 
         // ── 加载历史消息 ──
+        ensureSessionIndex()
         loadChatHistory(msgContainer, dp, colorUserBubble, colorUserBorder, colorCard, colorBorder, colorAccent, colorHint, welcomeHint)
 
         // ── 窗口参数 ──
@@ -997,18 +1023,202 @@ class PetForegroundService : Service() {
             val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
             val sessionId = currentChatSessionId ?: prefs.getString("last_session_id", null)
             if (sessionId != null) {
-                val editor = prefs.edit()
-                val msgCount = prefs.getInt("msg_count_$sessionId", 0)
-                for (i in 0 until msgCount) {
-                    editor.remove("msg_${sessionId}_${i}_isUser")
-                    editor.remove("msg_${sessionId}_${i}_text")
-                }
-                editor.remove("msg_count_$sessionId")
-                editor.remove("last_session_id")
-                editor.apply()
+                clearPopupSession(sessionId)
             }
             chatMessages.clear(); currentChatSessionId = null
         } catch (_: Exception) {}
+    }
+
+    // ═══════════════════════════════════════════
+    // 多会话管理（会话索引 CRUD）
+    // ═══════════════════════════════════════════
+
+    /** 会话索引记录 */
+    private data class PopupSessionMeta(
+        val id: String,
+        var title: String,
+        val createdAt: Long,
+        var msgCount: Int
+    )
+
+    /** 确保会话索引存在（数据迁移：旧版无 popup_sessions 时从 msg_* 重建） */
+    private fun ensureSessionIndex() {
+        val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+        if (prefs.contains("popup_sessions")) return // 索引已存在
+
+        val lastId = prefs.getString("last_session_id", null) ?: return
+        val msgCount = prefs.getInt("msg_count_$lastId", 0)
+        if (msgCount == 0) return
+
+        // 从首条用户消息提取标题
+        var title = "旧对话"
+        for (i in 0 until msgCount) {
+            if (prefs.getBoolean("msg_${lastId}_${i}_isUser", false)) {
+                val text = prefs.getString("msg_${lastId}_${i}_text", "") ?: ""
+                if (text.isNotEmpty()) {
+                    title = if (text.length <= 20) text else text.substring(0, 20) + "..."
+                    break
+                }
+            }
+        }
+
+        val sessions = mutableListOf(mapOf(
+            "id" to lastId, "title" to title,
+            "createdAt" to (lastId.toLongOrNull() ?: System.currentTimeMillis()),
+            "msgCount" to msgCount
+        ))
+        prefs.edit().putString("popup_sessions", org.json.JSONArray(sessions.map { map ->
+            org.json.JSONObject(map).toString()
+        }).toString()).apply()
+        Log.d("PetSvc", "session index migrated: $lastId ($msgCount msgs)")
+    }
+
+    /** 更新会话索引中的单条记录 */
+    private fun updateSessionMeta(id: String, title: String?, msgCount: Int) {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val raw = prefs.getString("popup_sessions", null) ?: "[]"
+            val arr = org.json.JSONArray(raw)
+            val now = System.currentTimeMillis()
+
+            // 查找已有记录并更新
+            var found = false
+            val sessions = mutableListOf<MutableMap<String, Any?>>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                if (obj.getString("id") == id) {
+                    found = true
+                    if (title != null) obj.put("title", title)
+                    obj.put("msgCount", msgCount)
+                }
+                sessions.add((0 until obj.length()).associate { k ->
+                    obj.keys().next() to obj.get(obj.keys().next())
+                }.toMutableMap())
+            }
+
+            if (!found) {
+                // 新会话：追加到索引
+                val t = title ?: "新对话"
+                val entry = org.json.JSONObject().apply {
+                    put("id", id); put("title", t)
+                    put("createdAt", id.toLongOrNull() ?: now); put("msgCount", msgCount)
+                }
+                sessions.add((0 until entry.length()).associate { k ->
+                    entry.keys().next() to entry.get(entry.keys().next())
+                }.toMutableMap())
+            }
+
+            // 写回（按 createdAt 降序排序）
+            sessions.sortByDescending { (it["createdAt"] as? Long) ?: 0L }
+            val newArr = org.json.JSONArray(sessions.map { s ->
+                org.json.JSONObject(s).toString()
+            })
+            prefs.edit().putString("popup_sessions", newArr.toString()).apply()
+        } catch (e: Exception) {
+            Log.e("PetSvc", "updateSessionMeta failed: ${e.message}")
+        }
+    }
+
+    /** 列出所有弹窗会话（供 Flutter 侧调用） */
+    fun listPopupSessions(): List<Map<String, Any>> {
+        try {
+            ensureSessionIndex()
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val raw = prefs.getString("popup_sessions", null) ?: return emptyList()
+            val arr = org.json.JSONArray(raw)
+            val result = mutableListOf<Map<String, Any>>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                result.add(mapOf(
+                    "id" to obj.getString("id"),
+                    "title" to (obj.optString("title", "新对话")),
+                    "createdAt" to obj.optLong("createdAt", 0L),
+                    "msgCount" to obj.optInt("msgCount", 0)
+                ))
+            }
+            return result
+        } catch (e: Exception) { return emptyList() }
+    }
+
+    /** 创建新弹窗会话 */
+    fun createPopupSession(): String {
+        val id = System.currentTimeMillis().toString()
+        val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("last_session_id", id).apply()
+        ensureSessionIndex()
+        updateSessionMeta(id, "新对话", 0)
+        Log.d("PetSvc", "popup session created: $id")
+        return id
+    }
+
+    /** 删除弹窗会话 */
+    fun deletePopupSession(sessionId: String) {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            val msgCount = prefs.getInt("msg_count_$sessionId", 0)
+            for (i in 0 until msgCount) {
+                editor.remove("msg_${sessionId}_${i}_isUser")
+                editor.remove("msg_${sessionId}_${i}_text")
+            }
+            editor.remove("msg_count_$sessionId")
+            editor.apply()
+
+            // 从索引移除
+            val raw = prefs.getString("popup_sessions", null) ?: "[]"
+            val arr = org.json.JSONArray(raw)
+            val filtered = mutableListOf<String>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                if (obj.getString("id") != sessionId) {
+                    filtered.add(obj.toString())
+                }
+            }
+            val newArr = org.json.JSONArray(filtered)
+            prefs.edit().putString("popup_sessions", newArr.toString()).apply()
+
+            // 如果删除的是当前会话 → 指向剩余最新的
+            val lastId = prefs.getString("last_session_id", null)
+            if (lastId == sessionId) {
+                val sessions = listPopupSessions()
+                if (sessions.isNotEmpty()) {
+                    prefs.edit().putString("last_session_id", sessions.first()["id"] as String).apply()
+                } else {
+                    prefs.edit().remove("last_session_id").apply()
+                }
+            }
+
+            Log.d("PetSvc", "popup session deleted: $sessionId ($msgCount msgs)")
+        } catch (e: Exception) {
+            Log.e("PetSvc", "deletePopupSession failed: ${e.message}")
+        }
+    }
+
+    /** 切换弹窗会话（仅更新 last_session_id，不清空内存） */
+    fun switchPopupSession(sessionId: String) {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("last_session_id", sessionId).apply()
+            Log.d("PetSvc", "popup session switched → $sessionId")
+        } catch (e: Exception) {
+            Log.e("PetSvc", "switchPopupSession failed: ${e.message}")
+        }
+    }
+
+    /** 获取弹窗会话消息（供 MethodChannel 调用） */
+    fun getPopupSessionMessages(sessionId: String?): List<Map<String, Any>> {
+        try {
+            val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
+            val sid = sessionId ?: prefs.getString("last_session_id", null) ?: return emptyList()
+            val msgCount = prefs.getInt("msg_count_$sid", 0)
+            val result = mutableListOf<Map<String, Any>>()
+            for (i in 0 until msgCount) {
+                val isUser = prefs.getBoolean("msg_${sid}_${i}_isUser", false)
+                val text = prefs.getString("msg_${sid}_${i}_text", "") ?: ""
+                if (text.isNotEmpty()) result.add(mapOf("isUser" to isUser, "text" to text))
+            }
+            return result
+        } catch (e: Exception) { return emptyList() }
     }
 
     /** 持久化当前聊天记录到 SharedPreferences */
@@ -1016,6 +1226,7 @@ class PetForegroundService : Service() {
         if (chatMessages.isEmpty()) return
         try {
             val sessionId = currentChatSessionId ?: System.currentTimeMillis().toString()
+            currentChatSessionId = sessionId
             val prefs = getSharedPreferences("pet_chat", android.content.Context.MODE_PRIVATE)
             val editor = prefs.edit()
             editor.putString("last_session_id", sessionId)
@@ -1026,6 +1237,16 @@ class PetForegroundService : Service() {
                 editor.putString("msg_${sessionId}_${i}_text", m.text)
             }
             editor.apply()
+
+            // 提取会话标题（首条用户消息前 20 字）
+            val firstUserMsg = chatMessages.firstOrNull { it.isUser && it.text.isNotEmpty() }
+            val title = if (firstUserMsg != null)
+                (if (firstUserMsg.text.length <= 20) firstUserMsg.text else firstUserMsg.text.substring(0, 20) + "...")
+                else "新对话"
+            // 更新多会话索引
+            ensureSessionIndex()
+            updateSessionMeta(sessionId, if (title == "新对话") null else title, chatMessages.size)
+
             Log.d("PetSvc", "saved ${chatMessages.size} history messages, session=$sessionId")
         } catch (e: Exception) {
             Log.e("PetSvc", "saveChatHistory failed: ${e.message}")
