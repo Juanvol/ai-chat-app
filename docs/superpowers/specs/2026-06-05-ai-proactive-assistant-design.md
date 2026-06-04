@@ -100,6 +100,332 @@
 
 ---
 
+## 二-B、大厂级架构规范
+
+### 核心原则：一切可变的就是插件
+
+```
+                        ┌───────────────────┐
+                        │  SuggestionEngine  │  ← 纯协调器，不动业务逻辑
+                        │  (core orchestrator)│
+                        └───────┬───────────┘
+                                │
+            ┌───────────────────┼───────────────────┐
+            │                   │                   │
+    ┌───────▼───────┐  ┌───────▼───────┐  ┌───────▼───────┐
+    │ IInputSource   │  │ IDecisionPipe │  │ IOutputDriver  │
+    │ (输入插件)      │  │ (决策管道)     │  │ (输出插件)      │
+    └───────┬───────┘  └───────────────┘  └───────┬───────┘
+    ┌───────┼───────┐                           ┌───────┼───────┐
+    │       │       │                           │       │       │
+  Timer  Vision  Voice                         Bubble  Chat  Notif
+  Source Source  Source                        Driver  Driver Driver
+  (now)  (now)  (future)                       (now)  (now)  (future)
+```
+
+任何一个功能新增 = 实现一个接口 + 注册到引擎。不改核心代码。
+
+### 接口定义
+
+```dart
+// ── 输入插件 ──
+
+/// 输入源接口：任何能给糯糯提供上下文的东西都实现这个
+abstract class IInputSource {
+  /// 唯一标识，用于日志/开关/预算计量
+  String get id;
+
+  /// 优先级 0-100（高优先级的上下文会被优先消费）
+  int get priority;
+
+  /// 是否已启用（受预算/用户设置控制）
+  bool get isEnabled;
+
+  /// Token 消耗等级：none | cheap | normal | expensive
+  TokenCostLevel get costLevel;
+
+  /// 采集上下文，返回 null 表示本轮无新信息
+  /// 异步但必须可超时取消（5s timeout）
+  Future<InputSnapshot?> collect({required DateTime since});
+
+  /// 释放资源（如关闭截图流、断开 MCP 连接）
+  void dispose();
+}
+
+/// 一次采集的快照
+class InputSnapshot {
+  final String sourceId;
+  final String summary;       // 供 LLM 阅读的摘要（< 200 字符）
+  final Map<String, dynamic>? metadata;  // 结构化附加数据
+  final DateTime collectedAt;
+}
+
+// ── 输出插件 ──
+
+/// 输出驱动接口：气泡/聊天/通知/语音都实现这个
+abstract class IOutputDriver {
+  String get id;
+
+  /// 按照层级选择输出方式
+  /// L1 → bubble, L2 → bubble(clickable), L3-L4 → chat dialog
+  bool canHandle(SuggestionLevel level);
+
+  /// 执行输出
+  Future<void> deliver(Suggestion suggestion);
+
+  /// 用户对该输出的反馈回调（左滑=忽略，点击=深入，etc）
+  Stream<UserFeedback> get feedback;
+}
+
+// ── 决策管道 ──
+
+/// 决策链中的一个环节（责任链模式）
+abstract class IDecisionFilter {
+  /// 返回 null 表示"不拦截"，返回 Decision 表示"拦截并决策"
+  Future<Decision?> evaluate(DecisionContext ctx);
+}
+
+/// 标准管道：RuleFilter → BudgetGate → LLMDecision
+class DecisionPipeline {
+  final List<IDecisionFilter> filters;
+
+  Future<Decision> process(DecisionContext ctx) async {
+    for (final f in filters) {
+      final result = await f.evaluate(ctx);
+      if (result != null) return result;
+    }
+    return Decision.silence();  // 兜底：不说话
+  }
+}
+```
+
+### 依赖注入（禁止 new 分散创建）
+
+```dart
+/// 引擎通过构造函数注入所有依赖，不用全局单例
+class SuggestionEngine {
+  final List<IInputSource> _sources;
+  final List<IOutputDriver> _drivers;
+  final DecisionPipeline _pipeline;
+  final BudgetGate _budget;
+  final PetDiaryService _diary;
+  final PetMemoryStore _memory;
+
+  SuggestionEngine({
+    required List<IInputSource> sources,
+    required List<IOutputDriver> drivers,
+    required DecisionPipeline pipeline,
+    required BudgetGate budget,
+    required PetDiaryService diary,
+    required PetMemoryStore memory,
+  }) : _sources = sources,
+       _drivers = drivers,
+       _pipeline = pipeline,
+       _budget = budget,
+       _diary = diary,
+       _memory = memory;
+
+  /// 注册新插件（运行时热插拔，MCP/语音等后期接入）
+  void registerSource(IInputSource source) {
+    if (_sources.any((s) => s.id == source.id)) {
+      throw StateError('Source ${source.id} already registered');
+    }
+    _sources.add(source);
+    _sources.sort((a, b) => b.priority.compareTo(a.priority));
+  }
+
+  void registerDriver(IOutputDriver driver) {
+    _drivers.add(driver);
+  }
+}
+```
+
+### 错误处理分层
+
+```
+Layer 1 — 插件级
+  单个 InputSource 抛异常 → 捕获，记日志，跳过，不影响其他 Source
+  单个 OutputDriver 抛异常 → 捕获，降级到下一个 Driver
+
+Layer 2 — 决策级
+  LLM 调用失败 → 纯规则 fallback（已实现）
+  连续 3 次失败 → 熔断 10 分钟
+
+Layer 3 — 引擎级
+  引擎自身抛异常 → catch，reset，notify 用户（糯糯气泡："哎呀糯糯卡住了..."）
+  绝不崩溃
+```
+
+```dart
+// 插件安全包装器
+Future<List<InputSnapshot>> _collectAll(DateTime since) async {
+  final results = <InputSnapshot>[];
+  for (final source in _sources.where((s) => s.isEnabled)) {
+    try {
+      final snapshot = await source.collect(since: since)
+          .timeout(const Duration(seconds: 5));
+      if (snapshot != null) results.add(snapshot);
+    } catch (e, stack) {
+      PetLogger().error('SuggestionEngine', 'source ${source.id} failed', e);
+      // 不影响其他 source
+    }
+  }
+  return results;
+}
+```
+
+### 测试分层
+
+```
+Unit Test（70%）
+  · DecisionPipeline 各 filter 独立单元测试
+  · BudgetGate 预算计算逻辑
+  · InputSnapshot 序列化/反序列化
+  · 各 InputSource mock → 返回预置快照
+
+Integration Test（20%）
+  · 真实 Hive Box 读写
+  · LLM 联调（用 recorded responses 回放）
+  · Kotlin ↔ Dart MethodChannel 通信
+
+Widget Test（10%）
+  · Token 设置页 UI
+  · 建议历史 Tab
+  · 气泡交互
+```
+
+### 语音（后期）怎么接入
+
+```
+语音接入 = 3 个插件注册，不改任何现有代码：
+
+1. VoiceInputSource implements IInputSource
+   · ASR 转文字 → InputSnapshot(summary: "用户说：明天提醒我开会")
+   · on-device 或 API STT
+
+2. VoiceOutputDriver implements IOutputDriver
+   · TTS 读气泡文字
+   · L3+ 建议用语音输出
+
+3. 注册到引擎
+   engine.registerSource(VoiceInputSource(asrService));
+   engine.registerDriver(VoiceOutputDriver(ttsService));
+
+done.
+```
+
+### MCP 工具（后期）怎么接入
+
+```
+MCP 接入 = 实现 IInputSource + PetTool：
+
+1. McpInputSource implements IInputSource
+   · 内部管理多个 PetTool 实例
+   · collect() → 汇总所有工具的最近产出
+
+2. PetTool 实例注册
+   engine.registerSource(McpInputSource(tools: [
+     FileSystemTool(),
+     CalendarTool(),
+     WebSearchTool(),
+   ]));
+
+3. Decision LLM 的 system prompt 自动注入工具列表
+   → LLM 可以 decide: {level: L3, topic: "calendar_alert", tool: "calendar"}
+
+done.
+```
+
+### 文件结构
+
+```
+lib/
+├── services/pet/
+│   ├── suggestion/
+│   │   ├── suggestion_engine.dart        ← 核心协调器
+│   │   ├── decision_pipeline.dart        ← 决策管道
+│   │   ├── budget_gate.dart              ← 预算门控
+│   │   ├── trigger_manager.dart          ← 触发调度
+│   │   ├── context_collector.dart        ← 上下文聚合
+│   │   │
+│   │   ├── sources/
+│   │   │   ├── input_source.dart          ← IInputSource 接口
+│   │   │   ├── timer_source.dart          ← 定时触发
+│   │   │   ├── vision_source.dart         ← 屏幕截图
+│   │   │   ├── conversation_source.dart   ← 对话历史
+│   │   │   └── time_source.dart           ← 时段感知（纯规则）
+│   │   │
+│   │   ├── drivers/
+│   │   │   ├── output_driver.dart         ← IOutputDriver 接口
+│   │   │   ├── bubble_driver.dart         ← 气泡输出
+│   │   │   └── chat_driver.dart           ← 聊天框输出
+│   │   │
+│   │   └── filters/
+│   │       ├── decision_filter.dart       ← IDecisionFilter 接口
+│   │       ├── rule_filter.dart           ← 纯规则过滤器
+│   │       └── llm_decision_filter.dart   ← LLM 决策过滤器
+│   │
+│   ├── tools/
+│   │   ├── pet_tool.dart                  ← PetTool 接口
+│   │   └── builtin/                       ← 内置工具（未来）
+│   │
+│   ├── pet_ai_service.dart               ← 对外门面（不改业务逻辑）
+│   ├── pet_diary_service.dart            ← 日记服务
+│   └── pet_token_service.dart            ← Token 服务
+│
+├── models/
+│   ├── user_profile.dart                 ← 用户画像
+│   ├── suggestion.dart                   ← 建议模型
+│   └── input_snapshot.dart               ← 输入快照
+│
+test/
+├── services/pet/suggestion/
+│   ├── decision_pipeline_test.dart
+│   ├── budget_gate_test.dart
+│   ├── sources/
+│   │   └── timer_source_test.dart
+│   └── drivers/
+│       └── bubble_driver_test.dart
+```
+
+### 命名与代码规范
+
+```dart
+// ✅ 接口用 I 前缀
+abstract class IInputSource { ... }
+
+// ✅ 实现类用具体名称
+class VisionInputSource implements IInputSource { ... }
+
+// ✅ 工厂方法注册，不直接 new
+final engine = SuggestionEngine.create(
+  sources: defaultSources,
+  drivers: defaultDrivers,
+);
+
+// ✅ 所有异步方法带 timeout
+Future<InputSnapshot?> collect(...) async {
+  return _impl().timeout(Duration(seconds: 5));
+}
+
+// ✅ 公开方法返回 Result 类型（不抛裸异常）
+// 初期用 try-catch 即可，后期可引入 sealed class Result<T> { Ok, Err }
+
+// ✅ 日志分级
+PetLogger().trace()   // 每次 tick
+PetLogger().info()    // 每次建议
+PetLogger().warn()    // 单次失败
+PetLogger().error()   // 连续失败
+
+// ❌ 反模式
+// 全局单例（除 Service 层已有的 shared 实例）
+// 硬编码字符串（抽到常量或配置）
+// 方法 > 50 行（拆子方法）
+// class > 300 行（拆文件）
+```
+
+---
+
 ## 三、触发层（什么时候说话）
 
 ### 3.1 触发源
