@@ -1,0 +1,75 @@
+<h2>渲染层修正</h2>
+<p class="subtitle">SurfaceView 在悬浮窗里透明渲染是已知坑，改用更可靠的方案</p>
+
+<div class="split">
+  <div class="mockup" style="flex:1;border:2px solid #ef4444">
+    <div class="mockup-header" style="background:#fecaca;color:#991b1b">❌ SurfaceView — 放弃</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>已知问题：</b><br>
+      · setZOrderOnTop(true) → 盖在所有 View 上面<br>
+      · PixelFormat.TRANSPARENT → 部分设备无效<br>
+      · 悬浮窗里 SurfaceView 透明 = 黑屏 or 不显示<br>
+      · 与 WindowManager 的 z-order 冲突<br>
+      · Android 各版本表现不一致<br>
+      <br>
+      <b>结论：不可靠，放弃</b>
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:1;border:2px solid #22c55e">
+    <div class="mockup-header" style="background:#dcfce7;color:#166534">✅ TextureView — 采用</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>为什么可靠：</b><br>
+      · 普通 View，不是独立窗口层<br>
+      · 天然支持透明（Canvas clear → 透明）<br>
+      · 硬件加速（GPU 渲染）<br>
+      · 支持 Alpha 动画<br>
+      · 悬浮窗兼容性无问题<br>
+      <br>
+      <b>唯一代价：</b><br>
+      · 比 SurfaceView 延迟 1-2 帧（~16-32ms）<br>
+      · 宠物场景完全无感知
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">TextureView 渲染方案</h3>
+
+<pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;line-height:1.6">
+// TextureView — 普通 View，在 WindowManager 浮窗中正常工作
+class PetRenderer(textureView: TextureView) {
+    private val frameInterval = 16L  // ~60fps
+
+    fun start() {
+        // 使用 Choreographer 同步 VSYNC（比 Handler 更准）
+        Choreographer.getInstance().postFrameCallback(renderLoop)
+    }
+
+    private val renderLoop = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            val canvas = textureView.lockCanvas()
+            if (canvas != null) {
+                canvas.drawColor(0, PorterDuff.Mode.CLEAR)  // ← 透明！
+                petSprite.draw(canvas)   // 绘制精灵帧
+                bubble.draw(canvas)      // 绘制气泡
+                physics.update()         // 更新物理
+                textureView.unlockCanvasAndPost(canvas)
+            }
+            Choreographer.getInstance().postFrameCallback(this) // 下一帧
+        }
+    }
+}</pre>
+
+<div class="section">
+  <h4>对比总结</h4>
+  <table style="width:100%;font-size:13px;border-collapse:collapse">
+    <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">特性</th><th style="padding:8px;text-align:center">SurfaceView</th><th style="padding:8px;text-align:center">TextureView</th><th style="padding:8px;text-align:center">Custom View</th></tr>
+    <tr><td style="padding:8px">透明背景</td><td style="padding:8px;text-align:center;color:#ef4444">❌ 不可靠</td><td style="padding:8px;text-align:center;color:#22c55e">✅ 可靠</td><td style="padding:8px;text-align:center;color:#22c55e">✅ 可靠</td></tr>
+    <tr style="background:#f8fafc"><td style="padding:8px">硬件加速</td><td style="padding:8px;text-align:center;color:#22c55e">✅ 独立线程</td><td style="padding:8px;text-align:center;color:#22c55e">✅ GPU</td><td style="padding:8px;text-align:center;color:#eab308">⚠️ 需手动开</td></tr>
+    <tr><td style="padding:8px">60fps流畅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td></tr>
+    <tr style="background:#f8fafc"><td style="padding:8px">浮窗兼容</td><td style="padding:8px;text-align:center;color:#ef4444">❌ 坑多</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td></tr>
+    <tr><td style="padding:8px">Alpha动画</td><td style="padding:8px;text-align:center;color:#ef4444">❌</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td></tr>
+    <tr style="background:#f8fafc"><td style="padding:8px">延迟</td><td style="padding:8px;text-align:center">0</td><td style="padding:8px;text-align:center">~16ms</td><td style="padding:8px;text-align:center">0</td></tr>
+    <tr><td style="padding:8px;font-weight:bold">结论</td><td style="padding:8px;text-align:center;color:#ef4444">放弃</td><td style="padding:8px;text-align:center;color:#22c55e;font-weight:bold">✅ 采用</td><td style="padding:8px;text-align:center">备选</td></tr>
+  </table>
+</div>

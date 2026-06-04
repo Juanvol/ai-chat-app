@@ -1,16 +1,29 @@
 // Flutter 3.24 / Dart 3.5
+// ignore_for_file: must_call_super
+
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
-import '../models/pet_token_usage.dart';
+import '../../models/pet_token_usage.dart';
 
 class PetTokenService extends ChangeNotifier {
   static const _boxName = 'pet_token';
+
+  /// 共享单例，消除多实例缓存不同步问题
+  static final PetTokenService instance = PetTokenService._();
+
+  PetTokenService._();
+
   int? _dailyBudget = 50000;
   bool _budgetLoaded = false;
   Future<void>? _recordLock;
 
   int? get dailyBudget => _dailyBudget;
   bool get isUnlimited => _dailyBudget == null;
+
+  @override
+  void dispose() {
+    // Singleton — 不由 Provider dispose，生命周期跟随应用进程
+  }
 
   Future<Box> get _box => Hive.openBox(_boxName);
 
@@ -40,7 +53,6 @@ class PetTokenService extends ChangeNotifier {
     int chat = 0,
     int vision = 0,
   }) async {
-    // ��ֹ���ж�д����
     while (_recordLock != null) {
       try { await _recordLock; } catch (_) {}
     }
@@ -103,21 +115,35 @@ class PetTokenService extends ChangeNotifier {
     return total;
   }
 
+  Future<int?> _readBudget() async {
+    try {
+      final box = await _box;
+      final raw = box.get('budget');
+      if (raw is int) return raw;
+      return _dailyBudget;
+    } catch (_) {
+      return _dailyBudget;
+    }
+  }
+
   Future<bool> checkBudget() async {
-    if (_dailyBudget == null) return true;
+    final budget = await _readBudget();
+    if (budget == null) return true;
     final today = await getTodayUsage();
-    return today.totalTokens < _dailyBudget!;
+    return today.totalTokens < budget;
   }
 
   Future<int> getBudgetRemaining() async {
-    if (_dailyBudget == null) return 999999;
+    final budget = await _readBudget();
+    if (budget == null) return 999999;
     final today = await getTodayUsage();
-    return _dailyBudget! - today.totalTokens;
+    return budget - today.totalTokens;
   }
 
   Future<double> getBudgetUsageFraction() async {
-    if (_dailyBudget == null || _dailyBudget == 0) return 0;
+    final budget = await _readBudget();
+    if (budget == null || budget == 0) return 0;
     final today = await getTodayUsage();
-    return today.totalTokens / _dailyBudget!;
+    return today.totalTokens / budget;
   }
 }

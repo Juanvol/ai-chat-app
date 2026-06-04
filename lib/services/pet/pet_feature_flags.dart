@@ -10,7 +10,7 @@ class PetFeatureFlags {
   static Future<bool> get agentRouting async {
     try {
       final box = await Hive.openBox(_boxName);
-      return box.get('agentRouting', defaultValue: false) as bool;
+      return box.get('agentRouting', defaultValue: true) as bool;
     } catch (_) {
       return false; // 任何异常 → 降级走旧路径
     }

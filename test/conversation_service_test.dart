@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import 'package:deepseek_chat/services/conversation_service.dart';
+import 'package:deepseek_chat/services/app/conversation_service.dart';
 import 'package:deepseek_chat/models/conversation.dart';
 import 'package:deepseek_chat/models/message.dart';
 import 'fake_storage_service.dart';
@@ -159,7 +159,7 @@ void main() {
 
         await svc.sendMessage('hi');
         final msgs = svc.currentConversation!.messages;
-        expect(msgs.last.content, contains('请求失败'));
+        expect(msgs.last.content, contains('信号不好喵...请稍后重试~'));
         expect(svc.isLoading, false);
       });
 

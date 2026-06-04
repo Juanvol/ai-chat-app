@@ -1,0 +1,125 @@
+<h2>Phase 1 — 宠物中心 UI 优化方案</h2>
+<p class="subtitle">当前问题：257行，绕过Provider直接读Hive，无互动控件，无实时更新</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">当前布局</div>
+    <div class="mockup-body">
+      <div style="background:#1a1a2e;padding:16px;border-radius:8px;min-height:300px">
+        <div style="background:#16213e;padding:10px;border-radius:6px;margin-bottom:8px;text-align:center">
+          <span style="font-size:14px">🐾 宠物中心</span>
+        </div>
+        <div style="background:#16213e;padding:12px;border-radius:6px;margin-bottom:8px">
+          <div style="font-size:12px;color:#aaa;margin-bottom:4px">状态卡 (Hive直接读)</div>
+          <div style="display:flex;gap:8px;font-size:11px">
+            <div>🍖 饱了</div><div>😐 50</div><div>⚡ 80</div>
+          </div>
+        </div>
+        <div style="background:#0f3460;padding:12px;border-radius:6px;margin-bottom:8px">
+          <div style="font-size:12px;color:#aaa;margin-bottom:4px">Token用量 (Hive直接读)</div>
+          <div style="font-size:11px">今日 1,234 | 剩余 48,766</div>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px;border-bottom:2px solid #e94560">聊天</div>
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px">记忆</div>
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px">日记</div>
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px">设置</div>
+        </div>
+        <div style="background:#16213e;padding:16px;border-radius:6px;text-align:center;font-size:12px;color:#666">
+          [PetChatScreen — 不工作]
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">优化后布局</div>
+    <div class="mockup-body">
+      <div style="background:#1a1a2e;padding:16px;border-radius:8px;min-height:300px">
+        <div style="background:#16213e;padding:10px;border-radius:6px;margin-bottom:8px;text-align:center">
+          <span style="font-size:14px">🐾 宠物中心</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#e94560,#16213e);padding:16px;border-radius:8px;margin-bottom:8px;text-align:center">
+          <div style="font-size:32px;margin-bottom:4px">🐱</div>
+          <div style="font-size:14px;font-weight:bold;margin-bottom:4px">弗糯糯 · Lv.3</div>
+          <div style="font-size:11px;color:#ccc">摸摸或点击快捷操作 ↓</div>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+            <button class="mock-button" style="font-size:11px;padding:4px 8px">🍖 喂食</button>
+            <button class="mock-button" style="font-size:11px;padding:4px 8px">🎾 玩耍</button>
+            <button class="mock-button" style="font-size:11px;padding:4px 8px">💤 哄睡</button>
+            <button class="mock-button" style="font-size:11px;padding:4px 8px">💬 聊天</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div style="background:#16213e;padding:8px;border-radius:6px;font-size:11px">
+            <div style="color:#aaa">饥饿度</div>
+            <div style="background:#333;height:6px;border-radius:3px;margin:4px 0"><div style="background:#4ecca3;width:85%;height:100%;border-radius:3px"></div></div>
+          </div>
+          <div style="background:#16213e;padding:8px;border-radius:6px;font-size:11px">
+            <div style="color:#aaa">心情</div>
+            <div style="background:#333;height:6px;border-radius:3px;margin:4px 0"><div style="background:#e94560;width:60%;height:100%;border-radius:3px"></div></div>
+          </div>
+          <div style="background:#16213e;padding:8px;border-radius:6px;font-size:11px">
+            <div style="color:#aaa">体力</div>
+            <div style="background:#333;height:6px;border-radius:3px;margin:4px 0"><div style="background:#ffc107;width:72%;height:100%;border-radius:3px"></div></div>
+          </div>
+          <div style="background:#16213e;padding:8px;border-radius:6px;font-size:11px">
+            <div style="color:#aaa">好感度</div>
+            <div style="background:#333;height:6px;border-radius:3px;margin:4px 0"><div style="background:#ff6b9d;width:45%;height:100%;border-radius:3px"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <div style="flex:1;background:#e94560;padding:8px;text-align:center;font-size:11px;border-radius:4px">聊天</div>
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px">记忆</div>
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px">日记</div>
+          <div style="flex:1;background:#16213e;padding:8px;text-align:center;font-size:11px;border-radius:4px">设置</div>
+        </div>
+        <div style="background:#16213e;padding:16px;border-radius:6px;text-align:center;font-size:12px;color:#aaa">
+          [PetChatScreen — 对接真实AI]
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">Phase 1 清单（按优先级）</h3>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>宠物中心 UI 升级</h3>
+      <p>StatusCard 改用 Consumer&lt;PetController&gt; 实时响应 + 快捷操作按钮 + 进度条替换文本</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>首页拆分重构</h3>
+      <p>1057行→拆为 chat_view / drawer / model_selector / message_menu 等独立文件</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>设置页拆分</h3>
+      <p>688行→拆为 persona / model / token / appearance / debug 等独立Section</p>
+    </div>
+  </div>
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>TokenDashboard 接入 Provider</h3>
+      <p>不再直接读 Hive，改用 PetTokenService，实时更新用量</p>
+    </div>
+  </div>
+  <div class="option" data-choice="e" onclick="toggleSelect(this)">
+    <div class="letter">E</div>
+    <div class="content">
+      <h3>PetChatScreen 基础实现</h3>
+      <p>用 MiniChat 的已有代码为 PetChatScreen 提供 AI 对话能力</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:12px">左侧=当前，右侧=优化后。你觉得这个方向对吗？</p>

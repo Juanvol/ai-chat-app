@@ -1,0 +1,66 @@
+<h2>宠物视觉风格选型</h2>
+<p class="subtitle">A 路线的核心是动画表现力。不同风格对资源和开发量的要求差异巨大</p>
+
+<div class="cards">
+  <div class="card" data-choice="pixel" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:24px;text-align:center;font-size:48px;background:linear-gradient(135deg,#1a1a2e,#16213e)">
+      <div style="font-size:64px">🐱</div>
+      <div style="font-family:monospace;color:#4ade80;margin-top:8px">pixel art</div>
+    </div>
+    <div class="card-body">
+      <h3>像素风</h3>
+      <p>16×16 或 32×32 像素角色，帧动画。像 Stardew Valley 的宠物</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>帧制作快（16-32px）</li><li>体积小，性能好</li><li>怀旧可爱风格</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>放大后锯齿明显</li><li>表现力有限</li><li>120dp下像素感太强</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="cartoon" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:24px;text-align:center;font-size:48px;background:linear-gradient(135deg,#fef3c7,#fde68a)">
+      <div style="font-size:64px">🐶</div>
+      <div style="font-family:sans-serif;color:#f59e0b;margin-top:8px;font-weight:bold">cartoon</div>
+    </div>
+    <div class="card-body">
+      <h3>卡通 2D</h3>
+      <p>手绘风格精灵图，圆润线条 + 柔和配色。类似罗小黑、汤姆猫</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>表现力丰富</li><li>亲和力强</li><li>行业主流方案</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>需要设计师画帧</li><li>多动画状态帧量大</li><li>AI可辅助生成</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="skeleton" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:24px;text-align:center;font-size:48px;background:linear-gradient(135deg,#e0e7ff,#c7d2fe)">
+      <div style="font-size:64px">🦊</div>
+      <div style="font-family:sans-serif;color:#6366f1;margin-top:8px;font-weight:bold">skeletal</div>
+    </div>
+    <div class="card-body">
+      <h3>骨骼动画</h3>
+      <p>用 DragonBones/Spine 做 2D 骨骼，身体部件独立运动。类似 Live2D 桌面宠</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>无需逐帧，动画平滑</li><li>部件复用，省资源</li><li>可程序化混合动画</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>Android 集成复杂</li><li>需要运行时库</li><li>初期绑定工作量大</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="emoji" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:24px;text-align:center;font-size:48px;background:linear-gradient(135deg,#fce7f3,#fbcfe8)">
+      <div style="font-size:64px">🐰</div>
+      <div style="font-family:sans-serif;color:#ec4899;margin-top:8px;font-weight:bold">minimal</div>
+    </div>
+    <div class="card-body">
+      <h3>极简几何</h3>
+      <p>简单形体 + 弹性动画 + 表情变化。像 Duolingo 的 Duo、桌面宠物 BonziBuddy</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>程序化绘制，零资源依赖</li><li>弹性动画天然流畅</li><li>体积最小</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>可爱度靠动画而非美术</li><li>细节表现力弱</li><li>可能不够"像宠物"</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">考虑到弗糯糯的定位，你的选择是？</h3>

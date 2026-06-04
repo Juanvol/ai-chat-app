@@ -1,0 +1,84 @@
+<h2>行为系统（PetBrain）</h2>
+<p class="subtitle">Dart 端决策 + Kotlin 端执行。让宠物"有灵魂"，不只是播放动画</p>
+
+<div class="split">
+  <div class="mockup" style="flex:3">
+    <div class="mockup-header">状态机</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px">
+      <pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:12px;line-height:1.8;margin:0">
+                    ┌─────────────┐
+         app启动 ──→│   IDLE      │←──────────┐
+                    │ 原地呼吸动画  │           │
+                    └──┬───┬───┬──┘           │
+                       │   │   │              │
+          AI决策"走走" │   │   │ 用户戳        │
+                       ▼   │   ▼              │
+              ┌──────┐    │  ┌────────┐      │
+              │ WALK │    │  │TALKING │──────┘
+              │ 走到  │    │  │MiniChat│ (对话结束)
+              │ 目标  │    │  └────────┘
+              └──┬───┘    │
+                 │        │ 30分钟无交互
+         到达目标│        │ (深夜/无操作)
+                 ▼        ▼
+              ┌──────┐ ┌──────────┐
+              │ SIT  │ │SLEEPING  │──→ 用户戳 → 醒来 → IDLE
+              │ 坐下 │ │ 睡觉💤   │
+              └──┬───┘ └──────────┘
+                 │
+       2分钟后自动│
+                 ▼
+               IDLE
+      </pre>
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:2">
+    <div class="mockup-header">决策规则（Dart端）</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>移动决策（每 30-90 秒一次）</b><br><br>
+      ① 随机决定是否移动（概率 40%）<br>
+      ② 是 → 随机生成屏幕内目标坐标<br>
+      ③ 判断距离：<br>
+      &nbsp;&nbsp;&nbsp;· 短距离(< 30%屏宽) → walk<br>
+      &nbsp;&nbsp;&nbsp;· 长距离(> 30%屏宽) → run (阶段二)<br>
+      ④ 发送 moveTo(x, y) 给 Kotlin<br>
+      <br>
+      <b>坐下决策（到达后）</b><br>
+      ⑤ 到达目的地 → 概率 60% 坐下<br>
+      ⑥ 2 分钟后自动站起来 → IDLE<br>
+      <br>
+      <b>睡觉决策</b><br>
+      ⑦ 30 分钟无任何交互 → SLEEPING<br>
+      ⑧ 用户点击 → 醒来 → IDLE
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">命令协议 v2</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">方向</th><th style="padding:8px;text-align:left">方法</th><th style="padding:8px;text-align:left">参数</th><th style="padding:8px;text-align:left">说明</th></tr>
+  <tr><td style="padding:8px;color:#4A90D9">Dart→Kotlin</td><td style="padding:8px;font-family:monospace">moveTo</td><td style="padding:8px;font-family:monospace">{x, y, speed:"walk|run"}</td><td style="padding:8px">命令宠物移动到屏幕坐标</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;color:#4A90D9">Dart→Kotlin</td><td style="padding:8px;font-family:monospace">playAnim</td><td style="padding:8px;font-family:monospace">{anim:"idle|walk|sit|..."}</td><td style="padding:8px">直接指定播放哪个动画</td></tr>
+  <tr><td style="padding:8px;color:#4A90D9">Dart→Kotlin</td><td style="padding:8px;font-family:monospace">showBubble</td><td style="padding:8px;font-family:monospace">{text, durationMs}</td><td style="padding:8px">弹性弹出气泡 + 自动消失</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;color:#22c55e">Kotlin→Dart</td><td style="padding:8px;font-family:monospace">onTouch</td><td style="padding:8px;font-family:monospace">{type:"tap|longPress|drag", x, y}</td><td style="padding:8px">用户触控事件</td></tr>
+  <tr><td style="padding:8px;color:#22c55e">Kotlin→Dart</td><td style="padding:8px;font-family:monospace">onArrive</td><td style="padding:8px;font-family:monospace">{x, y}</td><td style="padding:8px">到达目标位置</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;color:#22c55e">Kotlin→Dart</td><td style="padding:8px;font-family:monospace">onAnimEnd</td><td style="padding:8px;font-family:monospace">{anim}</td><td style="padding:8px">动画播放完毕（循环动画不发）</td></tr>
+</table>
+
+<h3 style="margin-top:20px">改造范围</h3>
+
+<div style="font-size:13px;line-height:1.8">
+  <b>Kotlin 端（PetForegroundService）：</b><br>
+  · ImageView → Custom PetView（核心重构，~300行）<br>
+  · 新增 PetPhysics.kt（轻量物理，~100行）<br>
+  · 新增 FrameBlender.kt（帧插值混合，~80行）<br>
+  · 新增 BubbleAnimator.kt（弹性气泡，~60行）<br>
+  · handleCommand 扩展 moveTo<br>
+  <br>
+  <b>Dart 端（PetOverlayController）：</b><br>
+  · 新增 PetBrain（行为决策，~150行）<br>
+  · 空闲行为由 PetBrain 接管（替代当前的 Timer 随机气泡）<br>
+  · _cmd 协议扩展 moveTo<br>
+</div>

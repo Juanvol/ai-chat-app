@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
 import '../models/message.dart';
+import '../services/pet/pet_logger.dart';
 
 class StreamChunk {
   final String text;
@@ -84,6 +86,7 @@ class LLMClient {
     };
     _addThinking(body, thinkingEnabled, reasoningEffort, providerId);
 
+    PetLogger().info('LLMClient', 'sendStream -> $baseUrl model=$model maxTokens=$maxTokens provider=$providerId');
     try {
       final response = await _dio.post(
         '$baseUrl/v1/chat/completions',
@@ -104,7 +107,7 @@ class LLMClient {
           buffer = buffer.substring(idx + 1);
           if (!line.startsWith('data: ')) continue;
           final data = line.substring(6).trim();
-          if (data == '[DONE]') return;
+          if (data == '[DONE]') { dev.log('LLMClient: stream [DONE]'); return; }
           try {
             final json = jsonDecode(data) as Map<String, dynamic>;
             final choices = json['choices'] as List<dynamic>?;
@@ -121,13 +124,20 @@ class LLMClient {
             }
             final usageJson = json['usage'] as Map<String, dynamic>?;
             if (usageJson != null) {
-              yield StreamChunk('', usage: {
-                'prompt_tokens': (usageJson['prompt_tokens'] as num).toInt(),
-                'completion_tokens': (usageJson['completion_tokens'] as num).toInt(),
-                'total_tokens': (usageJson['total_tokens'] as num).toInt(),
-              });
+              final pt = usageJson['prompt_tokens'];
+              final ct = usageJson['completion_tokens'];
+              final tt = usageJson['total_tokens'];
+              if (pt != null && ct != null && tt != null) {
+                yield StreamChunk('', usage: {
+                  'prompt_tokens': (pt as num).toInt(),
+                  'completion_tokens': (ct as num).toInt(),
+                  'total_tokens': (tt as num).toInt(),
+                });
+              }
             }
-          } catch (_) {}
+          } catch (e) {
+            dev.log('LLMClient SSE parse error: $e');
+          }
         }
       }
     } finally {
@@ -168,11 +178,19 @@ class LLMClient {
       return (
         content: msg?['content'] as String? ?? '',
         reasoning: msg?['reasoning_content'] as String? ?? '',
-        usage: usageJson != null ? {
-          'prompt_tokens': (usageJson['prompt_tokens'] as num).toInt(),
-          'completion_tokens': (usageJson['completion_tokens'] as num).toInt(),
-          'total_tokens': (usageJson['total_tokens'] as num).toInt(),
-        } : null,
+        usage: usageJson != null ? () {
+          final pt = usageJson['prompt_tokens'];
+          final ct = usageJson['completion_tokens'];
+          final tt = usageJson['total_tokens'];
+          if (pt != null && ct != null && tt != null) {
+            return {
+              'prompt_tokens': (pt as num).toInt(),
+              'completion_tokens': (ct as num).toInt(),
+              'total_tokens': (tt as num).toInt(),
+            };
+          }
+          return null;
+        }() : null,
       );
     } finally {
       if (originalKey != apiKey) { _apiKey = originalKey; _updateAuth(); }
@@ -250,10 +268,10 @@ class _ErrorInterceptor extends Interceptor {
       case DioExceptionType.receiveTimeout: msg = '响应超时'; break;
       case DioExceptionType.badResponse:
         final code = err.response?.statusCode;
-        if (code == 401) msg = 'API Key 无效';
-        else if (code == 402) msg = '余额不足';
-        else if (code == 429) msg = '请求太频繁';
-        else msg = '服务器错误 ($code)';
+        if (code == 401) { msg = 'API Key 无效'; }
+        else if (code == 402) { msg = '余额不足'; }
+        else if (code == 429) { msg = '请求太频繁'; }
+        else { msg = '服务器错误 ($code)'; }
         break;
       default: msg = '网络错误'; break;
     }

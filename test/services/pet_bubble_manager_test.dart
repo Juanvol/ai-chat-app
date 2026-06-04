@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import 'package:deepseek_chat/services/pet_bubble_manager.dart';
-import 'package:deepseek_chat/services/pet_brain.dart';
+import 'package:deepseek_chat/services/pet/pet_bubble_manager.dart';
+import 'package:deepseek_chat/services/pet/pet_brain.dart';
 
 void main() {
   group('PetBubbleManager', () {

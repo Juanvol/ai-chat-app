@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../models/persona.dart';
+import '../../models/persona.dart';
 import 'storage_service.dart';
 
 class PersonaService extends ChangeNotifier {
@@ -28,10 +28,6 @@ class PersonaService extends ChangeNotifier {
     }
     _selected ??= _personas.first;
     notifyListeners();
-  }
-
-  void select(String id) {
-    // don't access context here - this is called from UI
   }
 
   Future<void> selectAndSave(String id) async {

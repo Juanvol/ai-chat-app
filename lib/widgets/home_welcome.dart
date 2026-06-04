@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
-import '../services/pet_logger.dart';
+import '../services/pet/pet_logger.dart';
 
 class HomeWelcome extends StatelessWidget {
   final void Function(String prompt) onTap;

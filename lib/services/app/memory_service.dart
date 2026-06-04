@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../models/memory.dart';
+import '../../models/memory.dart';
 import 'storage_service.dart';
 
 class MemoryService extends ChangeNotifier {

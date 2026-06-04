@@ -1,10 +1,13 @@
 // Flutter 3.24 / Dart 3.5
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../services/pet_logger.dart';
-import 'pet_state.dart';
+import '../services/pet/pet_logger.dart';
+import '../models/pet_state.dart';
 
 class PetController extends ChangeNotifier {
+  /// 全局共享实例，Provider 和 Overlay 共用同一个 Controller
+  static PetController? shared;
+
   PetState _state;
   final Duration decayInterval;
   Timer? _decayTimer;
@@ -34,7 +37,7 @@ class PetController extends ChangeNotifier {
       _state.status != PetStatus.talking;
 
   void wakeUp() {
-    PetLogger().info('Controller', 'wakeUp from ' + _state.status.name);
+    PetLogger().info('Controller', 'wakeUp from ${_state.status.name}');
     _lastInteractionAt = DateTime.now();
     if (_state.status == PetStatus.sleeping) {
       _state = _state.copyWith(status: PetStatus.idle);
@@ -68,7 +71,7 @@ class PetController extends ChangeNotifier {
   void _decay() {
     if (isDeepSleeping) { PetLogger().trace('Controller', 'decay skipped: deep sleeping'); return; }
     // 用户主动触发的交互状态不衰减，警告状态（hungry/sleepy）继续衰减
-    if (_noDecayStatuses.contains(_state.status)) { PetLogger().trace('Controller', 'decay skipped: status=' + _state.status.name); return; }
+    if (_noDecayStatuses.contains(_state.status)) { PetLogger().trace('Controller', 'decay skipped: status=${_state.status.name}'); return; }
     _state = _state.copyWith(
       hunger: (_state.hunger - 1).clamp(0, 100),
       mood: (_state.mood - 0.5).clamp(0, 100),
@@ -99,7 +102,7 @@ class PetController extends ChangeNotifier {
       totalInteractions: _state.totalInteractions + 1,
       lastFed: DateTime.now(),
     );
-    PetLogger().trace('Controller', 'feed -> eating, affection=' + _state.affection.toString());
+    PetLogger().trace('Controller', 'feed -> eating, affection=${_state.affection}');
     _notify();
     _scheduleTransition(PetStatus.idle, const Duration(seconds: 4));
   }
@@ -114,7 +117,7 @@ class PetController extends ChangeNotifier {
       totalInteractions: _state.totalInteractions + 1,
       lastFed: DateTime.now(),
     );
-    PetLogger().trace('Controller', 'play -> happy, affection=' + _state.affection.toString());
+    PetLogger().trace('Controller', 'play -> happy, affection=${_state.affection}');
     _notify();
     _scheduleTransition(PetStatus.idle, const Duration(seconds: 4));
   }
@@ -128,7 +131,7 @@ class PetController extends ChangeNotifier {
       affection: _state.affection + 5,
       totalInteractions: _state.totalInteractions + 1,
     );
-    PetLogger().trace('Controller', 'pet -> happy, mood=' + _state.mood.toString());
+    PetLogger().trace('Controller', 'pet -> happy, mood=${_state.mood}');
     _notify();
     _scheduleTransition(PetStatus.idle, const Duration(seconds: 3));
   }
@@ -142,7 +145,7 @@ class PetController extends ChangeNotifier {
       totalInteractions: _state.totalInteractions + 1,
       lastFed: DateTime.now(),
     );
-    PetLogger().trace('Controller', 'chat -> talking, affection=' + _state.affection.toString());
+    PetLogger().trace('Controller', 'chat -> talking, affection=${_state.affection}');
     _notify();
   }
 
@@ -166,7 +169,7 @@ class PetController extends ChangeNotifier {
   // ── 状态恢复 ──
 
   void restoreFromState(PetState saved) {
-    PetLogger().info('Controller', 'restoreFromState status=' + saved.status.name + ' h=' + saved.hunger.toString() + ' e=' + saved.energy.toString());
+    PetLogger().info('Controller', 'restoreFromState status=${saved.status.name} h=${saved.hunger} e=${saved.energy}');
     _state = saved;
     _lastInteractionAt = saved.lastFed;
     // Bug #6: 恢复 eating/happy 过渡状态时卡住，立即切回 idle

@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import 'package:deepseek_chat/services/persona_service.dart';
+import 'package:deepseek_chat/services/app/persona_service.dart';
 import 'fake_storage_service.dart';
 
 void main() {

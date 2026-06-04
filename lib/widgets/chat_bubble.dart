@@ -50,8 +50,8 @@ class ChatBubble extends StatelessWidget {
         children: [
           if (!isUser) ...[
             Container(width: 26, height: 26, margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFEDD5)),
-              child: const Icon(Icons.auto_awesome, size: 12, color: Color(0xFFF97316)),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF2E2E32)),
+              child: const Icon(Icons.auto_awesome, size: 12, color: Color(0xFFB8935D)),
             ),
             const SizedBox(width: C.s8),
           ],
@@ -67,13 +67,13 @@ class ChatBubble extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: highlighted
-                        ? const Color(0xFFFFF3CD)
-                        : isUser ? const Color(0xFFFFEDD5) : const Color(0xFFFFFFFF),
+                        ? const Color(0xFF3D3524)
+                        : isUser ? const Color(0xFF2E2E32) : const Color(0xFF28282C),
                     border: Border.all(
                       color: highlighted
-                          ? const Color(0xFFFFC107)
-                          : isUser ? const Color(0xFFFED7B0) : const Color(0xFFFED7B0),
-                      width: highlighted ? 2 : 1.5,
+                          ? const Color(0xFFB8935D)
+                          : const Color(0xFF3A3A3E),
+                      width: highlighted ? 1.5 : 1,
                     ),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(C.r12), topRight: const Radius.circular(C.r12),
@@ -91,8 +91,8 @@ class ChatBubble extends StatelessWidget {
                               },
                               styleSheet: MarkdownStyleSheet(
                                 p: C.body,
-                                code: const TextStyle(color: Color(0xFF5D2E0C), backgroundColor: Color(0xFFFFF0E5), fontSize: 14),
-                                codeblockDecoration: const BoxDecoration(color: Color(0xFFFFF7ED), borderRadius: BorderRadius.only(
+                                code: const TextStyle(color: Color(0xFFE4DFD8), backgroundColor: Color(0xFF1C1B1F), fontSize: 14),
+                                codeblockDecoration: const BoxDecoration(color: Color(0xFF1C1B1F), borderRadius: BorderRadius.only(
                                   bottomLeft: Radius.circular(C.r8), bottomRight: Radius.circular(C.r8),
                                 )),
                                 blockquoteDecoration: BoxDecoration(
@@ -111,19 +111,19 @@ class ChatBubble extends StatelessWidget {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     GestureDetector(
                       onTap: () => Clipboard.setData(ClipboardData(text: answerText)),
-                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFFC4A890)),
+                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFF8B857D)),
                     ),
                     if (onRegenerate != null) ...[
                       const SizedBox(width: C.s8),
                       GestureDetector(
                         onTap: onRegenerate,
-                        child: const Icon(Icons.refresh, size: 13, color: Color(0xFFC4A890)),
+                        child: const Icon(Icons.refresh, size: 13, color: Color(0xFF8B857D)),
                       ),
                     ],
                     const SizedBox(width: C.s8),
                     GestureDetector(
                       onTap: onDislike,
-                      child: const Icon(Icons.thumb_down_outlined, size: 13, color: Color(0xFFC4A890)),
+                      child: const Icon(Icons.thumb_down_outlined, size: 13, color: Color(0xFF8B857D)),
                     ),
                   ]),
                 ),
@@ -134,7 +134,7 @@ class ChatBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 4, top: 4),
                     child: GestureDetector(
                       onTap: () => Clipboard.setData(ClipboardData(text: msg.content)),
-                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFFC4A890)),
+                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFF8B857D)),
                     ),
                   ),
                 ),
@@ -144,8 +144,8 @@ class ChatBubble extends StatelessWidget {
             const SizedBox(width: C.s8),
             Container(
               width: 26, height: 26, margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFEDD5)),
-              child: const Icon(Icons.person, size: 14, color: Color(0xFFF97316)),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF2E2E32)),
+              child: const Icon(Icons.person, size: 14, color: Color(0xFFB8935D)),
             ),
           ],
         ],
@@ -245,8 +245,8 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
         child: Container(
           constraints: BoxConstraints(maxWidth: widget.mw),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(C.r12),
-            border: Border.all(color: const Color(0xFFFED7B0)),
+            color: const Color(0xFF28282C), borderRadius: BorderRadius.circular(C.r8),
+            border: Border.all(color: const Color(0xFF3A3A3E)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Padding(
@@ -256,21 +256,21 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
                   const _Bulb(pulse: true),
                   const SizedBox(width: C.s8),
                   Text('思考中${_secs > 0 ? ' （用时${_secs.toStringAsFixed(1)}s）' : ''}',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFFF97316))),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFFB8935D))),
                   if (_hasMore && !_open) ...[
                     const Spacer(),
                     GestureDetector(
                       onTap: () => setState(() => _open = true),
-                      child: const Text('展开', style: TextStyle(fontSize: 13, color: Color(0xFFF97316))),
+                      child: const Text('展开', style: TextStyle(fontSize: 13, color: Color(0xFFB8935D))),
                     ),
                   ],
                 ] else ...[
-                  const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFF97316)),
+                  const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFB8935D)),
                   const SizedBox(width: C.s8),
                   Text('已深度思考${_secs > 0 ? ' （用时${_secs.toStringAsFixed(1)}s）' : ''}',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFFC4A890))),
+                    style: const TextStyle(fontSize: 14, color: Color(0xFF8B857D))),
                   const Spacer(),
-                  Icon(_open ? Icons.expand_less : Icons.expand_more, size: 16, color: const Color(0xFFC4A890)),
+                  Icon(_open ? Icons.expand_less : Icons.expand_more, size: 16, color: const Color(0xFF8B857D)),
                 ],
               ]),
             ),
@@ -326,7 +326,7 @@ class _BulbState extends State<_Bulb> with SingleTickerProviderStateMixin {
     return AnimatedBuilder(
       animation: _c,
       builder: (_, child) => Opacity(opacity: 0.5 + _c.value * 0.5, child: child),
-      child: const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFF97316)),
+      child: const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFB8935D)),
     );
   }
 }
@@ -348,7 +348,7 @@ class _ThreeDotsState extends State<_ThreeDots> with SingleTickerProviderStateMi
 class _Dot extends StatelessWidget {
   const _Dot();
   @override
-  Widget build(BuildContext context) => Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF97316)));
+  Widget build(BuildContext context) => Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFB8935D)));
 }
 
 // ==================== 代码块 ====================
@@ -430,7 +430,7 @@ class _CodeBlockWidget extends StatelessWidget {
             ),
             child: Row(children: [
               Text(language.isNotEmpty ? language : 'code',
-                style: const TextStyle(fontSize: 11, color: Color(0xFFC4A890), fontFamily: 'monospace')),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF8B857D), fontFamily: 'monospace')),
               const Spacer(),
               GestureDetector(
                 onTap: () {
@@ -439,7 +439,7 @@ class _CodeBlockWidget extends StatelessWidget {
                     const SnackBar(content: Text('代码已复制'), duration: Duration(seconds: 1)),
                   );
                 },
-                child: const Icon(Icons.copy_outlined, size: 14, color: Color(0xFFC4A890)),
+                child: const Icon(Icons.copy_outlined, size: 14, color: Color(0xFF8B857D)),
               ),
             ]),
           ),

@@ -1,0 +1,104 @@
+<h2>调研汇总：四个参考系统的核心亮点</h2>
+<p class="subtitle">融合 AIRI + Petdex + Codex Pets + 当前 Spec，重新设计弗糯糯</p>
+
+<div class="section">
+  <h3>各系统精华对照</h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+  <div class="card" style="border-left:4px solid #7C3AED">
+    <div class="card-body">
+      <h3>🐱 AIRI</h3>
+      <p class="label">moeru-ai/airi · ⭐14,500</p>
+      <ul style="font-size:14px;line-height:1.8;margin-top:8px">
+        <li><b>Live2D/VRM</b> 动态角色，呼吸/眨眼/视线跟随</li>
+        <li><b>像素级穿透</b> — 透明区域自动 click-through</li>
+        <li><b>语音全双工</b> — ASR 输入 + TTS 输出</li>
+        <li><b>多窗口</b> — 主舞台 + 设置 + 聊天 + 字幕</li>
+        <li><b>40+ LLM</b> 抽象层 + DuckDB 记忆</li>
+        <li><b>插件系统</b> + MCP 工具</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #059669">
+    <div class="card-body">
+      <h3>📦 Petdex</h3>
+      <p class="label">crafter-station/petdex · 社区画廊</p>
+      <ul style="font-size:14px;line-height:1.8;margin-top:8px">
+        <li><b>标准化格式</b> — 1536×1872, 8×9 格, 192×208 单元格</li>
+        <li><b>pet.json</b> 清单 + spritesheet.webp</li>
+        <li><b>CLI 分发</b> — npx petdex install</li>
+        <li><b>社区画廊</b> — 提交/评审/安装</li>
+        <li><b>跨 Agent</b> — Codex/Claude/Gemini 通用</li>
+        <li><b>✅ 我们已采用</b> 此 spritesheet 格式</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #2563EB">
+    <div class="card-body">
+      <h3>🤖 Codex Pets</h3>
+      <p class="label">OpenAI · 内置 8 只 + /hatch 自创</p>
+      <ul style="font-size:14px;line-height:1.8;margin-top:8px">
+        <li><b>AI 状态指示器</b> — “Dynamic Island”</li>
+        <li><b>动画映射</b> — idle/run/failed/review/jump</li>
+        <li><b>双向通道</b> — 点宠物 → 回复 AI Agent</li>
+        <li><b>/hatch</b> 文字生成自定义宠物</li>
+        <li><b>全桌面浮动</b> — always-on-top</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #D97706">
+    <div class="card-body">
+      <h3>🎀 当前 Spec</h3>
+      <p class="label">2026-05-30 · 弗糯糯专属</p>
+      <ul style="font-size:14px;line-height:1.8;margin-top:8px">
+        <li><b>状态机</b> — idle→hungry→eating→happy→sleeping→talking</li>
+        <li><b>四维养成</b> — hunger/mood/energy/affection</li>
+        <li><b>Android 原生</b> — WindowManager + Choreographer</li>
+        <li><b>AI 集成</b> — MiMo Vision + DeepSeek 建议</li>
+        <li><b>记忆/日记</b> — 互动时间线</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr style="border-color:var(--border-color);margin:28px 0">
+
+<h2>第 1 步：确定优先级</h2>
+<p class="subtitle">四个方向各有精华。你心中最重要的 Top 3 怎么排？</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>AIRI 式交互深度</h3>
+      <p>Live2D/VRM 动态角色 + 语音对话 + 拖拽/悬停效果 + 多窗口系统。角色表现力最强，开发成本最高。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Codex Pets 式 Agent 集成</h3>
+      <p>宠物作为 AI 工作状态指示器，动画映射 LLM 调用阶段（思考→run、出错→failed、完成→wave），点击宠物→回复 AI。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Petdex 式生态开放</h3>
+      <p>多皮肤/多角色支持 + pet.json 导入 + CLI 工具链。用户可切换不同宠物，兼容社区 spritesheet 标准，可提交到 Petdex 画廊。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>当前 Spec 养成深化</h3>
+      <p>完善 hunger/mood/energy/affection 状态机，喂食/玩耍/睡觉/摸摸闭环，AI 日记/记忆时间线。做深养成体验。</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:16px;color:var(--muted);font-size:13px">🔢 选 3 个并排优先级（1st / 2nd / 3rd）— 在终端回复，如 "B > A > D" 或 "A first, C second, D last"</p>

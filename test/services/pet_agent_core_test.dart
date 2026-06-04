@@ -2,7 +2,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import '../../lib/services/pet_agent_core.dart';
+import 'package:deepseek_chat/services/pet/pet_agent_core.dart';
 
 void main() {
   setUp(() {
@@ -17,7 +17,7 @@ void main() {
     test('初始状态', () {
       final agent = PetAgentCore();
       expect(agent.isActive, false);
-      expect(agent.attentionLevel, AttentionLevel.L3);
+      expect(agent.attentionLevel, AttentionLevel.l3);
       expect(agent.mood, isA<AgentMood>());
     });
 
@@ -31,8 +31,8 @@ void main() {
 
     test('setAttentionLevel', () {
       final agent = PetAgentCore();
-      agent.setAttentionLevel(AttentionLevel.L1);
-      expect(agent.attentionLevel, AttentionLevel.L1);
+      agent.setAttentionLevel(AttentionLevel.l1);
+      expect(agent.attentionLevel, AttentionLevel.l1);
     });
 
     test('AgentMood 三维概率在 0~1 范围', () {
@@ -49,10 +49,10 @@ void main() {
     });
 
     test('AttentionLevel 决策间隔', () {
-      expect(AttentionLevel.L3.interval.inSeconds, 60);
-      expect(AttentionLevel.L2.interval.inSeconds, 120);
-      expect(AttentionLevel.L1.interval.inSeconds, 300);
-      expect(AttentionLevel.L0.interval.inSeconds, 0);
+      expect(AttentionLevel.l3.interval.inSeconds, 60);
+      expect(AttentionLevel.l2.interval.inSeconds, 120);
+      expect(AttentionLevel.l1.interval.inSeconds, 300);
+      expect(AttentionLevel.l0.interval.inSeconds, 0);
     });
 
     test('assessLocally 深夜跳过 LLM', () {

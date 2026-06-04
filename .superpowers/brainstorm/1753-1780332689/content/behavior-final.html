@@ -1,0 +1,140 @@
+<h2>行为系统 v2 — 融合业界最佳实践 + 现有 Spec</h2>
+<p class="subtitle">参考：Chatty(Godot) · Shimeji · VPet-Simulator · DyberPet · Compapet + 弗糯糯 Agent Spec</p>
+
+<div style="background:#e0e7ff;padding:16px;border-radius:8px;margin-bottom:20px;font-size:13px">
+  <b>📐 架构原则（来自现有 Spec）：</b><br>
+  · PetAgentCore = 大脑（说什么）| PetController = 身体（饿不饿）| PetBrain = 行为（做什么）<br>
+  · 大脑只说、身体只衰减、行为决定移动/动画。三者独立，不互相替代。
+</div>
+
+<h3>1. 参考作品精华萃取</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">来源</th><th style="padding:8px;text-align:left">精华模式</th><th style="padding:8px;text-align:left">我们怎么用</th></tr>
+  <tr><td style="padding:8px;font-weight:bold">Chatty (Godot)</td><td style="padding:8px">速度驱动动画；RNG 3-8s 决策；拖拽惯性（位置历史数组）</td><td style="padding:8px;color:#22c55e">✅ 全部采用</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;font-weight:bold">Shimeji</td><td style="padding:8px">屏幕边缘检测（弹回/停留）；坐下→站起循环；概率状态转换</td><td style="padding:8px;color:#22c55e">✅ 边缘弹回 + 坐下循环</td></tr>
+  <tr><td style="padding:8px;font-weight:bold">VPet-Simulator</td><td style="padding:8px">空闲分层（主→次→深度）；罕见动画彩票(1-5%)</td><td style="padding:8px;color:#22c55e">✅ 空闲分层 + 稀有动画</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;font-weight:bold">DyberPet</td><td style="padding:8px">行为权重表 + 冷却机制；上下文感知（时间/用户活跃度）</td><td style="padding:8px;color:#22c55e">✅ 权重表 + 时间感知</td></tr>
+  <tr><td style="padding:8px;font-weight:bold">Compapet</td><td style="padding:8px">加速度拖拽 + 摩擦力自然停止；连续点击反馈变化</td><td style="padding:8px;color:#22c55e">✅ 弹扔物理 + 连戳反应</td></tr>
+</table>
+
+<h3 style="margin-top:20px">2. 空闲行为分层（Idle Tiers）</h3>
+
+<div style="display:flex;gap:16px">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">Tier 1: 主空闲 (0-20s)</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px;line-height:1.7">
+      动画: idle (27帧循环)<br>
+      微动: 呼吸缩放 (scale 1.0→1.02→1.0, 3s周期)<br>
+      视线: 随机眨眼（概率 15%/5s）<br>
+      触发: 进入 idle 立即播放
+    </div>
+  </div>
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">Tier 2: 次空闲 (20-90s)</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px;line-height:1.7">
+      动画: idle + 微动作随机插入<br>
+      · 歪头 (prob 20%)<br>
+      · 晃尾巴 (prob 25%)<br>
+      · 环顾左右 (prob 15%)<br>
+      触发: 20s 无交互后开始
+    </div>
+  </div>
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">Tier 3: 深度空闲 (90s+)</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px;line-height:1.7">
+      动画: sit (6帧循环) 🆕<br>
+      或 sleeping (5帧) 如果 30min+<br>
+      稀有事件 (prob 3%/min):<br>
+      · 打滚 · 追尾巴 · 洗脸<br>
+      触发: 90s 无交互
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">3. 移动系统 — 速度驱动动画</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">规则</th><th style="padding:8px;text-align:left">值</th><th style="padding:8px;text-align:left">来源</th></tr>
+  <tr><td style="padding:8px">决策间隔</td><td style="padding:8px">30-90s 随机（非固定）</td><td style="padding:8px">Chatty 的 RNG 决策模式</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">移动概率/次</td><td style="padding:8px">L3=45% / L2=25% / L1=10% / L0=0%</td><td style="padding:8px">结合 PetAgentCore 关注度</td></tr>
+  <tr><td style="padding:8px">目标选择</td><td style="padding:8px">随机屏幕内坐标，倾向空旷区域</td><td style="padding:8px">Shimeji 随机游走</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">速度映射动画</td><td style="padding:8px">speed=0→idle, >0→walk, >阈值→run</td><td style="padding:8px">Chatty 速度驱动</td></tr>
+  <tr><td style="padding:8px">缓动函数</td><td style="padding:8px">easeInOutQuad（起止自然）</td><td style="padding:8px">DyberPet 缓动</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">到达后</td><td style="padding:8px">60%概率坐下→2min后站起→idle</td><td style="padding:8px">Shimeji 坐站循环</td></tr>
+  <tr><td style="padding:8px">边缘处理</td><td style="padding:8px">碰到屏幕边界→弹回（弹性系数0.6）</td><td style="padding:8px">Chatty 边界检测</td></tr>
+</table>
+
+<h3 style="margin-top:20px">4. 行为权重表（替代固定概率）</h3>
+
+<pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:12px;line-height:1.6">
+class BehaviorWeights {
+  // 基础权重
+  int idleBreath = 50;     // 原地呼吸
+  int lookAround = 20;     // 环顾
+  int wander = 15;         // 走动
+  int sitDown = 10;        // 坐下
+  int rareAction = 5;      // 稀有动作（彩票）
+
+  // 动态修正因子
+  void applyContext(int hour, int hunger, int energy, double mood, AttentionLevel al) {
+    if (hour >= 23 || hour < 7) { sleep *= 3.0; wander *= 0.3; }  // 深夜倾向睡觉
+    if (hunger < 30) { hungryBubble *= 4.0; }                      // 饿了优先表达
+    if (energy < 20) { sitDown *= 2.5; wander *= 0.2; }            // 累了少动
+    if (al == AttentionLevel.L1) { wander *= 0.5; speak *= 0.3; }  // 低打扰模式
+    if (al == AttentionLevel.L0) { all = 0 except sleep; }          // 休眠
+  }
+
+  // 冷却机制
+  Map<String, int> cooldowns = {};  // 动作→剩余冷却秒数
+  // 执行某动作后该动作权重→0，冷却结束后恢复
+}</pre>
+
+<h3 style="margin-top:20px">5. 触控交互升级</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">交互</th><th style="padding:8px;text-align:left">判定</th><th style="padding:8px;text-align:left">反馈（Kotlin端）</th><th style="padding:8px;text-align:left">行为（Dart端）</th></tr>
+  <tr><td style="padding:8px">单击</td><td style="padding:8px">&lt;300ms, 位移&lt;5px</td><td style="padding:8px">缩放弹跳 1.0→1.15→1.0 + 触控波纹</td><td style="padding:8px">聊天 + talking动画</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">双击</td><td style="padding:8px">两次单击&lt;400ms</td><td style="padding:8px">旋转 360° + 跳起动画</td><td style="padding:8px">打开主App</td></tr>
+  <tr><td style="padding:8px">长按</td><td style="padding:8px">≥500ms, 位移&lt;10px</td><td style="padding:8px">宠物放大 + 菜单弹出</td><td style="padding:8px">喂食/玩耍</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">拖拽</td><td style="padding:8px">按下移动&gt;15px</td><td style="padding:8px">跟随手指 + 松手后惯性飞行</td><td style="padding:8px">保存坐标</td></tr>
+  <tr><td style="padding:8px">连戳3次</td><td style="padding:8px">3次点击&lt;2s</td><td style="padding:8px">宠物跳起 + 晕眩粒子</td><td style="padding:8px">"啊！别戳了喵~"</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">手指悬浮1s</td><td style="padding:8px">ACTION_HOVER</td><td style="padding:8px">宠物半透明(alpha 0.3)</td><td style="padding:8px">不遮挡内容</td></tr>
+</table>
+
+<h3 style="margin-top:20px">6. 集成现有 Spec 关键需求</h3>
+
+<div style="display:flex;gap:16px">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">PetAgentCore (大脑)</div>
+    <div class="mockup-body" style="padding:12px;font-size:12px;line-height:1.6">
+      F6 主动搭话 → PetBrain 收到 speak action → 调 showBubble()<br>
+      F4 心情扰动 → mood 值影响行为权重<br>
+      F11 状态可视化 → Agent 驱动气泡类型选择<br>
+      F12 自主行为 → PetBrain 定时决策移动<br>
+      L0-L3 关注度 → 影响移动频率和动画复杂度<br>
+      深夜 L1 → 少动、切静态帧、气泡静默
+    </div>
+  </div>
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">PetController (身体)</div>
+    <div class="mockup-body" style="padding:12px;font-size:12px;line-height:1.6">
+      hunger < 30 → PetBrain 权重修正：hungry 动画优先<br>
+      energy < 20 → sitDown 权重×2.5<br>
+      mood > 80 → 稀有动画概率×2<br>
+      isDeepSleep → 所有行为暂停<br>
+      PetBrain 只读 PetController.state，不修改
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">7. 性能与省电策略</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">条件</th><th style="padding:8px;text-align:left">帧率</th><th style="padding:8px;text-align:left">动画</th><th style="padding:8px;text-align:left">来源</th></tr>
+  <tr><td style="padding:8px">屏幕亮 + 正常</td><td style="padding:8px">60fps</td><td style="padding:8px">全帧动画+物理</td><td style="padding:8px">—</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">电量&lt;15%</td><td style="padding:8px">15fps</td><td style="padding:8px">停动画、静态帧</td><td style="padding:8px">Pet spec §8.2</td></tr>
+  <tr><td style="padding:8px">屏幕关闭</td><td style="padding:8px">0fps</td><td style="padding:8px">暂停渲染循环</td><td style="padding:8px">Pet spec §8.2</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">L0 休眠</td><td style="padding:8px">0fps</td><td style="padding:8px">停止一切</td><td style="padding:8px">Agent spec §4</td></tr>
+  <tr><td style="padding:8px">电话/短信</td><td style="padding:8px">30fps</td><td style="padding:8px">缩至0.3x，挂断5s恢复</td><td style="padding:8px">Pet spec §8.4</td></tr>
+</table>

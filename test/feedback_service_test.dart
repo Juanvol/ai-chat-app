@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import 'package:deepseek_chat/services/feedback_service.dart';
+import 'package:deepseek_chat/services/app/feedback_service.dart';
 import 'fake_storage_service.dart';
 import 'fake_llm_client.dart';
 

@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/foundation.dart';
-import '../models/token_usage.dart';
-import '../models/model_config.dart';
+import '../../models/token_usage.dart';
+import '../../models/model_config.dart';
 import 'storage_service.dart';
 
 class TokenStatsService extends ChangeNotifier {

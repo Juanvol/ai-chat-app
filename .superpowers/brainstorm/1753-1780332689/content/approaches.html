@@ -1,0 +1,117 @@
+<h2>三种实现方案对比</h2>
+<p class="subtitle">同一个目标（全屏自由移动卡通宠物），三条技术路径</p>
+
+<div class="cards">
+  <div class="card" data-choice="upgrade-native" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:linear-gradient(135deg,#1e293b,#334155)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="background:#4A90D9;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px">现有架构</div>
+        <div style="color:#94a3b8;font-size:11px">→ 升级改造</div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:#e2e8f0;line-height:1.6">
+        <b>PetForegroundService</b> (Kotlin)<br>
+        ├── SurfaceView + Canvas 渲染<br>
+        ├── 物理引擎（Kotlin 手写）<br>
+        ├── 帧动画系统升级（插值混合）<br>
+        ├── 触控系统（拖拽+点击）<br>
+        └── Dart 端通过 MethodChannel 发送高级命令<br>
+        <br>
+        <b>Dart 端</b><br>
+        └── PetOverlayController → 行为决策，不渲染
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案一：升级现有原生层</h3>
+      <p>把现有 PetForegroundService 从 ImageView 升级到 SurfaceView + Canvas，手写轻量物理</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>不引入新依赖，APK 不膨胀</li><li>与现有架构兼容，改动可控</li><li>Flutter→Android 通信路径已通</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>物理引擎手写，开发量大</li><li>复杂动画混合需要较多代码</li><li>Kotlin 里做动画不如引擎方便</li></ul></div>
+      </div>
+      <div style="margin-top:8px;padding:8px;background:#fef3c7;border-radius:6px;font-size:12px">
+        ⏱ 预估：5-7天 | 📦 APK 增加：~0MB | 🎯 最终效果：★★★★☆
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="flame-engine" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:linear-gradient(135deg,#1e1b4b,#312e81)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="background:#f97316;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px">新架构</div>
+        <div style="color:#a5b4fc;font-size:11px">→ 游戏引擎</div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:#e0e7ff;line-height:1.6">
+        <b>第二 Flutter 引擎</b> (独立 isolate)<br>
+        ├── Flame 游戏引擎<br>
+        │   ├── SpriteAnimationComponent (帧动画)<br>
+        │   ├── Forge2D (Box2D 物理)<br>
+        │   └── Effects system (粒子/渐变)<br>
+        ├── 独立渲染，不影响主 App 性能<br>
+        └── Platform Channel 与主引擎通信<br>
+        <br>
+        <b>PetForegroundService</b><br>
+        └── 缩减为纯容器（持有 Flutter 引擎）
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案二：Flame 游戏引擎 + 第二引擎</h3>
+      <p>用 Flutter 游戏框架做宠物渲染，独立 Flutter 引擎，自带物理和粒子效果</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>Box2D 物理开箱即用</li><li>动画系统成熟（SpriteAnimation + Effects）</li><li>Dart 开发效率高，与主 App 同语言</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>Flame + Forge2D 增 ~3MB APK</li><li>第二引擎增加内存开销 (~50MB)</li><li>双引擎通信复杂度高</li><li>悬浮窗 Flutter 引擎有已知坑</li></ul></div>
+      </div>
+      <div style="margin-top:8px;padding:8px;background:#fef3c7;border-radius:6px;font-size:12px">
+        ⏱ 预估：7-10天 | 📦 APK 增加：~3MB | 🎯 最终效果：★★★★★
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="canvas-hybrid" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:linear-gradient(135deg,#14532d,#166534)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="background:#22c55e;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px">推荐</div>
+        <div style="color:#86efac;font-size:11px">→ 混合方案</div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:#dcfce7;line-height:1.6">
+        <b>PetForegroundService</b> (Kotlin) 升级为<br>
+        ├── SurfaceView (硬件加速 Canvas)<br>
+        ├── 轻量物理（重力 + 边界碰撞 + 弹性）<br>
+        │   └── ~200 行 Kotlin，5 个公式<br>
+        ├── SpritePlayer（帧序列 + 交叉淡入淡出）<br>
+        │   └── 帧间补间，从 15fps → 60fps 视觉<br>
+        ├── 触控系统升级（拖拽 + 投掷惯性）<br>
+        └── PetBrain (Dart) → 高层行为决策<br>
+        <br>
+        <b>关键创新</b><br>
+        └── 帧插值混合：A→B 动画之间平滑过渡
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案三：混合 Canvas + 轻量物理 ⭐推荐</h3>
+      <p>SurfaceView 渲染 + 手写轻量物理 + 帧插值混合。不引入引擎，但效果接近引擎</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>零外部依赖，APK 不膨胀</li><li>SurfaceView 硬件加速，60fps 无压力</li><li>物理简单够用（宠物不需要真实物理）</li><li>帧插值让有限帧数也流畅</li><li>与现有架构 100% 兼容</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>物理还是手写（但范围小）</li><li>没有粒子系统（可用简单 Canvas 替代）</li></ul></div>
+      </div>
+      <div style="margin-top:8px;padding:8px;background:#dcfce7;border-radius:6px;font-size:12px">
+        ⏱ 预估：4-6天 | 📦 APK 增加：~0MB | 🎯 最终效果：★★★★☆
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">选哪个方案？</h3>
+
+<div class="options">
+  <div class="option" data-choice="upgrade-native" onclick="toggleSelect(this)">
+    <div class="letter">一</div>
+    <div class="content"><h3>升级现有原生层</h3><p>最稳妥，但物理手写量大</p></div>
+  </div>
+  <div class="option" data-choice="flame-engine" onclick="toggleSelect(this)">
+    <div class="letter">二</div>
+    <div class="content"><h3>Flame 游戏引擎</h3><p>效果最好，但复杂度高 + APK 膨胀</p></div>
+  </div>
+  <div class="option" data-choice="canvas-hybrid" onclick="toggleSelect(this)">
+    <div class="letter">三 ⭐</div>
+    <div class="content"><h3>混合 Canvas + 轻量物理</h3><p>效果接近引擎，零依赖，4-6天可交付</p></div>
+  </div>
+</div>

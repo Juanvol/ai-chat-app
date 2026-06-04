@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import '../api/deepseek_client.dart';
-import '../models/conversation.dart';
-import '../models/message.dart';
-import '../models/model_config.dart';
-import '../models/token_usage.dart';
+import '../../api/deepseek_client.dart';
+import '../../models/conversation.dart';
+import '../../models/message.dart';
+import '../../models/model_config.dart';
+import '../../models/token_usage.dart';
+import '../pet/pet_logger.dart';
 import 'storage_service.dart';
 
 class ConversationService extends ChangeNotifier {
@@ -20,6 +21,9 @@ class ConversationService extends ChangeNotifier {
   int globalMaxTokens = 8192;
   double globalTemperature = 0.7;
   int rateLimitPerMinute = 20;
+
+  // 速率限制：记录最近 1 分钟内的请求时间戳
+  final List<DateTime> _requestTimestamps = [];
 
   ConversationService({required StorageService storage, required LLMClient client})
       : _storage = storage, _client = client {
@@ -43,6 +47,7 @@ class ConversationService extends ChangeNotifier {
   }
 
   void stopGeneration() {
+    PetLogger().info('ConvSvc', 'stopGeneration');
     _cancelToken?.cancel();
   }
 
@@ -107,6 +112,7 @@ class ConversationService extends ChangeNotifier {
   }
 
   Future<void> createConversation() async {
+    PetLogger().info('ConvSvc', 'createConversation');
     final now = DateTime.now();
     final conversation = Conversation(
       id: now.millisecondsSinceEpoch.toString(), title: '新对话',
@@ -121,17 +127,20 @@ class ConversationService extends ChangeNotifier {
   }
 
   void selectConversation(String id) {
+    PetLogger().info('ConvSvc', 'selectConversation id=$id');
     _currentConversation = _conversations.firstWhere((c) => c.id == id);
     unawaited(_storage.save('current_conv_id', id));
     notifyListeners();
   }
 
   Future<void> setModel(String modelId) async {
+    PetLogger().info('ConvSvc', 'setModel -> $modelId');
     await _storage.setSelModel(modelId);
     notifyListeners();
   }
 
   Future<void> deleteConversation(String id) async {
+    PetLogger().info('ConvSvc', 'deleteConversation id=$id');
     await _storage.delConv(id);
     _conversations.removeWhere((c) => c.id == id);
     if (_currentConversation?.id == id) _currentConversation = _conversations.isNotEmpty ? _conversations.first : null;
@@ -139,6 +148,7 @@ class ConversationService extends ChangeNotifier {
   }
 
   Future<void> renameConversation(String id, String newTitle) async {
+    PetLogger().info('ConvSvc', 'renameConversation id=$id title=$newTitle');
     final conv = _conversations.firstWhere((c) => c.id == id);
     conv.title = newTitle;
     conv.updatedAt = DateTime.now();
@@ -147,6 +157,7 @@ class ConversationService extends ChangeNotifier {
   }
 
   Future<void> togglePin(String id) async {
+    PetLogger().info('ConvSvc', 'togglePin id=$id');
     final conv = _conversations.firstWhere((c) => c.id == id);
     conv.isPinned = !conv.isPinned;
     conv.updatedAt = DateTime.now();
@@ -197,9 +208,11 @@ class ConversationService extends ChangeNotifier {
       {String? memoryText, String? personaPrompt, String? adjustmentText,
        String? modelId, int? maxTokens}) async {
     final conversation = _currentConversation;
-    if (conversation == null) return false;
+    if (conversation == null) { PetLogger().warn('ConvSvc', 'sendMessage: no conversation'); return false; }
+    PetLogger().info('ConvSvc', 'sendMessage len=${content.length} model=${modelId ?? storage.selModel} maxTokens=${maxTokens ?? globalMaxTokens}');
 
     if (!hasApiKey) {
+      PetLogger().warn('ConvSvc', 'sendMessage blocked: no API key');
       final userMessage = Message(
         id: '${DateTime.now().millisecondsSinceEpoch}_user',
         role: 'user', content: content, createdAt: DateTime.now(),
@@ -214,6 +227,33 @@ class ConversationService extends ChangeNotifier {
       await _storage.saveConv(conversation, flush: true);
       notifyListeners();
       return false;
+    }
+
+    // 速率限制检查
+    if (rateLimitPerMinute > 0) {
+      final cutoff = DateTime.now().subtract(const Duration(minutes: 1));
+      _requestTimestamps.removeWhere((t) => t.isBefore(cutoff));
+      if (_requestTimestamps.length >= rateLimitPerMinute) {
+        PetLogger().warn('ConvSvc', 'sendMessage blocked: rate limit ($rateLimitPerMinute/min)');
+        final userMessage = Message(
+          id: '${DateTime.now().millisecondsSinceEpoch}_user',
+          role: 'user', content: content, createdAt: DateTime.now(),
+        );
+        conversation.messages.add(userMessage);
+        final errMsg = Message(
+          id: '${DateTime.now().millisecondsSinceEpoch}_assistant',
+          role: 'assistant',
+          content: '发送太快了喵~ 每分钟限制 $rateLimitPerMinute 条消息，请稍后再试',
+          createdAt: DateTime.now(),
+          isStreaming: false,
+        );
+        conversation.messages.add(errMsg);
+        conversation.updatedAt = DateTime.now();
+        await _storage.saveConv(conversation, flush: true);
+        notifyListeners();
+        return false;
+      }
+      _requestTimestamps.add(DateTime.now());
     }
 
     final selId = modelId ?? _storage.selModel;
@@ -240,6 +280,7 @@ class ConversationService extends ChangeNotifier {
     );
     conversation.messages.add(assistantMessage);
     _isLoading = true;
+    _cancelToken?.cancel();          // 取消上一个请求，防止竞态
     _cancelToken = CancelToken();
     notifyListeners();
 
@@ -299,19 +340,22 @@ class ConversationService extends ChangeNotifier {
       notifyListeners();
 
       if (_cancelToken?.isCancelled == true) {
+        PetLogger().info('ConvSvc', 'stream cancelled, got=${contentBuf.length} chars');
         conversation.messages[conversation.messages.length - 1] =
             assistantMessage.copyWith(content: contentBuf.isEmpty ? '已停止生成' : contentBuf.toString(), reasoningContent: reasoningBuf.toString(), isStreaming: false);
       } else {
+        PetLogger().info('ConvSvc', 'stream done, len=${contentBuf.length} usage=$usage');
         conversation.messages[conversation.messages.length - 1] =
             assistantMessage.copyWith(content: contentBuf.toString(), reasoningContent: reasoningBuf.toString(), isStreaming: false);
       }
     } catch (e) {
+      PetLogger().error('ConvSvc', 'sendMessage failed', e);
       if (_cancelToken?.isCancelled == true) {
         conversation.messages[conversation.messages.length - 1] =
             assistantMessage.copyWith(content: '已停止生成', isStreaming: false);
       } else {
         conversation.messages[conversation.messages.length - 1] =
-            assistantMessage.copyWith(content: '请求失败: $e', isStreaming: false);
+            assistantMessage.copyWith(content: '信号不好喵...请稍后重试~', isStreaming: false);
       }
     }
 
@@ -343,7 +387,11 @@ class ConversationService extends ChangeNotifier {
     String? modelId, int? maxTokens,
   }) async {
     final cov = _currentConversation;
-    if (cov == null || cov.messages.length < 2 || _isLoading) return;
+    if (cov == null || cov.messages.length < 2 || _isLoading) {
+      PetLogger().warn('ConvSvc', 'regenerate skipped: cov=$cov msgs=${cov?.messages.length} loading=$_isLoading');
+      return;
+    }
+    PetLogger().info('ConvSvc', 'regenerateMessage');
     final msgs = cov.messages;
     if (msgs.last.role != 'assistant' || msgs[msgs.length - 2].role != 'user') return;
     final userContent = msgs[msgs.length - 2].content;

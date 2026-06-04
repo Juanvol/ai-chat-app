@@ -16,11 +16,10 @@ class FakeLLMClient extends LLMClient {
     List<StreamChunk>? chunks,
     bool throwImmediately = false,
     bool throwAfterChunks = false,
-    String? apiKey,
+    super.apiKey,
   })  : _chunks = chunks ?? [],
         _throwImmediately = throwImmediately,
-        _throwAfterChunks = throwAfterChunks,
-        super(apiKey: apiKey);
+        _throwAfterChunks = throwAfterChunks;
 
   factory FakeLLMClient.text(String text) =>
       FakeLLMClient(chunks: [StreamChunk(text)], apiKey: 'x');

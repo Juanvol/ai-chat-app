@@ -1,0 +1,93 @@
+<h2>动画状态机 + AI 帧生成规格</h2>
+<p class="subtitle">先做 5 套动画（A 路线基础版），后续可扩到 8-10 套</p>
+
+<h3>阶段一：5 套基础动画（本次实现）</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">动画</th><th style="padding:8px;text-align:center">帧数</th><th style="padding:8px;text-align:center">帧间隔</th><th style="padding:8px;text-align:left">触发条件</th><th style="padding:8px;text-align:left">备注</th></tr>
+  <tr><td style="padding:8px;font-weight:bold">idle</td><td style="padding:8px;text-align:center">27帧 ✅已有</td><td style="padding:8px;text-align:center">67ms</td><td style="padding:8px">无任何事件时</td><td style="padding:8px;color:#22c55e">保留现有，仅升级渲染方式</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;font-weight:bold">walk</td><td style="padding:8px;text-align:center">8-12帧 🆕</td><td style="padding:8px;text-align:center">80ms</td><td style="padding:8px">AI 决策"移动到X"</td><td style="padding:8px;color:#eab308">AI 生成</td></tr>
+  <tr><td style="padding:8px;font-weight:bold">sit</td><td style="padding:8px;text-align:center">4-6帧 🆕</td><td style="padding:8px;text-align:center">150ms</td><td style="padding:8px">到达目的地后</td><td style="padding:8px;color:#eab308">AI 生成</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px;font-weight:bold">sleeping</td><td style="padding:8px;text-align:center">5帧 ✅已有</td><td style="padding:8px;text-align:center">500ms</td><td style="padding:8px">长时间无交互（30min+）</td><td style="padding:8px;color:#22c55e">保留现有</td></tr>
+  <tr><td style="padding:8px;font-weight:bold">talking</td><td style="padding:8px;text-align:center">16帧 ✅已有</td><td style="padding:8px;text-align:center">67ms</td><td style="padding:8px">MiniChat 对话中</td><td style="padding:8px;color:#22c55e">保留现有</td></tr>
+</table>
+
+<h3 style="margin-top:20px">阶段二：扩展到 9 套（后续添加）</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">动画</th><th style="padding:8px;text-align:center">帧数</th><th style="padding:8px;text-align:left">触发条件</th></tr>
+  <tr><td style="padding:8px">run</td><td style="padding:8px;text-align:center">8帧</td><td style="padding:8px">快速移动（距离>屏幕30%）</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">jump</td><td style="padding:8px;text-align:center">6帧</td><td style="padding:8px">被拖拽后松手、主动跳跃</td></tr>
+  <tr><td style="padding:8px">eat</td><td style="padding:8px;text-align:center">8帧</td><td style="padding:8px">喂食交互（长按）</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">happy</td><td style="padding:8px;text-align:center">6帧</td><td style="padding:8px">好感度升级、收到赞</td></tr>
+</table>
+
+<h3 style="margin-top:20px">AI 帧生成 Prompt 模板</h3>
+
+<div style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;line-height:1.6;margin-bottom:12px">
+  <b style="color:#facc15">walk 行走动画</b>
+  <pre style="margin:8px 0;white-space:pre-wrap;font-family:monospace">
+A cute cartoon cat character sprite sheet for a desktop pet app.
+Style: 2D cartoon, soft rounded lines, warm color palette (orange/cream tabby cat).
+The character shown in a walking cycle.
+8 frames, side view, each frame ~256x256 pixels.
+Transparent background. Consistent lighting, same character design across all frames.
+The walking cycle should loop smoothly — frames should connect seamlessly.
+Character design reference: small chibi cat with big eyes, short limbs, fluffy tail.
+  </pre>
+</div>
+
+<div style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;line-height:1.6">
+  <b style="color:#facc15">sit 坐下动画</b>
+  <pre style="margin:8px 0;white-space:pre-wrap;font-family:monospace">
+A cute cartoon cat character sprite sheet for a desktop pet app.
+Style: 2D cartoon, soft rounded lines, warm color palette (orange/cream tabby cat).
+The character transitioning from standing to sitting pose.
+6 frames, side view, each frame ~256x256 pixels.
+Transparent background. Consistent with the same character design.
+Animation: cat lowers body, folds legs, settles into seated position, tail wraps around.
+  </pre>
+</div>
+
+<h3 style="margin-top:20px">生成工具推荐</h3>
+
+<div class="options">
+  <div class="option" data-choice="kling" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Kling / Runway (视频→拆帧)</h3>
+      <p>生成走路视频 → FFmpeg 拆帧 → PNG序列。单段视频可拆出流畅循环帧</p>
+    </div>
+  </div>
+  <div class="option" data-choice="midjourney" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Midjourney (sprite sheet)</h3>
+      <p>用 --style sprite 生成精灵图 → PS 切成单帧。风格控制好但需要手动切</p>
+    </div>
+  </div>
+  <div class="option" data-choice="comfyui" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>ComfyUI + AnimateDiff</h3>
+      <p>本地开源方案。用现有 27 帧 idle 作为参考图 ControlNet → 生成其他动画。角色一致性最好</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">帧文件命名规范</h3>
+<pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:12px">
+assets/pet_frames/
+├── idle/        frame_00.png ~ frame_52.png  (27帧, 偶数命名, ✅已有)
+├── walk/        frame_00.png ~ frame_07.png  (8帧,  🆕)
+├── sit/         frame_00.png ~ frame_05.png  (6帧,  🆕)
+├── sleeping/    frame_00.png ~ frame_16.png  (5帧, ✅已有)
+├── talking/     frame_00.png ~ frame_60.png  (16帧, ✅已有)
+├── run/         frame_00.png ~ frame_07.png  (8帧,  🔮后续)
+├── jump/        frame_00.png ~ frame_05.png  (6帧,  🔮后续)
+└── eat/         frame_00.png ~ frame_07.png  (8帧,  🔮后续)
+</pre>
+
+<div style="padding:12px;background:#f0fdf4;border-radius:8px;margin-top:12px;font-size:13px">
+  <b>推荐工具：</b>ComfyUI + AnimateDiff（C 选项）——因为已有 27 帧 idle 可作为 ControlNet 参考图，生成的其他动画角色一致性最好。且本地免费，可批量生成。
+</div>

@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/pet_profile.dart';
+import 'package:deepseek_chat/models/pet_profile.dart';
 
 void main() {
   group('PetProfile', () {

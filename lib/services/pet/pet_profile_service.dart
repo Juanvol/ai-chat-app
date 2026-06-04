@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
-import '../models/pet_profile.dart';
+import '../../models/pet_profile.dart';
 
 class PetProfileService extends ChangeNotifier {
   static const _boxName = 'pet_profile';

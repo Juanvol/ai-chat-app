@@ -1,0 +1,107 @@
+<h2>设计全面升级 — 对标 5 款优秀桌面宠物</h2>
+<p class="subtitle">每部分逐一对比"当前设计 vs 业界最佳 → 改进方案"</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h3>一、渲染层 — 增加"无感存在"能力</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">维度</th><th style="padding:8px;text-align:center">之前设计</th><th style="padding:8px;text-align:center">优秀作品怎么做</th><th style="padding:8px;text-align:center;color:#22c55e">改进</th></tr>
+  <tr><td style="padding:8px">渲染方式</td><td style="padding:8px">Custom View + 硬件层</td><td style="padding:8px">Chatty用Godot透明Window；Shimeji用AWT透明面板</td><td style="padding:8px;color:#22c55e">✅ 保持，已是最优</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">点击穿透</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>Chatty</b> 用 FLAG_NOT_TOUCHABLE 在不交互时让点击穿透。用户工作时宠物不挡操作</td><td style="padding:8px;color:#22c55e">🆕 空闲3s后自动穿透模式。鼠标靠近→恢复可交互</td></tr>
+  <tr><td style="padding:8px">视线跟随</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>Shimeji</b> 角色眼睛跟踪鼠标位置。<b>VPet</b> 头部微转</td><td style="padding:8px;color:#22c55e">🆕 眼球/头部微偏（canvas.drawBitmap带微小旋转）</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">任务栏感知</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>eSheep</b> 在任务栏上行走。<b>Chatty</b> 检测可用屏幕区域</td><td style="padding:8px;color:#22c55e">🆕 检测任务栏高度，底部边界=任务栏上方</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h3>二、物理系统 — 从"会动"到"有生命"</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">维度</th><th style="padding:8px;text-align:center">之前设计</th><th style="padding:8px;text-align:center">优秀作品怎么做</th><th style="padding:8px;text-align:center;color:#22c55e">改进</th></tr>
+  <tr><td style="padding:8px">下落终点</td><td style="padding:8px">屏幕底部</td><td style="padding:8px"><b>Chatty/Compapet</b> 宠物被扔后<b>下落到任务栏</b>，像真的有重力掉到"地面"</td><td style="padding:8px;color:#22c55e">🆕 重力终点=任务栏顶部，不是屏幕底部</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">边缘处理</td><td style="padding:8px">弹回（弹性0.6）</td><td style="padding:8px"><b>Shimeji</b> 碰到边缘→短暂"粘住"→沿边缘爬行或弹回。<b>Chatty</b> 在边缘短暂停留+转向</td><td style="padding:8px;color:#22c55e">🆕 碰边→0.5s暂停+挤压变形→弹回。更自然</td></tr>
+  <tr><td style="padding:8px">壁面滑落</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>Compapet</b> 扔到墙上→沿墙滑下。<b>Shimeji</b> 沿窗边滑落</td><td style="padding:8px;color:#22c55e">🆕 碰到竖边时 vy 保持、vx=0</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">落地效果</td><td style="padding:8px">弹性挤压</td><td style="padding:8px"><b>Chatty</b> 落地→挤压→弹跳（幅度衰减）。<b>VPet</b> 落地粒子</td><td style="padding:8px;color:#22c55e">🆕 落地微尘粒子（3-5个点）+ 挤压回弹</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h3>三、动画系统 — 从"播放帧"到"有情绪"</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">维度</th><th style="padding:8px;text-align:center">之前设计</th><th style="padding:8px;text-align:center">优秀作品怎么做</th><th style="padding:8px;text-align:center;color:#22c55e">改进</th></tr>
+  <tr><td style="padding:8px">情绪变体</td><td style="padding:8px;color:#ef4444">❌ 一套idle</td><td style="padding:8px"><b>VPet</b> 32套动画，同状态不同情绪不同表现。开心idle≠伤心idle</td><td style="padding:8px;color:#22c55e">🆕 同帧图+不同播放参数（速度/缩放/色温）模拟情绪变体</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">微动 overlay</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>VPet</b> 眨眼/耳朵动作为独立 overlay，叠加在基础动画之上</td><td style="padding:8px;color:#22c55e">🆕 眨眼(概率15%/5s)、耳朵微动(概率10%/3s) 叠加</td></tr>
+  <tr><td style="padding:8px">过渡方式</td><td style="padding:8px">帧插值淡入淡出</td><td style="padding:8px"><b>Chatty</b> 用速度做动画选择，没有硬切换。<b>Godot</b> AnimationTree 混合</td><td style="padding:8px;color:#22c55e">✅ 保持帧插值混合，已经很好</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">动画方向</td><td style="padding:8px;color:#ef4444">❌ 只有朝右</td><td style="padding:8px"><b>Chatty</b> 根据移动方向水平翻转精灵。向左走=朝左</td><td style="padding:8px;color:#22c55e">🆕 canvas.scale(-1,1) 镜像翻转，朝移动方向</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h3>四、行为系统 — 完善时间/情绪感知</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">维度</th><th style="padding:8px;text-align:center">之前设计</th><th style="padding:8px;text-align:center">优秀作品怎么做</th><th style="padding:8px;text-align:center;color:#22c55e">改进</th></tr>
+  <tr><td style="padding:8px">时段主题</td><td style="padding:8px">只深夜切睡眠</td><td style="padding:8px"><b>DyberPet</b> 全天分时段：早晨活力→上午安静→下午调皮→傍晚粘人→深夜休眠</td><td style="padding:8px;color:#22c55e">🆕 5段时段主题，每段有不同的行为权重分布</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">每日心情</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>VPet</b> 每天随机"小脾气值"。<b>Agent Spec §6</b> 已有心情扰动</td><td style="padding:8px;color:#22c55e">🆕 每日随机 moodSeed(±25%)，影响全天行为权重</td></tr>
+  <tr><td style="padding:8px">用户节奏感知</td><td style="padding:8px;color:#ef4444">❌ 没有</td><td style="padding:8px"><b>Weyrdlets</b> 集成番茄钟，感知用户工作节奏。<b>Purrformance</b> 检测网页切换频率</td><td style="padding:8px;color:#22c55e">🆕 检测用户交互频率→自动调L0-L3。高频=安静陪伴</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">气泡智能</td><td style="padding:8px">随机池选</td><td style="padding:8px"><b>VPet</b> 100+条预设，按时段/情绪/状态分类筛选</td><td style="padding:8px;color:#22c55e">🆕 气泡分5类×时段匹配。如：早晨"早安~☀️"</td></tr>
+  <tr><td style="padding:8px">戳宠进化</td><td style="padding:8px;color:#ef4444">❌ 固定反应</td><td style="padding:8px"><b>Compapet</b> 连续戳→反应升级→"死了"→复活。有后果</td><td style="padding:8px;color:#22c55e">🆕 戳1次=撒娇/3次=生气/10次=装死3s后复活</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h3>五、交互层 — 参考 5 款作品补齐</h3>
+
+<div style="display:flex;gap:16px">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">添加的交互（来自竞品）</div>
+    <div class="mockup-body" style="padding:12px;font-size:12px;line-height:1.7">
+      <b>Chatty → </b>拖拽松手惯性飞行+落地弹跳<br>
+      <b>Shimeji → </b>双击=跳起+转圈。悬停1s=半透明<br>
+      <b>Compapet → </b>连戳升级反应。戳10次→装死<br>
+      <b>VPet → </b>戳不同部位不同反应(头/肚子/尾巴)<br>
+      <b>DyberPet → </b>右滑=喂食、左滑=玩耍手势<br>
+      <b>Weyrdlets → </b>到点提醒（番茄钟结束）<br>
+      <br>
+      <b>弗糯糯特色：</b><br>
+      · MiniChat 气泡对话（已有）<br>
+      · 截图帮看（已有）<br>
+      · AI 主动建议（已有）
+    </div>
+  </div>
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">不添加的（有充分理由）</div>
+    <div class="mockup-body" style="padding:12px;font-size:12px;line-height:1.7">
+      <b>Shimeji 窗口攀爬 → </b>需要检测OS窗口边界，Android上不可靠<br>
+      <b>Desktop Goose 破坏 → </b>违背"温馨陪伴"定位<br>
+      <b>eSheep 多宠 → </b>单人设，不需要<br>
+      <b>Weyrdlets 内置Todo → </b>角色越界，App已有对话功能<br>
+      <b>Compapet 便便系统 → </b>可爱宠物不需要排泄机制<br>
+      <b>VPet MOD系统 → </b>过度工程
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h3 style="margin-top:20px">六、改动总览</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">模块</th><th style="padding:8px;text-align:left">之前设计</th><th style="padding:8px;text-align:left;color:#22c55e">升级后</th><th style="padding:8px;text-align:left">参考来源</th></tr>
+  <tr><td style="padding:8px">渲染</td><td style="padding:8px">Custom View + 硬件层</td><td style="padding:8px;color:#22c55e">+ 3s空闲穿透 + 视线跟随 + 任务栏感知</td><td style="padding:8px">Chatty + Shimeji</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">物理</td><td style="padding:8px">5公式</td><td style="padding:8px;color:#22c55e">+ 任务栏终点 + 壁面滑落 + 落地粒子 + 边缘粘停</td><td style="padding:8px">Chatty + Compapet</td></tr>
+  <tr><td style="padding:8px">动画</td><td style="padding:8px">5套帧 + 插值混合</td><td style="padding:8px;color:#22c55e">+ 情绪变体 + 微动overlay + 方向镜像翻转</td><td style="padding:8px">VPet + Chatty</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">行为</td><td style="padding:8px">权重表 + 空闲分层</td><td style="padding:8px;color:#22c55e">+ 5段时段主题 + 每日心情 + 戳宠进化 + 用户节奏感知</td><td style="padding:8px">DyberPet + VPet + Compapet</td></tr>
+  <tr><td style="padding:8px">交互</td><td style="padding:8px">单击/双击/长按/拖拽</td><td style="padding:8px;color:#22c55e">+ 连戳升级 + 悬停半透明 + 手势方向区分</td><td style="padding:8px">Compapet + Shimeji</td></tr>
+</table>
+
+<h3 style="margin-top:20px">七、代码量估算</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">文件</th><th style="padding:8px;text-align:center">之前</th><th style="padding:8px;text-align:center;color:#22c55e">升级后</th><th style="padding:8px;text-align:left">新增内容</th></tr>
+  <tr><td style="padding:8px">PetView.kt</td><td style="padding:8px;text-align:center">~300行</td><td style="padding:8px;text-align:center;color:#22c55e">~400行</td><td style="padding:8px">+ 视线跟随 + 穿透切换 + 落地粒子 + 翻转</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">PetPhysics.kt</td><td style="padding:8px;text-align:center">~100行</td><td style="padding:8px;text-align:center;color:#22c55e">~180行</td><td style="padding:8px">+ 壁面滑落 + 任务栏检测 + 边缘粘停</td></tr>
+  <tr><td style="padding:8px">PetBrain (Dart)</td><td style="padding:8px;text-align:center">~150行</td><td style="padding:8px;text-align:center;color:#22c55e">~280行</td><td style="padding:8px">+ 时段主题 + 每日心情 + 戳宠计数 + 用户节奏检测</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">BubbleManager (Dart)</td><td style="padding:8px;text-align:center">—</td><td style="padding:8px;text-align:center;color:#22c55e">~120行 🆕</td><td style="padding:8px">100条预设气泡 × 5时段 × 情绪分类</td></tr>
+  <tr><td style="padding:8px"><b>总计</b></td><td style="padding:8px;text-align:center"><b>~690行</b></td><td style="padding:8px;text-align:center;color:#22c55e"><b>~1160行</b></td><td style="padding:8px">+470行（零外部依赖）</td></tr>
+</table>
+
+<div style="padding:12px;background:#f0fdf4;border-radius:8px;margin-top:12px;font-size:13px">
+  <b>开发周期估算：5-7天</b>（比之前的4-6天多1天，因为行为系统和交互更丰富了）
+</div>

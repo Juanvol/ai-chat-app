@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import 'package:deepseek_chat/services/pet_brain.dart';
-import 'package:deepseek_chat/services/pet_agent_core.dart';
+import 'package:deepseek_chat/services/pet/pet_brain.dart';
+import 'package:deepseek_chat/services/pet/pet_agent_core.dart';
 
 void main() {
   group('BehaviorWeights', () {
@@ -12,7 +12,7 @@ void main() {
 
     test('深夜调整：睡眠权重×3，走动权重×0.3', () {
       final w = BehaviorWeights();
-      w.applyContext(hour: 2, hunger: 80, energy: 80, mood: 0.5, al: AttentionLevel.L3);
+      w.applyContext(hour: 2, hunger: 80, energy: 80, mood: 0.5, al: AttentionLevel.l3);
       expect(w.sleep, greaterThan(4)); // 原本 2，×3 = 6
       expect(w.wander, lessThan(10));  // 原本 15，×0.3 = 4.5
     });
@@ -20,19 +20,19 @@ void main() {
     test('饥饿时 hungryBubble 权重提升', () {
       final w = BehaviorWeights();
       final before = w.hungryBubble;
-      w.applyContext(hour: 14, hunger: 20, energy: 80, mood: 0.5, al: AttentionLevel.L3);
+      w.applyContext(hour: 14, hunger: 20, energy: 80, mood: 0.5, al: AttentionLevel.l3);
       expect(w.hungryBubble, greaterThan(before));
     });
 
     test('疲劳时 sit 权重×2.5', () {
       final w = BehaviorWeights();
-      w.applyContext(hour: 14, hunger: 80, energy: 10, mood: 0.5, al: AttentionLevel.L3);
+      w.applyContext(hour: 14, hunger: 80, energy: 10, mood: 0.5, al: AttentionLevel.l3);
       expect(w.sitDown, greaterThan(20)); // 原本 10，×2.5 = 25
     });
 
     test('L0 休眠全部归零除了睡眠', () {
       final w = BehaviorWeights();
-      w.applyContext(hour: 14, hunger: 80, energy: 80, mood: 0.5, al: AttentionLevel.L0);
+      w.applyContext(hour: 14, hunger: 80, energy: 80, mood: 0.5, al: AttentionLevel.l0);
       expect(w.idleBreath, 0);
       expect(w.wander, 0);
       expect(w.sleep, greaterThan(0));

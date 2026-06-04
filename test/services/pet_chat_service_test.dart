@@ -2,15 +2,15 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import '../../lib/services/pet_chat_service.dart';
+import 'package:deepseek_chat/services/pet/pet_chat_service.dart';
 
 void main() {
-  late String _testDir;
+  late String testDir;
 
   setUpAll(() {
     final dir = Directory.systemTemp.createTempSync('pet_chat_test_');
-    _testDir = dir.path;
-    Hive.init(_testDir);
+    testDir = dir.path;
+    Hive.init(testDir);
   });
 
   setUp(() async {

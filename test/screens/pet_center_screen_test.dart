@@ -4,15 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
-import 'package:deepseek_chat/screens/pet_center_screen.dart';
+import 'package:deepseek_chat/screens/pet/pet_center_screen.dart';
 import 'package:deepseek_chat/pet/pet_controller.dart';
-import 'package:deepseek_chat/services/pet_token_service.dart';
+import 'package:deepseek_chat/services/pet/pet_token_service.dart';
 
 Widget _wrapWithProviders(Widget child) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => PetController()),
-      ChangeNotifierProvider(create: (_) => PetTokenService()),
+      ChangeNotifierProvider(create: (_) => PetTokenService.instance),
     ],
     child: MaterialApp(home: child),
   );
@@ -33,7 +33,9 @@ void main() {
 
   testWidgets('渲染 4 个 Tab', (tester) async {
     await tester.pumpWidget(_wrapWithProviders(const PetCenterScreen()));
-    await tester.pump();
+    // flutter_animate 内部 AnimationController 需要在 pump 时激发
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('💬 聊天'), findsOneWidget);
     expect(find.text('🧠 记忆'), findsOneWidget);
     expect(find.text('📖 日记'), findsOneWidget);
@@ -42,7 +44,8 @@ void main() {
 
   testWidgets('状态卡片显示宠物名字', (tester) async {
     await tester.pumpWidget(_wrapWithProviders(const PetCenterScreen()));
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('弗糯糯'), findsOneWidget);
   });
 }

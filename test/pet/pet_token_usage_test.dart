@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/pet_token_usage.dart';
+import 'package:deepseek_chat/models/pet_token_usage.dart';
 
 void main() {
   group('PetTokenUsage', () {

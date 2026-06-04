@@ -6,10 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import '../api/deepseek_client.dart';
+import '../main.dart' show petAgentChatSink;
 import '../models/message.dart';
-import '../services/pet_feature_flags.dart';
-import '../services/pet_ai_service.dart';
-import '../services/pet_token_service.dart';
+import '../models/model_config.dart';
+import '../services/pet/pet_feature_flags.dart';
+import '../services/pet/pet_ai_service.dart';
+import '../services/pet/pet_chat_service.dart';
+import '../services/pet/pet_logger.dart';
+import '../services/pet/pet_token_service.dart';
 import '../pet/pet_persona.dart';
 
 class MiniChat extends StatefulWidget {
@@ -31,7 +35,6 @@ class MiniChat extends StatefulWidget {
 }
 
 class _MiniChatState extends State<MiniChat> {
-  static const _channel = MethodChannel('com.example.deepseek_chat/pet_window');
   static const _agentChannel = MethodChannel('com.example.deepseek_chat/pet_agent_bridge');
   static const _personaPrompt = '你是弗糯糯，一只可爱的虚拟宠物精灵。'
       '性格：软萌、粘人、偶尔丧丧的摆烂。'
@@ -51,26 +54,27 @@ class _MiniChatState extends State<MiniChat> {
   int _agentAssistantIndex = -1;
   PetAiService? _aiService;
   int _lastSummarizedIndex = 0;
+  String _chatModelId = 'deepseek-chat';
 
   @override
   void initState() {
     super.initState();
     _aiService = widget.aiService;
     _initClient();
-    _expandWindow();
     _resetIdleTimer();
-    _setupAgentHandler();
   }
 
   @override
   void dispose() {
-    _agentChannel.setMethodCallHandler(null);
-    _cancelToken?.cancel();
     _responseTimeout?.cancel();
+    _cancelToken?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     _idleTimer?.cancel();
-    _shrinkWindow();
+    // 如果还在等待 Agent 响应，清除全局回调
+    if (petAgentChatSink == _onAgentStream) {
+      petAgentChatSink = null;
+    }
     super.dispose();
   }
 
@@ -79,6 +83,7 @@ class _MiniChatState extends State<MiniChat> {
       final box = await Hive.openBox('settings');
       final apiKey = box.get('api_key') as String?;
       if (apiKey != null && apiKey.isNotEmpty) {
+        PetLogger().info('MiniChat', 'LLMClient created with apiKey=${apiKey.substring(0,4)}...');
         _client = LLMClient(apiKey: apiKey);
         // 读自定义 persona，无则 fallback 默认
         String prompt = _personaPrompt;
@@ -89,24 +94,15 @@ class _MiniChatState extends State<MiniChat> {
             final p = PetPersona.fromJson(Map<String, dynamic>.from(raw as Map));
             if (p.systemPrompt.isNotEmpty) prompt = p.systemPrompt;
           }
+          // 读取用户在设置中选择的聊天模型
+          final cm = configBox.get('chatModel');
+          if (cm is String && cm.isNotEmpty) _chatModelId = cm;
         } catch (_) {}
         _client!.setSystemPrompt(prompt);
       }
-    } catch (_) {}
-  }
-
-  Future<void> _expandWindow() async {
-    try {
-      await _channel.invokeMethod('setFocusable', {'focusable': true});
-      await _channel.invokeMethod('setWindowSize', {'width': 280, 'height': 380});
-    } catch (_) {}
-  }
-
-  Future<void> _shrinkWindow() async {
-    try {
-      await _channel.invokeMethod('setFocusable', {'focusable': false});
-      await _channel.invokeMethod('setWindowSize', {'width': 120, 'height': 120});
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error("MiniChat", "_initClient failed", e);
+    }
   }
 
   void _resetIdleTimer() {
@@ -122,14 +118,54 @@ class _MiniChatState extends State<MiniChat> {
     widget.onClose();
   }
 
+  // 每次发送前从 Hive 重读配置（模型/API Key 热生效）
+  Future<void> _refreshConfig() async {
+    try {
+      final configBox = await Hive.openBox('pet_config');
+      final cm = configBox.get('chatModel');
+      if (cm is String && cm.isNotEmpty) _chatModelId = cm;
+    } catch (_) {}
+    try {
+      final settingsBox = await Hive.openBox('settings');
+      final apiKey = settingsBox.get('api_key') as String?;
+      if (apiKey != null && apiKey.isNotEmpty && _client != null) {
+        _client!.setApiKey(apiKey);
+      }
+    } catch (_) {}
+  }
+
+  // ── 共用：提取最近 N 轮对话上下文 ──
+
+  Future<List<Map<String, String>>> _extractHistory() async {
+    int rounds = 3;
+    try {
+      final configBox = await Hive.openBox('pet_config');
+      rounds = configBox.get('chatContextRounds', defaultValue: 3) as int;
+    } catch (_) {}
+    final msgCount = (rounds * 2).clamp(0, _messages.length);
+    final start = (_messages.length - msgCount).clamp(0, _messages.length);
+    final result = <Map<String, String>>[];
+    for (int i = start; i < _messages.length; i++) {
+      if (_messages[i].text.isNotEmpty) {
+        result.add({
+          'role': _messages[i].isUser ? 'user' : 'assistant',
+          'content': _messages[i].text,
+        });
+      }
+    }
+    return result;
+  }
+
   // ── 发送入口：根据 Feature Flag 分流 ──
   Future<void> _send() async {
-    if (_isLoading) return;
+    if (_isLoading) { PetLogger().trace('MiniChat', 'send SKIP: already loading'); return; }
     final text = _inputController.text.trim();
-    if (text.isEmpty) return;
-    setState(() => _isLoading = true); // 锁住防止 await 期间重复发送
+    if (text.isEmpty) { PetLogger().trace('MiniChat', 'send SKIP: empty text'); return; }
+    setState(() => _isLoading = true);
 
+    await _refreshConfig(); // 热生效：重读模型/API Key
     final useAgent = await PetFeatureFlags.agentRouting;
+    PetLogger().info('MiniChat', 'send, useAgent=$useAgent len=${text.length}');
     if (useAgent) {
       return _sendViaAgent(text);
     } else {
@@ -143,11 +179,21 @@ class _MiniChatState extends State<MiniChat> {
       setState(() {
         _messages.add(_ChatLine(isUser: true, text: userText));
         _messages.add(const _ChatLine(isUser: false, text: '糯糯还没准备好喵~\n请在主应用设置中配置 API Key 后重试'));
+        _isLoading = false;
       });
       return;
     }
     _inputController.clear();
     _resetIdleTimer();
+
+    // 提取上下文（在添加新消息之前，避免将当前用户消息重复发给 LLM）
+    final rawHistory = await _extractHistory();
+    final history = rawHistory.map((m) => Message(
+      id: 'ctx_${m['role']}_${m['content']!.hashCode}',
+      role: m['role']!,
+      content: m['content']!,
+      createdAt: DateTime.now(),
+    )).toList();
 
     setState(() {
       _messages.add(_ChatLine(isUser: true, text: userText));
@@ -161,34 +207,42 @@ class _MiniChatState extends State<MiniChat> {
     _cancelToken?.cancel();
     _cancelToken = CancelToken();
 
-    // 提取上下文
-    final history = <Message>[];
-    try {
-      final configBox = await Hive.openBox('pet_config');
-      final rounds = configBox.get('chatContextRounds', defaultValue: 3) as int;
-      final msgCount = (rounds * 2).clamp(0, _messages.length);
-      final start = _messages.length - msgCount;
-      for (int i = start; i < _messages.length; i++) {
-        if (_messages[i].text.isNotEmpty) {
-          history.add(Message(
-            id: 'ctx_$i',
-            role: _messages[i].isUser ? 'user' : 'assistant',
-            content: _messages[i].text,
-            createdAt: DateTime.now(),
-          ));
+    // 解析模型 → provider（baseUrl + apiKey），支持多 provider 切换
+    String resolvedBaseUrl = 'https://api.deepseek.com';
+    String? resolvedApiKey;
+    String resolvedProviderId = 'deepseek';
+    final modelInfo = ModelConfig.resolveModel(_chatModelId);
+    if (modelInfo != null) {
+      resolvedBaseUrl = modelInfo.baseUrl;
+      resolvedProviderId = modelInfo.providerId;
+      try {
+        final settingsBox = await Hive.openBox('settings');
+        resolvedApiKey = settingsBox.get('${modelInfo.providerId}_key') as String?;
+        if (resolvedApiKey == null || resolvedApiKey.isEmpty) {
+          resolvedApiKey = settingsBox.get('api_key') as String?; // fallback
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     try {
       await for (final chunk in _client!.sendStream(
         history: history,
         userContent: userText,
+        model: _chatModelId,
+        baseUrl: resolvedBaseUrl,
+        apiKey: resolvedApiKey,
+        providerId: resolvedProviderId,
         thinkingEnabled: false,
         maxTokens: 512,
         cancelToken: _cancelToken,
       )) {
         buffer.write(chunk.text);
+        // 追踪 chat token 消耗
+        if (chunk.usage != null) {
+          try {
+            await PetTokenService.instance.recordTokens(chat: chunk.usage!['total_tokens'] ?? 0);
+          } catch (_) {}
+        }
         if (mounted) {
           setState(() {
             _messages[assistantIndex] = _ChatLine(isUser: false, text: buffer.toString());
@@ -197,19 +251,22 @@ class _MiniChatState extends State<MiniChat> {
       }
       final aiText = buffer.toString().trim();
       if (aiText.isNotEmpty && mounted) {
+        PetLogger().info('MiniChat', 'reply len=${aiText.length}');
         widget.onMemorySave?.call();
         setState(() => _lastFeedbackIndex = assistantIndex);
+        _saveChatTurn(userText, aiText); // 持久化本轮对话
       }
     } on DioException catch (e) {
+      PetLogger().warn('MiniChat', 'DioException: ${e.type} ${e.message ?? ''}');
       if (e.type != DioExceptionType.cancel && mounted) {
         setState(() {
-          _messages[assistantIndex] = _ChatLine(isUser: false, text: '信号不好喵...待会再试试~');
+          _messages[assistantIndex] = const _ChatLine(isUser: false, text: '信号不好喵...待会再试试~');
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _messages[assistantIndex] = _ChatLine(isUser: false, text: '信号不好喵...待会再试试~');
+          _messages[assistantIndex] = const _ChatLine(isUser: false, text: '信号不好喵...待会再试试~');
         });
       }
     }
@@ -227,23 +284,11 @@ class _MiniChatState extends State<MiniChat> {
     _inputController.clear();
     _resetIdleTimer();
 
+    // 注册全局回调（覆盖旧的）
+    petAgentChatSink = _onAgentStream;
+
     // 提取最近历史（先于新消息添加，避免重复发送当前消息）
-    final recentHistory = <Map<String, String>>[];
-    int rounds = 3;
-    try {
-      final configBox = await Hive.openBox('pet_config');
-      rounds = configBox.get('chatContextRounds', defaultValue: 3) as int;
-    } catch (_) {}
-    final msgCount = (rounds * 2).clamp(0, _messages.length);
-    final start = (_messages.length - msgCount).clamp(0, _messages.length);
-    for (int i = start; i < _messages.length; i++) {
-      if (_messages[i].isUser || _messages[i].text.isNotEmpty) {
-        recentHistory.add({
-          'role': _messages[i].isUser ? 'user' : 'assistant',
-          'content': _messages[i].text,
-        });
-      }
-    }
+    final recentHistory = await _extractHistory();
 
     setState(() {
       _messages.add(_ChatLine(isUser: true, text: userText));
@@ -258,9 +303,10 @@ class _MiniChatState extends State<MiniChat> {
       if (mounted && _isLoading && _agentRequestId == myRequestId) {
         setState(() {
           _messages[_agentAssistantIndex] =
-              _ChatLine(isUser: false, text: '...糯糯在想该怎么回你喵~');
+              const _ChatLine(isUser: false, text: '...糯糯在想该怎么回你喵~');
           _isLoading = false;
         });
+        petAgentChatSink = null;
       }
     });
 
@@ -272,6 +318,7 @@ class _MiniChatState extends State<MiniChat> {
       });
     } catch (e) {
       _responseTimeout?.cancel();
+      petAgentChatSink = null;
       if (mounted) {
         // Agent 桥未就绪 → 降级到直接 LLM 路径
         setState(() {
@@ -279,50 +326,51 @@ class _MiniChatState extends State<MiniChat> {
           _messages.removeLast(); // 移除用户消息
           _isLoading = false;
         });
+        PetLogger().warn('MiniChat', 'Agent bridge failed -> fallback to direct');
         _sendDirect(userText);
       }
     }
   }
 
-  void _setupAgentHandler() {
-    _agentChannel.setMethodCallHandler((call) async {
-      switch (call.method) {
-        case 'chatChunk':
-          final fullText = call.arguments['fullText'] as String? ?? '';
-          final requestId = call.arguments['requestId'] as int? ?? 0;
-          if (requestId != _agentRequestId) return;
-          if (_agentAssistantIndex < 0 || _agentAssistantIndex >= _messages.length) return;
-          _responseTimeout?.cancel();
-          if (mounted) {
-            setState(() {
-              _messages[_agentAssistantIndex] =
-                  _ChatLine(isUser: false, text: fullText);
-            });
-            _scrollToBottom();
-          }
-        case 'chatDone':
-          final requestId = call.arguments['requestId'] as int? ?? 0;
-          if (requestId != _agentRequestId) return;
-          _responseTimeout?.cancel();
-          if (mounted) {
-            setState(() => _isLoading = false);
-            widget.onMemorySave?.call();
-            _scrollToBottom();
-          }
-        case 'chatError':
-          final message = call.arguments['message'] as String? ?? '出错了喵...';
-          final requestId = call.arguments['requestId'] as int? ?? 0;
-          if (requestId != _agentRequestId) return;
-          _responseTimeout?.cancel();
-          if (mounted) {
-            setState(() {
-              _messages[_agentAssistantIndex] =
-                  _ChatLine(isUser: false, text: message);
-              _isLoading = false;
-            });
-          }
-      }
-    });
+  void _onAgentStream(String method, Map<String, dynamic> args) {
+    switch (method) {
+      case 'chatChunk':
+        final fullText = args['fullText'] as String? ?? '';
+        final requestId = args['requestId'] as int? ?? 0;
+        if (requestId != _agentRequestId) return;
+        if (_agentAssistantIndex < 0 || _agentAssistantIndex >= _messages.length) return;
+        _responseTimeout?.cancel();
+        if (mounted) {
+          setState(() {
+            _messages[_agentAssistantIndex] =
+                _ChatLine(isUser: false, text: fullText);
+          });
+          _scrollToBottom();
+        }
+      case 'chatDone':
+        final requestId = args['requestId'] as int? ?? 0;
+        if (requestId != _agentRequestId) return;
+        _responseTimeout?.cancel();
+        petAgentChatSink = null;
+        if (mounted) {
+          setState(() => _isLoading = false);
+          widget.onMemorySave?.call();
+          _scrollToBottom();
+        }
+      case 'chatError':
+        final message = args['message'] as String? ?? '出错了喵...';
+        final requestId = args['requestId'] as int? ?? 0;
+        if (requestId != _agentRequestId) return;
+        _responseTimeout?.cancel();
+        petAgentChatSink = null;
+        if (mounted) {
+          setState(() {
+            _messages[_agentAssistantIndex] =
+                _ChatLine(isUser: false, text: message);
+            _isLoading = false;
+          });
+        }
+    }
   }
 
   void _onFeedback(bool liked) {
@@ -348,10 +396,40 @@ class _MiniChatState extends State<MiniChat> {
     });
   }
 
+  // ── 聊天持久化 ──
+
+  PetChatService? _petChatSvc;
+  bool _chatSessionReady = false;
+
+  Future<void> _ensureChatSession() async {
+    if (_chatSessionReady) return;
+    _petChatSvc ??= PetChatService();
+    await _petChatSvc!.init();
+    if (_petChatSvc!.currentId == null) {
+      await _petChatSvc!.createChat();
+      PetLogger().info('MiniChat', 'pet chat session created: ${_petChatSvc!.currentId}');
+    }
+    _chatSessionReady = true;
+  }
+
+  Future<void> _saveChatTurn(String userText, String aiText) async {
+    try {
+      await _ensureChatSession();
+      final cid = _petChatSvc!.currentId;
+      if (cid != null) {
+        await _petChatSvc!.addMessage(cid, 'user', userText);
+        await _petChatSvc!.addMessage(cid, 'assistant', aiText);
+        PetLogger().trace('MiniChat', 'chat turn saved to $cid');
+      }
+    } catch (e) {
+      PetLogger().error('MiniChat', '_saveChatTurn failed', e);
+    }
+  }
+
   // ── 自动 LLM 摘要聊天记忆 ──
 
   void _summarizeAndSave() {
-    if (_aiService == null || _client == null) return;
+    if (_aiService == null || _client == null) { PetLogger().trace('MiniChat', 'skip summarize: no aiService/client'); return; }
     final newMsgs = _messages.length - _lastSummarizedIndex;
     if (newMsgs < 4) return; // 至少 2 轮才摘要
 
@@ -361,8 +439,7 @@ class _MiniChatState extends State<MiniChat> {
 
   Future<void> _doSummarize() async {
     try {
-      final svc = PetTokenService();
-      if (!await svc.checkBudget()) return;
+      if (!await PetTokenService.instance.checkBudget()) return;
     } catch (_) {
       return;
     }
@@ -407,7 +484,9 @@ class _MiniChatState extends State<MiniChat> {
           affectionGain: 3,
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error("MiniChat", "_parseSummariesAndSave failed", e);
+    }
   }
 
   @override
@@ -451,6 +530,7 @@ class _MiniChatState extends State<MiniChat> {
   Widget _buildMessageList() {
     return ListView.builder(
       controller: _scrollController,
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       itemCount: _messages.length,
       itemBuilder: (_, i) {

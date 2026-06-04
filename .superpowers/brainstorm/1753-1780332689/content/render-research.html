@@ -1,0 +1,77 @@
+<h2>调研结论：Android 桌面宠物渲染方案</h2>
+<p class="subtitle">基于 Android 官方文档 + 专利 CN106873851A + 开发者社区实践</p>
+
+<div style="background:#fef3c7;padding:16px;border-radius:8px;margin-bottom:20px;font-size:13px">
+  <b>🔑 核心发现：</b>TextureView 是 Android 悬浮窗透明动画的<b>唯一正确方案</b>。<br>
+  专利 CN106873851A（桌面特效专利）明确推荐 TextureView。SurfaceView 的动画缺陷（黑边、旋转不同步、alpha 异常）在悬浮窗场景下不可接受。
+</div>
+
+<h3>方案对比（含调研新发现）</h3>
+
+<div class="cards">
+  <div class="card" data-choice="textureview" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:linear-gradient(135deg,#14532d,#166534)">
+      <div style="background:#22c55e;color:#000;padding:4px 8px;border-radius:4px;font-size:11px;display:inline-block">✅ 推荐</div>
+      <div style="margin-top:12px;font-size:13px;color:#dcfce7;line-height:1.6">
+        <b>TextureView + Canvas + 轻量物理</b><br>
+        ├── Choreographer 驱动 60fps 渲染<br>
+        ├── 帧序列播放 + 插值混合<br>
+        ├── 5个物理公式（重力/碰撞/弹性/惯性/摩擦）<br>
+        └── 气泡弹性动画（淡入+缩放）<br>
+        <br>
+        <b>技术栈：</b>纯 Kotlin，零外部依赖<br>
+        <b>APK增加：</b>0MB | <b>开发周期：</b>4-6天
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案一：TextureView ⭐推荐</h3>
+      <p>Android 官方+专利双重背书。透明、动画、性能均衡</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>透明背景完美支持</li><li>alpha/scale/rotate动画自由</li><li>零依赖，APK不膨胀</li><li>与现有代码兼容</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>1-3帧延迟（~16-48ms）</li><li>必须硬件加速</li><li>物理需手写</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="unity" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:linear-gradient(135deg,#1e1b4b,#312e81)">
+      <div style="background:#f97316;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;display:inline-block">行业主流</div>
+      <div style="margin-top:12px;font-size:13px;color:#e0e7ff;line-height:1.6">
+        <b>Unity 引擎 + Android Service</b><br>
+        ├── Unity 负责全部渲染（动画/物理/粒子）<br>
+        ├── Android Service 管理悬浮窗生命周期<br>
+        ├── UnityPlayer 嵌入到 WindowManager<br>
+        └── 透明 Camera → RGBA(0,0,0,0)<br>
+        <br>
+        <b>技术栈：</b>Unity + C# + Android Service<br>
+        <b>APK增加：</b>~15-30MB | <b>开发周期：</b>10-15天
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案二：Unity 混合</h3>
+      <p>行业主流桌面宠物方案。罗小黑、Desktop Goose 级别效果</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>动画效果天花板</li><li>物理引擎成熟</li><li>Spine骨骼动画支持</li><li>粒子/Shader效果</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>APK膨胀15-30MB</li><li>构建流程复杂</li><li>与Flutter通信多一层</li><li>透明配置易踩坑</li><li>开发周期翻倍</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">推荐逻辑</h3>
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">维度</th><th style="padding:8px;text-align:center">TextureView</th><th style="padding:8px;text-align:center">Unity</th></tr>
+  <tr><td style="padding:8px">透明渲染</td><td style="padding:8px;text-align:center;color:#22c55e">✅ 原生支持</td><td style="padding:8px;text-align:center;color:#eab308">⚠️ 需配置</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">动画效果</td><td style="padding:8px;text-align:center">★★★★</td><td style="padding:8px;text-align:center">★★★★★</td></tr>
+  <tr><td style="padding:8px">APK增加</td><td style="padding:8px;text-align:center;color:#22c55e">0MB</td><td style="padding:8px;text-align:center;color:#ef4444">15-30MB</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">开发周期</td><td style="padding:8px;text-align:center;color:#22c55e">4-6天</td><td style="padding:8px;text-align:center;color:#eab308">10-15天</td></tr>
+  <tr><td style="padding:8px">与Flutter集成</td><td style="padding:8px;text-align:center;color:#22c55e">MethodChannel直通</td><td style="padding:8px;text-align:center;color:#eab308">需额外桥接</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">后期扩展</td><td style="padding:8px;text-align:center">可加Lottie/Spine</td><td style="padding:8px;text-align:center;color:#22c55e">引擎内任意扩展</td></tr>
+</table>
+
+<div style="padding:16px;background:#dcfce7;border-radius:8px;margin-top:16px;font-size:13px">
+  <b>📋 结论：</b>TextureView 方案在<b>不膨胀APK、不增加构建复杂度</b>的前提下，能达到五星中的四星效果。<br>
+  Unity 方案适合追求顶级视觉效果且能接受 APK 膨胀 15-30MB 的场景。<br>
+  <br>
+  <b>建议：</b>先走 TextureView。帧资源积累多后，如果效果瓶颈在渲染层，再考虑切 Unity——届时动画资源可直接迁移。
+</div>

@@ -1,0 +1,324 @@
+<h2>四个系统深度拆解</h2>
+<p class="subtitle">每个系统的架构、技术栈、交互模型、数据流 — 以及我们能用什么</p>
+
+<!-- ── AIRI ── -->
+<div class="section">
+  <h3 style="color:#7C3AED">🐱 AIRI — 开源 AI 数字伴侣</h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">架构分层</div>
+      <div class="mockup-body">
+        <pre style="font-size:13px;line-height:1.7;margin:0">
+┌─────────────────────────────────┐
+│  App Layer                      │
+│  Stage Web │ Tamagotchi │ Pocket│
+├─────────────────────────────────┤
+│  Shared UI: Vue 3 + Pinia       │
+│  @proj-airi/stage-ui            │
+├─────────────────────────────────┤
+│  Rendering Engine               │
+│  PIXI.js(Live2D)│Three.js(VRM)  │
+├─────────────────────────────────┤
+│  AI Pipeline                    │
+│  xsAI (40+ LLM) │ VAD/ASR/TTS   │
+├─────────────────────────────────┤
+│  IPC: @moeru/eventa             │
+│  type-safe main↔renderer        │
+├─────────────────────────────────┤
+│  Desktop: Electron / Tauri      │
+│  Storage: DuckDB WASM           │
+└─────────────────────────────────┘</pre>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">浮窗交互细节</div>
+      <div class="mockup-body">
+        <table style="width:100%;font-size:13px">
+          <tr><td style="padding:4px 8px"><b>窗口</b></td><td>透明无框 Electron BrowserWindow</td></tr>
+          <tr><td style="padding:4px 8px"><b>初始尺寸</b></td><td>450×600px</td></tr>
+          <tr><td style="padding:4px 8px"><b>穿透方式</b></td><td>按像素 alpha — 透明区自动 click-through</td></tr>
+          <tr><td style="padding:4px 8px"><b>悬停</b></td><td>光标靠近→半透明</td></tr>
+          <tr><td style="padding:4px 8px"><b>拖拽</b></td><td>electron-click-drag-plugin</td></tr>
+          <tr><td style="padding:4px 8px"><b>置顶</b></td><td>macOS screen-saver level</td></tr>
+          <tr><td style="padding:4px 8px"><b>多窗口</b></td><td>主+设置+聊天+字幕(跟随主)</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px">
+  <div class="card">
+    <div class="card-body">
+      <h4>Live2D 渲染管线</h4>
+      <ul style="font-size:13px">
+        <li>pixi-live2d-display 引擎</li>
+        <li>自动眨眼 + 视线追踪</li>
+        <li>待机动画 + 口型同步</li>
+        <li>useLive2d Pinia store 跨标签同步</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h4>VRM 3D 渲染管线</h4>
+      <ul style="font-size:13px">
+        <li>Three.js + @pixiv/three-vrm</li>
+        <li>TresJS 5.8 声明式场景</li>
+        <li>WebGL/WebGPU 自适应</li>
+        <li>Linux Vulkan 优化标志</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h4>语音管道</h4>
+      <ul style="font-size:13px">
+        <li>VAD 语音活动检测</li>
+        <li>Whisper ONNX 本地 ASR</li>
+        <li>ElevenLabs / VOICEVOX TTS</li>
+        <li>口型同步驱动 Live2D/VRM</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px">
+  <h3 style="color:#059669">📦 Petdex — 社区精灵标准</h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">Spritesheet 规格（我们已采用）</div>
+      <div class="mockup-body">
+        <table style="width:100%;font-size:13px">
+          <tr><td style="padding:3px 8px">分辨率</td><td>1536 × 1872 px</td></tr>
+          <tr><td style="padding:3px 8px">网格</td><td>8 列 × 9 行</td></tr>
+          <tr><td style="padding:3px 8px">单元格</td><td>192 × 208 px</td></tr>
+          <tr><td style="padding:3px 8px">帧/行</td><td>6 帧（列 0-5）</td></tr>
+          <tr><td style="padding:3px 8px">默认间隔</td><td>~183ms / 帧（~1100ms/循环）</td></tr>
+          <tr><td style="padding:3px 8px">格式</td><td>WebP 或 PNG</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">pet.json 清单结构</div>
+      <div class="mockup-body">
+        <pre style="font-size:12px;line-height:1.6;margin:0">
+{
+  "name": "funuonuo",
+  "slug": "funuonuo-v1",
+  "tags": ["anime", "cute"],
+  "kind": "waifu",
+  "frameSize": { "w": 192, "h": 208 },
+  "states": {
+    "idle":   { "row": 0, "frames": 6 },
+    "wave":   { "row": 1, "frames": 6 },
+    "run":    { "row": 2, "frames": 6 },
+    "failed": { "row": 3, "frames": 6 },
+    "review": { "row": 4, "frames": 6 },
+    "jump":   { "row": 5, "frames": 6 },
+    "extra1": { "row": 6, "frames": 6 },
+    "extra2": { "row": 7, "frames": 6 }
+  },
+  "timing": {
+    "idle": 250, "run": 160,
+    "sleeping": 600, "default": 183
+  }
+}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
+  <div class="card">
+    <div class="card-body">
+      <h4>CLI 工具链</h4>
+      <ul style="font-size:13px">
+        <li><code>npx petdex install &lt;slug&gt;</code> 安装</li>
+        <li><code>npx petdex list</code> 浏览</li>
+        <li><code>npx petdex submit</code> 提交评审</li>
+        <li>安装到 <code>~/.codex/pets/</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h4>跨 Agent 桌面 App</h4>
+      <ul style="font-size:13px">
+        <li>独立浮窗，一直置顶</li>
+        <li>Codex / Claude Code / Gemini CLI 通用</li>
+        <li>社区评分 + 精选推荐</li>
+        <li>✅ 我们已对齐 spritesheet 格式</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px">
+  <h3 style="color:#2563EB">🤖 Codex Pets — AI 状态指示器</h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">动画→Agent 状态映射</div>
+      <div class="mockup-body">
+        <table style="width:100%;font-size:13px">
+          <tr style="background:var(--surface2)"><td style="padding:3px 8px">🧍 idle</td><td>Agent 空闲等待</td></tr>
+          <tr><td style="padding:3px 8px">👋 wave</td><td>收到新指令</td></tr>
+          <tr style="background:var(--surface2)"><td style="padding:3px 8px">🏃 run</td><td>正在执行任务</td></tr>
+          <tr><td style="padding:3px 8px">❌ failed</td><td>任务出错</td></tr>
+          <tr style="background:var(--surface2)"><td style="padding:3px 8px">🔍 review</td><td>代码审查中</td></tr>
+          <tr><td style="padding:3px 8px">⤴️ jump</td><td>任务完成</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">互动模型</div>
+      <div class="mockup-body">
+        <table style="width:100%;font-size:13px">
+          <tr><td style="padding:4px 8px"><b>/pet</b></td><td>召唤/隐藏宠物</td></tr>
+          <tr><td style="padding:4px 8px"><b>/hatch</b></td><td>文字描述→AI 生成精灵图</td></tr>
+          <tr><td style="padding:4px 8px"><b>点击宠物</b></td><td>弹出回复框→输入→AI 回复</td></tr>
+          <tr><td style="padding:4px 8px"><b>Settings</b></td><td>内置 8 只可选</td></tr>
+          <tr><td style="padding:4px 8px"><b>Skill</b></td><td>hatch-pet 市场 Skill</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;border-left:4px solid #2563EB">
+  <div class="card-body">
+    <h4>核心价值：宠物 = AI 工作状态的「可视化界面」</h4>
+    <p style="font-size:14px;margin:0">不用切窗口看终端输出，宠物动画直接告诉你 Agent 在干嘛 — 思考中/写代码中/出错了/完成了。减少等待焦虑，降低切换成本。</p>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px">
+  <h3 style="color:#D97706">🎀 当前 Spec — 弗糯糯养成系统</h3>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">状态机（已设计，未完整实现）</div>
+      <div class="mockup-body">
+        <pre style="font-size:12px;line-height:1.6;margin:0">
+        ┌──────────┐
+   ┌───►│  IDLE    │◄──────────┐
+   │    └────┬─────┘           │
+   │  hunger<30          ai_trigger
+   ▼         │                 │
+┌──────┐    │           ┌──────┴─────┐
+│HUNGRY│    ▼           │  TALKING   │
+└──┬───┘ ┌──────┐       └────────────┘
+   │     │SLEEPY│
+   ▼     └──┬───┘
+┌──────┐    │
+│EATING│    ▼
+└──┬───┘ ┌──────┐
+   └────►│HAPPY │
+         └──────┘</pre>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-body">
+        <h4>四维属性衰减</h4>
+        <table style="width:100%;font-size:13px">
+          <tr><td>🍖 hunger</td><td>-1/min</td><td style="color:#ef4444">&lt;30 → hungry</td></tr>
+          <tr><td>😊 mood</td><td>-0.5/min</td><td style="color:#f59e0b">&lt;30 → 丧表情</td></tr>
+          <tr><td>⚡ energy</td><td>-1/min</td><td style="color:#3b82f6">&lt;20 → sleepy</td></tr>
+          <tr><td>❤️ affection</td><td>只增</td><td style="color:#ec4899">互动+10~20</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="mockup">
+      <div class="mockup-header">当前实现状态</div>
+      <div class="mockup-body">
+        <table style="width:100%;font-size:13px">
+          <tr style="background:var(--surface2)"><td>Android 原生浮窗</td><td style="color:#059669">✅ 已实现</td></tr>
+          <tr><td>Petdex spritesheet</td><td style="color:#059669">✅ 已加载</td></tr>
+          <tr style="background:var(--surface2)"><td>FrameBlender 动画</td><td style="color:#059669">✅ 含交叉淡入淡出</td></tr>
+          <tr><td>PetPhysics 物理</td><td style="color:#059669">✅ 重力/弹跳/摩擦</td></tr>
+          <tr style="background:var(--surface2)"><td>随机漫步</td><td style="color:#059669">✅ Handler 定时</td></tr>
+          <tr><td>空闲穿透</td><td style="color:#059669">✅ 8s 自动+通知唤醒</td></tr>
+          <tr style="background:var(--surface2)"><td>状态机驱动</td><td style="color:#f59e0b">⚠ 有 PetController,未连原生层</td></tr>
+          <tr><td>喂食/玩耍/睡觉</td><td style="color:#f59e0b">⚠ Flutter UI 有按钮,原生层未响应</td></tr>
+          <tr style="background:var(--surface2)"><td>AI 截图分析</td><td style="color:#ef4444">❌ 未实现</td></tr>
+          <tr><td>迷你聊天</td><td style="color:#ef4444">❌ 未实现</td></tr>
+          <tr style="background:var(--surface2)"><td>多皮肤切换</td><td style="color:#ef4444">❌ 未实现</td></tr>
+          <tr><td>日记/记忆时间线</td><td style="color:#f59e0b">⚠ Flutter UI 有,数据流断裂</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr style="border-color:var(--border-color);margin:28px 0">
+
+<h2>现在决定：四大方向怎么排优先级？</h2>
+<p class="subtitle">每个方向代表不同的产品形态。选 3 个排 1st / 2nd / 3rd</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>AIRI 式交互深度</h3>
+      <p>Live2D 动态角色 + 语音对话 + 拖拽悬停效果 + 多窗口系统。<b>角色表现力最强，开发成本最高（1-2 个月）</b></p>
+      <div class="pros-cons" style="margin-top:8px;font-size:12px">
+        <div class="pros"><h4>✓ 可得</h4><ul><li>角色活起来</li><li>自然交互</li><li>竞争力强</li></ul></div>
+        <div class="cons"><h4>✗ 代价</h4><ul><li>需 Electron/Tauri</li><li>与当前 Kotlin 路线不同</li><li>移动端受限</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Codex Pets 式 Agent 集成</h3>
+      <p>宠物=AI 状态指示器。动画映射 LLM 阶段。点宠物→回 AI。<b>共鸣最强，与现有 LLM 管道深度整合</b></p>
+      <div class="pros-cons" style="margin-top:8px;font-size:12px">
+        <div class="pros"><h4>✓ 可得</h4><ul><li>减少等待焦虑</li><li>复用现有 LLM API</li><li>差异化定位</li></ul></div>
+        <div class="cons"><h4>✗ 代价</h4><ul><li>需改造 DeepSeek client</li><li>流式状态回调</li><li>场景需打磨</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Petdex 式生态开放</h3>
+      <p>pet.json 皮肤系统 + 多角色切换 + CLI 导入。<b>社区兼容，用户自创/分享宠物</b></p>
+      <div class="pros-cons" style="margin-top:8px;font-size:12px">
+        <div class="pros"><h4>✓ 可得</h4><ul><li>无限内容</li><li>社区驱动</li><li>格式已对齐</li></ul></div>
+        <div class="cons"><h4>✗ 代价</h4><ul><li>需要皮肤管理 UI</li><li>导入验证逻辑</li><li>跨宠物兼容</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>当前 Spec 养成深化</h3>
+      <p>完善状态机闭环 + AI 日记/记忆 + 迷你聊天。<b>情感粘性最强，基础体验完整</b></p>
+      <div class="pros-cons" style="margin-top:8px;font-size:12px">
+        <div class="pros"><h4>✓ 可得</h4><ul><li>养成闭环</li><li>情感连接</li><li>已有 UI 基础</li></ul></div>
+        <div class="cons"><h4>✗ 代价</h4><ul><li>原子化状态机逻辑复杂</li><li>Flutter↔原生通信量大</li><li>AI 日记需要截图管线</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:16px;color:var(--muted);font-size:13px">🔢 终端回复格式示例：<code>B > D > A</code>（Agent 集成第一、养成深化第二、交互深度第三）</p>

@@ -12,38 +12,46 @@ object EngineBridge {
         private set
 
     private data class PendingMessage(val method: String, val args: Map<String, Any?>)
-    private val pendingQueue = mutableListOf<PendingMessage>()
+    private val pendingMainQueue = mutableListOf<PendingMessage>()
+    private val pendingPetWindowQueue = mutableListOf<PendingMessage>()
 
     fun registerMain(messenger: BinaryMessenger) {
         mainMessenger = messenger
-        pendingQueue.forEach { invokeMain(it.method, it.args) }
-        pendingQueue.clear()
+        pendingMainQueue.forEach { invokeMain(it.method, it.args) }
+        pendingMainQueue.clear()
     }
 
     fun registerPetWindow(messenger: BinaryMessenger) {
         petWindowMessenger = messenger
+        pendingPetWindowQueue.forEach { invokePetWindow(it.method, it.args) }
+        pendingPetWindowQueue.clear()
     }
 
     fun clearMain() {
         mainMessenger = null
+        pendingMainQueue.clear()
     }
 
     fun clearPetWindow() {
         petWindowMessenger = null
+        pendingPetWindowQueue.clear()
     }
 
     fun invokeMain(method: String, args: Map<String, Any?>) {
         val target = mainMessenger
         if (target == null) {
-            pendingQueue.add(PendingMessage(method, args))
+            pendingMainQueue.add(PendingMessage(method, args))
             return
         }
         MethodChannel(target, CHANNEL_NAME).invokeMethod(method, args)
     }
 
     fun invokePetWindow(method: String, args: Map<String, Any?>) {
-        petWindowMessenger?.let {
-            MethodChannel(it, CHANNEL_NAME).invokeMethod(method, args)
+        val target = petWindowMessenger
+        if (target == null) {
+            pendingPetWindowQueue.add(PendingMessage(method, args))
+            return
         }
+        MethodChannel(target, CHANNEL_NAME).invokeMethod(method, args)
     }
 }

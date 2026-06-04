@@ -160,9 +160,19 @@ class PetForegroundService : Service() {
                 Log.d("PetSvc", "touch: $type ($x, $y)")
                 when (type) {
                     "tap" -> {
-                        // ── Wire 3: 点击宠物 → 弹出迷你聊天 ──
-                        // post 延迟：避免 dialog.show() 在触控链内同步创建窗口导致 WindowManager 干扰 PetView 事件处理
+                        // 单击 → 弹出迷你聊天
                         this@apply.post { showChatDialog() }
+                    }
+                    "doubleTap" -> {
+                        // 双击 → 抚摸：跳起 + 爱心粒子
+                        petView?.playAnim("jump")
+                        petView?.showBubble("💕", 1500)
+                        touchConsumer?.invoke("pet", x, y)  // 通知 Dart 加好感+心情
+                        Log.d("PetSvc", "doubleTap → petting + affection")
+                    }
+                    "longPress" -> {
+                        // 长按 → 快捷菜单
+                        this@apply.post { showQuickMenu(x, y) }
                     }
                     else -> touchConsumer?.invoke(type, x, y)
                 }
@@ -420,36 +430,31 @@ class PetForegroundService : Service() {
         }
     }
 
-    /** Wire 3: 弹出迷你聊天对话框 — Claymorphism 风格 */
+    /** Wire 3: 弹出迷你聊天对话框 — 高级暗调风格 */
     private fun showChatDialog() {
         val petView = this.petView ?: return
         val ctx = this@PetForegroundService
         val density = resources.displayMetrics.density
         val dp = { n: Int -> (n * density).toInt() }
 
-        // ── 颜色常量（糯糯 Claymorphism 设计系统） ──
-        val colorBg = 0xFFFFF7ED.toInt()     // 暖白背景
-        val colorPrimary = 0xFFF97316.toInt() // 活力橙
-        val colorText = 0xFF9A3412.toInt()     // 深棕文字
-        val colorHint = 0xFFD6CCC0.toInt()    // 浅棕 placeholder
-        val colorInputBg = 0xFFFFFFFF.toInt() // 输入框白底
-        val colorShadow = 0x33000000.toInt()  // 半透明阴影
-        val colorCancel = 0xFFB0A090.toInt()  // 取消按钮
+        // ── 颜色常量（高级暗调） ──
+        val colorBg = 0xFF212124.toInt()      // 深炭灰底
+        val colorCard = 0xFF2E2E32.toInt()    // 卡片
+        val colorBorder = 0xFF3A3A3E.toInt()  // 隐线
+        val colorAccent = 0xFFB8935D.toInt()  // 哑铜金
+        val colorText = 0xFFE4DFD8.toInt()    // 暖白字
+        val colorHint = 0xFF5E5A54.toInt()    // 暗灰 placeholder
+        val colorInputBg = 0xFF28282C.toInt() // 输入框底色
 
         // ── 根容器 ──
         val root = android.widget.FrameLayout(ctx).apply {
-            setPadding(dp(20), dp(16), dp(20), dp(16))
-            // 圆角背景 + 双阴影（Claymorphism 核心）
+            setPadding(dp(20), dp(20), dp(20), dp(16))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(colorBg)
-                cornerRadius = dp(24).toFloat()
-                setStroke(dp(3), colorPrimary and 0x33FFFFFF.toInt() or 0xFFFEDDC7.toInt()) // 浅橙厚边框
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), colorBorder)
             }
-            // 双阴影：外阴影大而虚 + 内阴影小而实
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                outlineSpotShadowColor = colorPrimary
-                elevation = dp(12).toFloat()
-            }
+            elevation = dp(8).toFloat()
         }
 
         // ── 纵向布局 ──
@@ -460,39 +465,34 @@ class PetForegroundService : Service() {
 
         // ── 标题 ──
         val title = android.widget.TextView(ctx).apply {
-            text = "💬 和糯糯聊天"
+            text = "和糯糯聊天"
             setTextColor(colorText)
-            textSize = 20f
+            textSize = 16f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-            setPadding(dp(4), 0, dp(4), dp(12))
+            setPadding(dp(4), 0, dp(4), dp(14))
         }
         column.addView(title)
 
-        // ── 输入框卡片 ──
-        val inputCard = android.widget.FrameLayout(ctx).apply {
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(colorInputBg)
-                cornerRadius = dp(16).toFloat()
-                setStroke(dp(2), 0xFFFED7B0.toInt()) // 浅橙细边框
-            }
-            setPadding(dp(4), dp(4), dp(4), dp(4))
-        }
+        // ── 输入框 ──
         val input = android.widget.EditText(ctx).apply {
-            hint = "想对糯糯说什么？"
+            hint = "想说点什么？"
             setHintTextColor(colorHint)
             setTextColor(colorText)
-            textSize = 15f
+            textSize = 14f
             setSingleLine(false)
             maxLines = 3
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = null  // 去掉自带下划线
-            setLineSpacing(0f, 1.2f)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(colorInputBg)
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1), colorBorder)
+            }
+            setLineSpacing(0f, 1.3f)
         }
-        inputCard.addView(input)
-        column.addView(inputCard)
+        column.addView(input)
 
         // ── 间距 ──
-        column.addView(android.widget.Space(ctx).apply { minimumHeight = dp(14) })
+        column.addView(android.widget.Space(ctx).apply { minimumHeight = dp(16) })
 
         // ── 按钮行 ──
         val btnRow = android.widget.LinearLayout(ctx).apply {
@@ -503,37 +503,23 @@ class PetForegroundService : Service() {
         // 取消按钮
         val cancelBtn = android.widget.TextView(ctx).apply {
             text = "取消"
-            setTextColor(colorCancel)
-            textSize = 15f
-            setPadding(dp(20), dp(10), dp(16), dp(10))
-            setOnClickListener {
-                dismissChatDialog()
-            }
+            setTextColor(colorHint)
+            textSize = 14f
+            setPadding(dp(16), dp(10), dp(12), dp(10))
+            setOnClickListener { dismissChatDialog() }
         }
         btnRow.addView(cancelBtn)
 
-        // 发送按钮 — Claymorphism 风格
+        // 发送按钮 — 哑铜金
         val sendBtn = android.widget.TextView(ctx).apply {
-            text = "发送 ✦"
-            setTextColor(0xFFFFFFFF.toInt())
-            textSize = 15f
+            text = "发送"
+            setTextColor(0xFF212124.toInt())
+            textSize = 14f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-            setPadding(dp(24), dp(10), dp(24), dp(10))
+            setPadding(dp(20), dp(10), dp(20), dp(10))
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(colorPrimary)
-                cornerRadius = dp(20).toFloat()
-            }
-            // 按下缩放反馈（200ms）
-            setOnTouchListener { v, event ->
-                when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).start()
-                    }
-                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
-                    }
-                }
-                false
+                setColor(colorAccent)
+                cornerRadius = dp(8).toFloat()
             }
             setOnClickListener {
                 val text = input.text.toString().trim()
@@ -604,6 +590,108 @@ class PetForegroundService : Service() {
     /** 聊天弹窗引用（用于关闭） */
     private var chatDialogView: android.view.View? = null
     private var chatOverlayView: android.view.View? = null
+
+    // ═══════════════════════════════════════════
+    // 长按快捷菜单
+    // ═══════════════════════════════════════════
+
+    /** 长按 → 快捷菜单（喂食 / 玩耍 / 状态 / 日记） */
+    private fun showQuickMenu(px: Float, py: Float) {
+        val petView = this.petView ?: return
+        val ctx = this@PetForegroundService
+        val density = resources.displayMetrics.density
+        val dp = { n: Int -> (n * density).toInt() }
+        val colorBg = 0xFF212124.toInt()
+        val colorBorder = 0xFF3A3A3E.toInt()
+        val colorText = 0xFFE4DFD8.toInt()
+        val colorAccent = 0xFFB8935D.toInt()
+
+        val root = android.widget.FrameLayout(ctx).apply {
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(colorBg)
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), colorBorder)
+            }
+            elevation = dp(8).toFloat()
+        }
+
+        val column = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+        }
+
+        data class MenuItem(val icon: String, val label: String, val action: String)
+        val items = listOf(
+            MenuItem("🍖", "喂食", "feed"),
+            MenuItem("🎾", "玩耍", "play"),
+            MenuItem("📊", "状态", "status"),
+            MenuItem("📝", "日记", "diary"),
+        )
+
+        for (item in items) {
+            val btn = android.widget.TextView(ctx).apply {
+                text = "${item.icon}  ${item.label}"
+                setTextColor(colorText)
+                textSize = 14f
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                setOnClickListener {
+                    when (item.action) {
+                        "feed" -> {
+                            petView.playAnim("talking")
+                            petView.showBubble("好吃~ 😋", 2000)
+                            touchConsumer?.invoke("feed", px, py)
+                        }
+                        "play" -> {
+                            petView.playAnim("jump")
+                            petView.showBubble("来玩吧！🎾", 2000)
+                            touchConsumer?.invoke("play", px, py)
+                        }
+                        "status" -> touchConsumer?.invoke("status", px, py)
+                        "diary" -> touchConsumer?.invoke("diary", px, py)
+                    }
+                    dismissQuickMenu()
+                }
+            }
+            column.addView(btn)
+        }
+
+        root.addView(column)
+
+        val type = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+            android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else @Suppress("DEPRECATION")
+            android.view.WindowManager.LayoutParams.TYPE_PHONE
+
+        val params = android.view.WindowManager.LayoutParams(
+            android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+            android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            android.graphics.PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            x = px.toInt() - dp(20)
+            y = py.toInt() - dp(140)  // 菜单出现在手指上方
+        }
+
+        quickMenuView = root
+        windowManager?.addView(root, params)
+
+        // 3 秒自动消失
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            dismissQuickMenu()
+        }, 4000)
+    }
+
+    private fun dismissQuickMenu() {
+        try {
+            quickMenuView?.let { windowManager?.removeView(it) }
+        } catch (_: Exception) {}
+        quickMenuView = null
+    }
+
+    private var quickMenuView: android.view.View? = null
 
     // ═══════════════════════════════════════════
     // 点击穿透
@@ -701,6 +789,7 @@ class PetForegroundService : Service() {
         Log.d("PetSvc", "===== Service onDestroy v2 =====")
         instance = null
         dismissChatDialog()  // 清理聊天弹窗
+        dismissQuickMenu()   // 清理快捷菜单
         hidePetWindow()
         super.onDestroy()
     }

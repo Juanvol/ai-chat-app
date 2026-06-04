@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:hive/hive.dart';
-import '../pet/pet_state.dart';
-import '../pet/pet_config.dart';
+import '../../models/pet_state.dart';
+import '../../pet/pet_config.dart';
 
 class PetService {
   static const _stateBoxName = 'pet_state';

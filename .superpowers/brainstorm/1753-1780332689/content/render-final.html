@@ -1,0 +1,103 @@
+<h2>终极方案：Custom View + 硬件层</h2>
+<p class="subtitle">TextureView 的代价（额外缓冲/延迟/内存）全部可以避免</p>
+
+<h3>为什么 Custom View 就够了？</h3>
+
+<div class="section" style="background:#f0fdf4;padding:16px;border-radius:8px;border-left:4px solid #22c55e">
+  <p style="font-size:13px;line-height:1.8;margin:0">
+    宠物渲染每帧只做 3 件事：<br>
+    ① 清空画布（透明）<br>
+    ② 画一张精灵图（~150KB Bitmap）<br>
+    ③ 画气泡文字（可选）<br>
+    <br>
+    这个负载对硬件加速的 Custom View 来说<b>微不足道</b>。<br>
+    TextureView 是为<b>视频解码/Camera预览</b>设计的——我们不需要它的能力，也就不需要承受它的代价。
+  </p>
+</div>
+
+<h3 style="margin-top:20px">三种轻量方案对比</h3>
+
+<table style="width:100%;font-size:13px;border-collapse:collapse">
+  <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">特性</th><th style="padding:8px;text-align:center">TextureView</th><th style="padding:8px;text-align:center">Custom View + 硬件层</th><th style="padding:8px;text-align:center">Custom View (纯软件)</th></tr>
+  <tr><td style="padding:8px">额外内存</td><td style="padding:8px;text-align:center;color:#ef4444">SurfaceTexture缓冲~2MB</td><td style="padding:8px;text-align:center;color:#22c55e">0 (硬件层由GPU管)</td><td style="padding:8px;text-align:center;color:#22c55e">0</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">帧延迟</td><td style="padding:8px;text-align:center;color:#ef4444">16-48ms</td><td style="padding:8px;text-align:center;color:#22c55e">0</td><td style="padding:8px;text-align:center;color:#22c55e">0</td></tr>
+  <tr><td style="padding:8px">透明背景</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">60fps流畅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#eab308">⚠️ 大图时吃力</td></tr>
+  <tr><td style="padding:8px">Alpha动画</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">Scale动画</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td><td style="padding:8px;text-align:center;color:#22c55e">✅</td></tr>
+  <tr><td style="padding:8px">实现复杂度</td><td style="padding:8px;text-align:center">中等</td><td style="padding:8px;text-align:center;color:#22c55e">简单</td><td style="padding:8px;text-align:center;color:#22c55e">最简单</td></tr>
+  <tr style="background:#f8fafc"><td style="padding:8px">代码量</td><td style="padding:8px;text-align:center">~200行</td><td style="padding:8px;text-align:center;color:#22c55e">~120行</td><td style="padding:8px;text-align:center">~100行</td></tr>
+  <tr><td style="padding:8px;font-weight:bold">结论</td><td style="padding:8px;text-align:center">过度设计</td><td style="padding:8px;text-align:center;color:#22c55e;font-weight:bold">✅ 最优</td><td style="padding:8px;text-align:center">备用</td></tr>
+</table>
+
+<h3 style="margin-top:20px">推荐方案：Custom View + 硬件层</h3>
+
+<pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;line-height:1.5">
+class PetView(context: Context) : View(context) {
+
+    init {
+        // 开启硬件层 — GPU 接管绘制，零额外内存
+        setLayerType(LAYER_TYPE_HARDWARE, null)
+    }
+
+    private val renderLoop = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            physics.update()       // 物理计算
+            invalidate()           // 触发硬件层重绘（GPU完成）
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        canvas.drawColor(0, PorterDuff.Mode.CLEAR)  // 透明
+
+        canvas.save()
+        canvas.scale(squashX, squashY, cx, cy)      // 弹性挤压
+        canvas.drawBitmap(currentFrame, x, y, null) // 精灵帧
+        canvas.restore()
+
+        bubble?.draw(canvas)                         // 气泡
+    }
+}</pre>
+
+<div style="display:flex;gap:16px;margin-top:16px">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">工作原理</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>Choreographer.postFrameCallback</b><br>
+      → 与屏幕 VSYNC 同步（比 Handler 准）<br>
+      → 每 16.6ms 回调一次<br>
+      <br>
+      <b>invalidate()</b><br>
+      → 触发硬件层重绘<br>
+      → GPU 并行执行 onDraw 中的 Canvas 命令<br>
+      → 不阻塞 UI 线程<br>
+      <br>
+      <b>LAYER_TYPE_HARDWARE</b><br>
+      → View 的绘制结果缓存在 GPU 纹理中<br>
+      → 只有 invalidate() 时才重新绘制<br>
+      → 内存由 GPU 管理，不计入 App 堆内存
+    </div>
+  </div>
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header" style="background:#dcfce7;color:#166534">TextureView 为什么是过度设计</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      TextureView 为 <b>外部图像生产者</b> 设计：<br>
+      · Camera 预览流 → SurfaceTexture<br>
+      · 视频解码器 → SurfaceTexture<br>
+      · OpenGL 渲染 → SurfaceTexture<br>
+      <br>
+      这些场景需要：<br>
+      · 独立渲染线程<br>
+      · 生产者-消费者缓冲队列<br>
+      · GPU→CPU→GPU 纹理拷贝<br>
+      <br>
+      我们的场景：<br>
+      · Kotlin 代码主动画 Bitmap<br>
+      · 不需要外部生产者<br>
+      · 不需要独立的 Surface<br>
+      <br>
+      <b>→ Custom View 足够，TextureView 浪费</b>
+    </div>
+  </div>
+</div>

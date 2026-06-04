@@ -2,8 +2,8 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import '../../lib/services/pet_profile_service.dart';
-import '../../lib/models/pet_profile.dart';
+import 'package:deepseek_chat/services/pet/pet_profile_service.dart';
+import 'package:deepseek_chat/models/pet_profile.dart';
 
 void main() {
   setUp(() {

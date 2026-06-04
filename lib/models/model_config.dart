@@ -136,4 +136,17 @@ class ModelConfig {
         providerId: 'custom', modelId: '', maxTokens: 4096,
         inputPricePerM: 0, outputPricePerM: 0, currency: 'CNY'),
   ];
+
+  /// 根据 modelId 解析 provider 信息（baseUrl + apiKey 需从 Storage 读取）
+  static ({String providerId, String baseUrl, String modelId})? resolveModel(String modelId) {
+    final config = builtIn.firstWhere(
+      (m) => m.modelId == modelId,
+      orElse: () => builtIn.first,
+    );
+    final provider = providers.firstWhere(
+      (p) => p.id == config.providerId,
+      orElse: () => providers.first,
+    );
+    return (providerId: provider.id, baseUrl: provider.baseUrl, modelId: config.modelId);
+  }
 }

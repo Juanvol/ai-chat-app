@@ -1,0 +1,144 @@
+<style>
+  .hero { text-align:center;padding:20px 16px 12px;margin-bottom:12px }
+  .pet-avatar { font-size:56px }
+  .pet-name { font-size:18px;font-weight:700;margin:4px 0 }
+  .pet-sub { font-size:12px;color:#8b949e }
+  .act-row { display:flex;gap:8px;justify-content:center;margin:14px 0 }
+  .act-btn { background:#16213e;border:1px solid #2a2a4a;border-radius:10px;padding:10px 16px;text-align:center;cursor:pointer;min-width:60px;transition:all .15s }
+  .act-btn:hover { border-color:#4ecca3;transform:translateY(-1px) }
+  .act-btn .icon { font-size:22px;display:block }
+  .act-btn .label { font-size:11px;color:#c9d1d9;margin-top:2px }
+  .stat-row { display:flex;gap:6px;margin:12px 0 }
+  .stat-item { flex:1;background:#16213e;border-radius:8px;padding:10px 12px;border:1px solid #2a2a4a }
+  .stat-item .top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px }
+  .stat-item .bar { background:#0d1117;height:5px;border-radius:3px;overflow:hidden }
+  .stat-item .fill { height:100%;border-radius:3px;transition:width 0.5s }
+  .chip-row { display:flex;gap:6px;justify-content:center;flex-wrap:wrap }
+  .chip { background:#0d1117;border:1px solid #2a2a4a;border-radius:6px;padding:4px 10px;font-size:11px;color:#8b949e }
+  .chip .val { color:#a371f7;font-weight:600 }
+  .tab-row { display:flex;background:#0d1117;border-radius:10px;padding:3px;gap:2px;margin-top:14px }
+  .tab-item { flex:1;text-align:center;padding:10px 4px;border-radius:8px;font-size:12px;color:#8b949e }
+  .tab-item.active { background:#16213e;color:#fff;font-weight:600 }
+  .comparison { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px }
+  .comp-card { padding:14px;border-radius:10px }
+  .comp-card h4 { font-size:13px;margin:0 0 8px }
+  .comp-card ul { margin:0;padding-left:16px;font-size:11px;color:#8b949e;line-height:1.8 }
+</style>
+
+<h2>宠物中心 — 精简设计</h2>
+<p class="subtitle">一眼看懂状态 · 一键操作 · 不堆砌信息</p>
+
+<!-- ═══════════════ 宠物卡片 ═══════════════ -->
+<div class="hero">
+  <div class="pet-avatar">🐱</div>
+  <div class="pet-name">弗糯糯 <span style="background:#a371f7;color:#fff;padding:1px 8px;border-radius:8px;font-size:10px">Lv.3</span></div>
+  <div class="pet-sub">陪伴第 45 天 · 今天心情不错喵~</div>
+</div>
+
+<!-- ═══════════════ 5 个核心操作 ═══════════════ -->
+<div class="act-row">
+  <div class="act-btn"><span class="icon">🍖</span><span class="label">喂食</span></div>
+  <div class="act-btn"><span class="icon">🎾</span><span class="label">玩耍</span></div>
+  <div class="act-btn"><span class="icon">💤</span><span class="label">哄睡</span></div>
+  <div class="act-btn"><span class="icon">💬</span><span class="label">聊天</span></div>
+  <div class="act-btn" style="border-style:dashed"><span class="icon">⋯</span><span class="label">更多</span></div>
+</div>
+
+<!-- ═══════════════ 4 条进度条 ═══════════════ -->
+<div class="stat-row">
+  <div class="stat-item">
+    <div class="top"><span style="font-size:12px">🍖 饥饿</span><span style="font-size:12px;font-weight:600">85</span></div>
+    <div class="bar"><div class="fill" style="width:85%;background:#4ecca3"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="top"><span style="font-size:12px">😊 心情</span><span style="font-size:12px;font-weight:600">60</span></div>
+    <div class="bar"><div class="fill" style="width:60%;background:#e94560"></div></div>
+  </div>
+</div>
+<div class="stat-row">
+  <div class="stat-item">
+    <div class="top"><span style="font-size:12px">⚡ 体力</span><span style="font-size:12px;font-weight:600">72</span></div>
+    <div class="bar"><div class="fill" style="width:72%;background:#ffc107"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="top"><span style="font-size:12px">❤️ 好感</span><span style="font-size:12px;font-weight:600">450</span></div>
+    <div class="bar"><div class="fill" style="width:45%;background:#ff6b9d"></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 底部信息 ═══════════════ -->
+<div class="chip-row">
+  <div class="chip">💰 <span class="val">1,234</span> / 50,000 Token</div>
+  <div class="chip">💬 <span class="val">128</span> 次聊天</div>
+  <div class="chip">📖 <span class="val">32</span> 篇日记</div>
+</div>
+
+<!-- ═══════════════ 标签栏 ═══════════════ -->
+<div class="tab-row">
+  <div class="tab-item active">💬 聊天</div>
+  <div class="tab-item">🧠 记忆</div>
+  <div class="tab-item">📖 日记</div>
+  <div class="tab-item">⚙️ 设置</div>
+</div>
+
+<!-- ═══════════════ 对比 ═══════════════ -->
+<h3 style="margin-top:20px">精简前后对比</h3>
+<div class="comparison">
+  <div class="comp-card" style="background:#0d1117">
+    <h4 style="color:#e94560">❌ 当前</h4>
+    <ul>
+      <li>257 行挤在一个文件</li>
+      <li>无操作按钮</li>
+      <li>Hive 直读不实时</li>
+      <li>状态用文字列表</li>
+      <li>TokenDashboard 占大幅空间</li>
+    </ul>
+  </div>
+  <div class="comp-card" style="background:#0d1117">
+    <h4 style="color:#4ecca3">✅ 优化后</h4>
+    <ul>
+      <li>4 个独立组件 (~60行/个)</li>
+      <li>5 个核心操作按钮</li>
+      <li>Consumer 实时刷新</li>
+      <li>2×2 进度条紧凑网格</li>
+      <li>Token 浓缩为一行 chip</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════ 文件清单 ═══════════════ -->
+<h3 style="margin-top:16px">需改动的文件</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px">
+  <div style="background:#16213e;border-radius:8px;padding:10px">
+    <span style="background:#4ecca3;color:#000;padding:1px 6px;border-radius:4px;font-size:10px">新建</span>
+    <div style="font-size:12px;margin-top:4px"><strong>pet_hero_card.dart</strong></div>
+    <div style="font-size:10px;color:#8b949e">头像+名字+等级</div>
+  </div>
+  <div style="background:#16213e;border-radius:8px;padding:10px">
+    <span style="background:#4ecca3;color:#000;padding:1px 6px;border-radius:4px;font-size:10px">新建</span>
+    <div style="font-size:12px;margin-top:4px"><strong>pet_status_bars.dart</strong></div>
+    <div style="font-size:10px;color:#8b949e">2×2 进度条</div>
+  </div>
+  <div style="background:#16213e;border-radius:8px;padding:10px">
+    <span style="background:#4ecca3;color:#000;padding:1px 6px;border-radius:4px;font-size:10px">新建</span>
+    <div style="font-size:12px;margin-top:4px"><strong>pet_action_bar.dart</strong></div>
+    <div style="font-size:10px;color:#8b949e">5 按钮行</div>
+  </div>
+  <div style="background:#16213e;border-radius:8px;padding:10px">
+    <span style="background:#ffc107;color:#000;padding:1px 6px;border-radius:4px;font-size:10px">修改</span>
+    <div style="font-size:12px;margin-top:4px"><strong>pet_center_screen.dart</strong></div>
+    <div style="font-size:10px;color:#8b949e">组装 + TabBar</div>
+  </div>
+  <div style="background:#16213e;border-radius:8px;padding:10px">
+    <span style="background:#ffc107;color:#000;padding:1px 6px;border-radius:4px;font-size:10px">修改</span>
+    <div style="font-size:12px;margin-top:4px"><strong>pet_controller.dart</strong></div>
+    <div style="font-size:10px;color:#8b949e">+pet() 方法</div>
+  </div>
+  <div style="background:#16213e;border-radius:8px;padding:10px">
+    <span style="background:#ffc107;color:#000;padding:1px 6px;border-radius:4px;font-size:10px">修改</span>
+    <div style="font-size:12px;margin-top:4px"><strong>main.dart</strong></div>
+    <div style="font-size:10px;color:#8b949e">注册 PetController Provider</div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">精简后：5 按钮 + 4 进度条 + 3 chip + 标签栏。够用不？</p>

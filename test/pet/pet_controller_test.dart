@@ -1,8 +1,8 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/pet/pet_controller.dart';
-import '../../lib/pet/pet_state.dart';
+import 'package:deepseek_chat/pet/pet_controller.dart';
+import 'package:deepseek_chat/models/pet_state.dart';
 
 void main() {
   group('PetController 初始化', () {

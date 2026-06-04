@@ -43,6 +43,9 @@ class FrameBlender {
     private var earWiggleOffset = 0f
     private val rng = Random(System.currentTimeMillis())
 
+    // 帧间混合强度（0=无混合, 0.4=适度柔化过渡）
+    var intraBlend = 0.35f
+
     // 朝向（false=朝右, true=朝左）
     var facingLeft = false
 
@@ -53,10 +56,86 @@ class FrameBlender {
         anims[name] = def
     }
 
+    // ═══════════════════════════════════════════
+    // Codex Spritesheet 加载（1536×1872, 8列×9行）
+    // ═══════════════════════════════════════════
+
+    companion object {
+        /** Codex pet 标准 spritesheet 规格 */
+        const val SPRITESHEET_COLS = 8
+        const val SPRITESHEET_ROWS = 9
+        const val FRAMES_PER_ANIM = 6        // 每行动画帧数（列 0-5）
+        const val DEFAULT_CELL_W = 192
+        const val DEFAULT_CELL_H = 208
+        const val DEFAULT_INTERVAL_MS = 183L  // ~1100ms / 6帧
+
+        /** 默认行→状态映射（Codex 标准） */
+        val DEFAULT_STATE_MAP: Map<Int, String> = mapOf(
+            0 to "idle",
+            1 to "wave",
+            2 to "run",
+            3 to "failed",
+            4 to "review",
+            5 to "jump",
+            6 to "sleeping",   // extra1 → 睡觉
+            7 to "talking",    // extra2 → 说话
+        )
+
+        /** 各状态的帧间隔（毫秒），未列出则用 DEFAULT_INTERVAL_MS */
+        val STATE_INTERVALS: Map<String, Long> = mapOf(
+            "idle" to 250L,
+            "wave" to 200L,
+            "run" to 160L,
+            "jump" to 200L,
+            "failed" to 300L,
+            "review" to 250L,
+            "sleeping" to 600L,
+            "talking" to 200L,
+        )
+    }
+
+    /**
+     * 从 Codex 标准 spritesheet 加载所有动画。
+     * @param spritesheet 精灵图集位图
+     * @param stateMap 行→状态名映射，默认使用 Codex 标准映射
+     * @return 加载成功的动画名称集合
+     */
+    fun loadSpritesheet(
+        spritesheet: Bitmap,
+        stateMap: Map<Int, String> = DEFAULT_STATE_MAP,
+    ): Set<String> {
+        val cellW = spritesheet.width / SPRITESHEET_COLS
+        val cellH = spritesheet.height / SPRITESHEET_ROWS
+        val loaded = mutableSetOf<String>()
+
+        for (row in 0 until SPRITESHEET_ROWS) {
+            val stateName = stateMap[row] ?: continue
+            val frames = mutableListOf<Bitmap>()
+            for (col in 0 until FRAMES_PER_ANIM) {
+                val x = col * cellW
+                val y = row * cellH
+                if (x + cellW <= spritesheet.width && y + cellH <= spritesheet.height) {
+                    frames.add(Bitmap.createBitmap(spritesheet, x, y, cellW, cellH))
+                }
+            }
+            if (frames.isNotEmpty()) {
+                val interval = STATE_INTERVALS[stateName] ?: DEFAULT_INTERVAL_MS
+                register(stateName, AnimDef(frames, interval, loop = true))
+                loaded.add(stateName)
+            }
+        }
+        return loaded
+    }
+
     /**
      * 获取已注册的动画名称列表。
      */
     fun listAnims(): Set<String> = anims.keys
+
+    /**
+     * 获取已注册的动画定义（用于克隆帧到其他动画）。
+     */
+    fun getAnim(name: String): AnimDef? = anims[name]
 
     /**
      * 切换到指定动画。如果已经在播放同名动画则忽略。
@@ -126,7 +205,13 @@ class FrameBlender {
         // 弹性挤压
         canvas.scale(scaleX, scaleY, cx, cy)
 
-        // 绘制前一帧（过渡中）
+        // 帧间混合：计算出下一帧，在当前帧和下一帧间做半透明混合
+        val def = currentDef
+        val intraProgress = if (def != null && def.intervalMs > 0) {
+            elapsed.toFloat() / def.intervalMs.toFloat()
+        } else 0f
+
+        // 绘制前一帧（动画切换过渡中）
         if (blendAlpha < 1f && prevBitmap != null) {
             blendPaint.alpha = ((1f - blendAlpha) * 255).toInt()
             canvas.drawBitmap(prevBitmap!!, x, y, blendPaint)
@@ -146,6 +231,15 @@ class FrameBlender {
             emotionPaint.colorFilter = null
         } else {
             canvas.drawBitmap(bitmap, x, y, emotionPaint)
+        }
+
+        // 帧间混合：在当前帧和下一帧间做半透明混合，消除卡顿感
+        if (intraBlend > 0f && blendAlpha >= 1f && def != null && def.frames.size > 1 && def.loop) {
+            val nextIndex = (currentIndex + 1) % def.frames.size
+            val nextBitmap = def.frames[nextIndex]
+            val intraAlpha = (intraBlend * intraProgress * 255).toInt().coerceIn(0, 200)
+            blendPaint.alpha = intraAlpha
+            canvas.drawBitmap(nextBitmap, x, y, blendPaint)
         }
 
         // 微动 overlay

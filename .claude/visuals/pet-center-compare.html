@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=400">
+<title>宠物中心 — 改前 vs 改后</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: system-ui; background:#1a1a2e; color:#eee; display:flex; justify-content:center; gap:24px; padding:20px; }
+h3 { text-align:center; margin-bottom:10px; font-size:14px; color:#aaa; }
+.phone { width:340px; height:680px; background:#121212; border-radius:24px; overflow:hidden; display:flex; flex-direction:column; border:2px solid #333; }
+.appbar { background:#1e1e2e; padding:10px 14px; font-size:15px; font-weight:600; display:flex; align-items:center; border-bottom:1px solid #222; }
+.body { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+
+/* HeroCard */
+.heroc { margin:6px 10px 0; padding:10px 14px; background:#1e1e2e; border-radius:12px; display:flex; align-items:center; gap:10px; }
+.heroc .cat { font-size:36px; }
+.heroc .info { flex:1; }
+.heroc .name { font-size:15px; font-weight:600; display:flex; align-items:center; gap:6px; }
+.heroc .badge { font-size:9px; padding:1px 6px; background:#7c3aed; color:#fff; border-radius:6px; }
+.heroc .mood { font-size:11px; color:#999; margin-top:2px; }
+.heroc .aff { text-align:center; }
+.heroc .aff .num { font-size:16px; font-weight:600; color:#ff6b9d; }
+.heroc .aff .lbl { font-size:9px; color:#999; }
+.heroc-big { padding:16px 14px 12px; }
+.heroc-big .cat { font-size:48px; }
+
+/* StatusBars */
+.sbars { margin:6px 10px 0; display:flex; gap:5px; }
+.sbar { flex:1; background:#1e1e2e; border-radius:8px; padding:8px; }
+.sbar .hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.sbar .hdr span { font-size:10px; }
+.sbar .hdr .v { font-size:11px; font-weight:600; }
+.sbar .trk { height:5px; background:#333; border-radius:3px; overflow:hidden; }
+.sbar .fill { height:100%; border-radius:3px; }
+.fill.g { background:#4ecca3; } .fill.r { background:#e94560; } .fill.y { background:#ffc107; } .fill.p { background:#ff6b9d; }
+
+/* ActionBar */
+.abar { margin:6px 10px 0; display:flex; gap:6px; }
+.abtn { flex:1; background:#1e1e2e; border-radius:10px; padding:10px 0; text-align:center; cursor:pointer; transition:all .1s; }
+.abtn:hover { background:#2a2a3e; }
+.abtn .ic { font-size:22px; }
+.abtn .lb { font-size:10px; color:#999; margin-top:2px; }
+
+/* InfoChips */
+.chips { margin:4px 10px 0; display:flex; gap:6px; }
+.chip { font-size:10px; background:#1e1e2e; padding:3px 8px; border-radius:5px; color:#999; }
+
+/* TabBar */
+.tbar { margin:4px 10px 0; display:flex; background:#1e1e2e; border-radius:8px; overflow:hidden; }
+.ttab { flex:1; text-align:center; padding:10px 0; font-size:12px; color:#888; cursor:pointer; }
+.ttab.active { color:#a78bfa; border-bottom:2px solid #a78bfa; background:#1a1a2e; }
+
+/* Tab content */
+.tcontent { flex:1; margin:4px 10px 0; background:#1a1a2e; border-radius:10px; padding:10px; display:flex; align-items:center; justify-content:center; }
+.tcontent .dummy { text-align:center; color:#555; font-size:12px; }
+
+/* Status inline — compact version */
+.sinline { margin:4px 10px 0; display:flex; gap:10px; justify-content:center; }
+.sinline .si { display:flex; align-items:center; gap:3px; font-size:11px; }
+.sinline .si .em { font-size:13px; }
+.sminus { display:none; }
+
+.spacer { height:4px; }
+
+/* Annotation */
+.note { font-size:10px; color:#e94560; text-align:center; margin:2px 0; }
+.gain { font-size:10px; color:#4ecca3; text-align:center; margin:2px 0; }
+</style>
+</head>
+<body>
+
+<!-- ========== BEFORE ========== -->
+<div>
+<h3>改前 — 头部 410dp</h3>
+<div class="phone">
+  <div class="appbar">🐾 宠物中心</div>
+  <div class="body">
+    <!-- HeroCard old -->
+    <div class="heroc heroc-big">
+      <span class="cat">🐱</span>
+      <div class="info">
+        <div class="name">弗糯糯 <span class="badge">Lv.1</span></div>
+        <div class="mood">初识 · 😊 心情60 · 陪伴第1天</div>
+      </div>
+    </div>
+    <!-- StatusBars old: 4 cards -->
+    <div class="sbars">
+      <div class="sbar"><div class="hdr"><span>🍖 饥饿</span><span class="v" style="color:#4ecca3">80</span></div><div class="trk"><div class="fill g" style="width:80%"></div></div></div>
+      <div class="sbar"><div class="hdr"><span>😊 心情</span><span class="v" style="color:#e94560">60</span></div><div class="trk"><div class="fill r" style="width:60%"></div></div></div>
+    </div>
+    <div class="sbars">
+      <div class="sbar"><div class="hdr"><span>⚡ 体力</span><span class="v" style="color:#ffc107">75</span></div><div class="trk"><div class="fill y" style="width:75%"></div></div></div>
+      <div class="sbar"><div class="hdr"><span>❤️ 好感</span><span class="v" style="color:#ff6b9d">50</span></div><div class="trk"><div class="fill p" style="width:50%"></div></div></div>
+    </div>
+    <!-- ActionBar: 5 btns -->
+    <div class="abar">
+      <div class="abtn"><div class="ic">🍖</div><div class="lb">喂食</div></div>
+      <div class="abtn"><div class="ic">🎾</div><div class="lb">玩耍</div></div>
+      <div class="abtn"><div class="ic">💤</div><div class="lb">哄睡</div></div>
+      <div class="abtn"><div class="ic">💬</div><div class="lb">聊天</div></div>
+      <div class="abtn"><div class="ic">✋</div><div class="lb">摸摸</div></div>
+    </div>
+    <!-- InfoChips -->
+    <div class="chips">
+      <span class="chip">💰 0/50k Token</span>
+      <span class="chip">剩余 50k</span>
+    </div>
+    <!-- TabBar -->
+    <div class="tbar">
+      <div class="ttab active">💬 聊天</div>
+      <div class="ttab">🧠 记忆</div>
+      <div class="ttab">📖 日记</div>
+      <div class="ttab">⚙️ 设置</div>
+    </div>
+    <!-- Content -->
+    <div class="tcontent">
+      <div class="dummy">
+        ← Tab 可用 ~250dp →<br>
+        <span style="color:#e94560">键盘弹出后几乎看不见对话</span>
+      </div>
+    </div>
+    <div class="note">▲ 头部占用太多，内容区被挤扁</div>
+  </div>
+</div>
+</div>
+
+<!-- ========== AFTER ========== -->
+<div>
+<h3>改后 — 头部 ~180dp</h3>
+<div class="phone">
+  <div class="appbar">🐾 宠物中心</div>
+  <div class="body">
+    <!-- HeroCard new: bigger cat, compact info -->
+    <div class="heroc" style="padding:14px 14px 10px; flex-direction:column; align-items:center;">
+      <span class="cat" style="font-size:56px;">🐱</span>
+      <div class="name" style="margin-top:4px;">弗糯糯 <span class="badge">Lv.1</span></div>
+      <div class="mood">初识 · 陪伴第1天</div>
+      <div class="sinline">
+        <div class="si"><span class="em">🍖</span><span style="color:#4ecca3">80</span></div>
+        <div class="si"><span class="em">😊</span><span style="color:#e94560">60</span></div>
+        <div class="si"><span class="em">⚡</span><span style="color:#ffc107">75</span></div>
+        <div class="si"><span class="em">❤️</span><span style="color:#ff6b9d">50</span></div>
+      </div>
+    </div>
+    <!-- ActionBar: 4 btns (no chat) -->
+    <div class="abar">
+      <div class="abtn"><div class="ic">🍖</div><div class="lb">喂食</div></div>
+      <div class="abtn"><div class="ic">🎾</div><div class="lb">玩耍</div></div>
+      <div class="abtn"><div class="ic">💤</div><div class="lb">哄睡</div></div>
+      <div class="abtn"><div class="ic">✋</div><div class="lb">摸摸</div></div>
+    </div>
+    <!-- TabBar -->
+    <div class="tbar">
+      <div class="ttab active">💬 聊天</div>
+      <div class="ttab">🧠 记忆</div>
+      <div class="ttab">📖 日记</div>
+      <div class="ttab">⚙️ 设置</div>
+    </div>
+    <!-- Content -->
+    <div class="tcontent" style="flex:2">
+      <div class="dummy">
+        ← Tab 可用 ~480dp →<br>
+        <span style="color:#4ecca3">键盘弹出后仍可见对话上下文</span>
+      </div>
+    </div>
+    <div class="gain">▲ 去掉了 2 行状态卡 + 1 行 Token + 1 个冗余按钮<br>宠物居中放大，状态数字一行显示</div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

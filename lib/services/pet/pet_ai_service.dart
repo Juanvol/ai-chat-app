@@ -2,12 +2,14 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
-import '../api/deepseek_client.dart';
-import '../models/memory.dart' as mem;
-import '../models/feedback_entry.dart' as fb;
-import '../pet/pet_config.dart';
-import '../pet/pet_memory.dart';
-import '../pet/pet_persona.dart';
+import '../../api/deepseek_client.dart';
+import '../../models/model_config.dart';
+import '../../models/memory.dart' as mem;
+import '../../models/feedback_entry.dart' as fb;
+import '../../pet/pet_config.dart';
+import '../../pet/pet_memory.dart';
+import 'pet_logger.dart';
+import '../../pet/pet_persona.dart';
 import 'pet_agent_core.dart';
 import 'pet_token_service.dart';
 import 'pet_profile_service.dart';
@@ -17,9 +19,11 @@ class PetAiService {
   LLMClient? _visionClient;     // MiMo — 截图分析
   DateTime _lastSuggestionAt = DateTime(2000);
   Timer? _proactiveTimer;
+  bool _isGenerating = false;   // 防并发竞态
   String? _visionApiKey;
   String? _visionBaseUrl;
   final String _visionModel = 'mimo-v2-omni';
+  String _chatModelId = 'deepseek-chat';
   static int _idCounter = 0;
   static final String _sessionPrefix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
 
@@ -53,6 +57,7 @@ class PetAiService {
           }
         } catch (_) {}
         _textClient = LLMClient(apiKey: apiKey);
+        PetLogger().info('PetAiService', 'textClient created, model=$_chatModelId');
         _textClient?.setSystemPrompt(systemPrompt);
       }
       // 视觉 client — MiMo
@@ -68,18 +73,30 @@ class PetAiService {
 
       if (_visionApiKey != null && _visionApiKey!.isNotEmpty) {
         _visionClient = LLMClient(apiKey: _visionApiKey);
+        PetLogger().info('PetAiService', 'visionClient created');
       }
-      // 初始化 Agent 核心
-      _agent = PetAgentCore(
-        tokenService: PetTokenService(),
-        profileService: PetProfileService(),
-      );
-      await _agent!.init(
-        decisionApiKey: apiKey,
-        chatApiKey: apiKey,
-      );
+      // 初始化 Agent 核心（复用已有 shared 实例，避免重复创建）
+      if (PetAgentCore.shared != null) {
+        _agent = PetAgentCore.shared;
+        PetLogger().info('PetAiService', '复用共享 PetAgentCore 实例');
+      } else {
+        _agent = PetAgentCore(
+          tokenService: PetTokenService.instance,
+          profileService: PetProfileService(),
+        );
+        await _agent!.init(
+          decisionApiKey: apiKey,
+          chatApiKey: apiKey,
+        );
+      }
+      // 读取用户在设置中选择的聊天模型
+      try {
+        final configBox = await Hive.openBox('pet_config');
+        final cm = configBox.get('chatModel');
+        if (cm is String && cm.isNotEmpty) _chatModelId = cm;
+      } catch (_) {}
     } catch (e) {
-      debugPrint('PetAiService.init failed: $e');
+      PetLogger().error('PetAiService', 'init failed', e);
     }
   }
 
@@ -105,13 +122,20 @@ class PetAiService {
   void startProactiveTimer(void Function(String suggestion) onSuggestion) {
     _proactiveTimer?.cancel();
     _proactiveTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (_isGenerating) { PetLogger().trace('PetAiService', 'proactive SKIP: already generating'); return; }
       final config = await loadConfig();
-      if (!config.enabled || config.aiFrequency == AiFrequency.silent) return;
+      if (!config.enabled) { PetLogger().trace('PetAiService', 'proactive SKIP: pet disabled'); return; }
+      if (config.aiFrequency == AiFrequency.silent) { PetLogger().trace('PetAiService', 'proactive SKIP: frequency=silent'); return; }
       final interval = config.aiFrequency == AiFrequency.chatty ? 10 : 30;
-      if (DateTime.now().difference(_lastSuggestionAt).inMinutes < interval) return;
-      if (config.quietUntil != null && DateTime.now().isBefore(config.quietUntil!)) return;
-      final suggestion = await generateSuggestion();
-      if (suggestion != null) onSuggestion(suggestion);
+      if (DateTime.now().difference(_lastSuggestionAt).inMinutes < interval) { return; /* 太频繁，正常跳过 */ }
+      if (config.quietUntil != null && DateTime.now().isBefore(config.quietUntil!)) { PetLogger().trace('PetAiService', 'proactive SKIP: quiet hours until ${config.quietUntil}'); return; }
+      _isGenerating = true;
+      try {
+        final suggestion = await generateSuggestion();
+        if (suggestion != null) onSuggestion(suggestion);
+      } finally {
+        _isGenerating = false;
+      }
     });
   }
 
@@ -127,25 +151,61 @@ class PetAiService {
     _agent = null;
   }
 
+  Future<void> _refreshConfig() async {
+    try {
+      final configBox = await Hive.openBox('pet_config');
+      final cm = configBox.get('chatModel');
+      if (cm is String && cm.isNotEmpty) _chatModelId = cm;
+    } catch (_) {}
+  }
+
   Future<String?> generateSuggestion() async {
-    if (_textClient == null) return null;
+    if (_textClient == null) { PetLogger().warn('PetAiService', 'generateSuggestion skipped: textClient is null (no API key?)'); return null; }
+    await _refreshConfig();
     try {
       final context = await _gatherContext();
       final prompt = context.isEmpty
           ? '主动和用户打个招呼，关心一下用户现在在做什么。'
           : '用户最近的活动：$context。根据这些信息，主动给用户一个有用的小建议或关心。';
+
+      // 解析模型 → provider
+      String resolvedBaseUrl = 'https://api.deepseek.com';
+      String? resolvedApiKey = _textClient?.apiKey;
+      String resolvedProviderId = 'deepseek';
+      final modelInfo = ModelConfig.resolveModel(_chatModelId);
+      if (modelInfo != null) {
+        resolvedBaseUrl = modelInfo.baseUrl;
+        resolvedProviderId = modelInfo.providerId;
+        try {
+          final settingsBox = await Hive.openBox('settings');
+          final key = settingsBox.get('${modelInfo.providerId}_key') as String?;
+          if (key != null && key.isNotEmpty) resolvedApiKey = key;
+        } catch (_) {}
+      }
+
       final buffer = StringBuffer();
       await for (final chunk in _textClient!.sendStream(
         history: [],
         userContent: prompt,
+        model: _chatModelId,
+        baseUrl: resolvedBaseUrl,
+        apiKey: resolvedApiKey,
+        providerId: resolvedProviderId,
         thinkingEnabled: false,
         maxTokens: 128,
       )) {
         buffer.write(chunk.text);
+        // 追踪建议生成的 token 消耗
+        if (chunk.usage != null) {
+          try {
+            await PetTokenService.instance.recordTokens(chat: chunk.usage!['total_tokens'] ?? 0);
+          } catch (_) {}
+        }
       }
       final text = buffer.toString().trim();
       if (text.isEmpty) return null;
       _lastSuggestionAt = DateTime.now();
+      PetLogger().info('PetAiService', 'suggestion sent: ${text.substring(0, text.length.clamp(0, 40))}');
       return text;
     } catch (e) {
       debugPrint('PetAiService.generateSuggestion failed: $e');
@@ -179,9 +239,15 @@ class PetAiService {
         history: [],
         userContent: '用户正在：$description。作为电子宠物弗糯糯，给用户一个可爱的小建议或关心（不超过2句话）。',
         thinkingEnabled: false,
+        model: _chatModelId,
         maxTokens: 128,
       )) {
         buffer.write(chunk.text);
+        if (chunk.usage != null) {
+          try {
+            await PetTokenService.instance.recordTokens(chat: chunk.usage!['total_tokens'] ?? 0);
+          } catch (_) {}
+        }
       }
       final suggestion = buffer.toString().trim();
       if (suggestion.isEmpty) return null;
@@ -263,7 +329,10 @@ class PetAiService {
         tags: ['宠物', '弗糯糯'],
       );
       await memBox.put(memory.id, memory.toJson());
-    } catch (_) {}
+      PetLogger().trace('PetAiService', 'memory saved: ${content.substring(0, content.length.clamp(0, 30))}');
+    } catch (e) {
+      PetLogger().error('PetAiService', 'saveMemory failed', e);
+    }
   }
 
   // ── 反馈收集 ──
@@ -284,6 +353,8 @@ class PetAiService {
         createdAt: DateTime.now(),
       );
       await fbBox.put(entry.id, entry.toJson());
-    } catch (_) {}
+    } catch (e) {
+      PetLogger().error('PetAiService', 'saveFeedback failed', e);
+    }
   }
 }

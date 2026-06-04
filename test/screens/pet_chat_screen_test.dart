@@ -1,7 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/screens/pet_chat_screen.dart';
+import 'package:deepseek_chat/screens/pet/pet_chat_screen.dart';
 
 void main() {
   testWidgets('渲染空状态', (tester) async {

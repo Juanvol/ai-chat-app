@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/model_config.dart';
-import '../services/conversation_service.dart';
-import '../services/memory_service.dart';
+import '../services/app/conversation_service.dart';
+import '../services/app/memory_service.dart';
 
 Future<int> extractMemories(BuildContext context) async {
   final cs = context.read<ConversationService>();

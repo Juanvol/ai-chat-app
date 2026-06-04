@@ -1,0 +1,86 @@
+<h2>三种桌面宠物风格对比</h2>
+<p class="subtitle">每种风格的核心差异在于「物理感」「自主行为」「交互方式」三个维度</p>
+
+<div class="split">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">A. 罗小黑 / 桌宠类</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.6">
+      <p><b>核心特征：像个活物在桌面上</b></p>
+      <hr>
+      <p>🐾 <b>移动方式：</b>走路、小跑、跳跃到屏幕任意位置，带加速度和惯性</p>
+      <p>🎬 <b>动画：</b>丰富的逐帧动画（走、跑、坐、卧、打哈欠、摇尾巴）</p>
+      <p>💡 <b>行为：</b>随机走动 → 坐下发呆 → 趴着睡觉 → 突然追逐光标</p>
+      <p>🖐 <b>交互：</b>可拖拽移动，点击互动，拖到不同位置有不同反应</p>
+      <p>⚛️ <b>物理感：</b>有重力、弹跳、挤压拉伸效果</p>
+      <p>📐 <b>技术：</b>通常用游戏引擎（Unity/Cocos）或 SurfaceView+逐帧动画</p>
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">B. Shimeji / 桌面精灵</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.6">
+      <p><b>核心特征：在窗口边缘爬行交互</b></p>
+      <hr>
+      <p>🐾 <b>移动方式：</b>沿窗口边缘爬行、悬挂、坐着，不在地面自由走动</p>
+      <p>🎬 <b>动画：</b>攀爬、悬挂、坐着晃腿、抓住标题栏</p>
+      <p>💡 <b>行为：</b>感知窗口边界 → 爬到窗口顶部 → 坐在标题栏上晃腿</p>
+      <p>🖐 <b>交互：</b>可抓起扔出、看它爬回来，会和浏览器/编辑器窗口互动</p>
+      <p>⚛️ <b>物理感：</b>有重力（被扔出去会下落），爬行路径平滑</p>
+      <p>📐 <b>技术：</b>Java AWT/Swing，通常用透明窗口+精灵图渲染</p>
+    </div>
+  </div>
+</div>
+
+<div class="split" style="margin-top:16px">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">C. Desktop Goose / 捣乱类</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.6">
+      <p><b>核心特征：自主行为驱动，主动"搞破坏"</b></p>
+      <hr>
+      <p>🐾 <b>移动方式：</b>满屏乱跑，拖泥巴、叼走光标</p>
+      <p>🎬 <b>动画：</b>跑动、啄、拖拽物品、张嘴叫</p>
+      <p>💡 <b>行为：</b>🎯 核心卖点 — 自主拖走光标、弹出 Meme、打开记事本写字</p>
+      <p>🖐 <b>交互：</b>用户主要是"受害者"，交互是被动响应它的捣乱</p>
+      <p>⚛️ <b>物理感：</b>中等，重点是行为丰富性而非物理精确</p>
+      <p>📐 <b>技术：</b>C#/Unity，行为树驱动自主决策</p>
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:1;border:2px solid #4A90D9">
+    <div class="mockup-header" style="background:#4A90D9;color:#fff">🎯 我们当前最接近的方向</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.6">
+      <p><b>混合定位：A 的移动自由 + B 的轻量感 + C 的自主灵魂</b></p>
+      <hr>
+      <p>✅ 从 <b>A</b> 取：自由移动 + 逐帧动画 + 物理感</p>
+      <p>✅ 从 <b>B</b> 取：轻量透明窗口、不干扰工作</p>
+      <p>✅ 从 <b>C</b> 取：自主行为决策（但温馨可爱，不捣乱）</p>
+      <p>⛔ 不取：C 的破坏性、B 的窗口边缘限制</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">对你来说，"不像贴图"最接近哪种感觉？</h3>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>A — 像真的小动物在桌面上</h3>
+      <p>会走动、跳跃、有重力感，像养了只数字宠物。改动最大，需要较多动画资源</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>B — 像有灵魂的桌面伙伴</h3>
+      <p>不追求自由移动，但动画细腻、行为自然、反应丰富。改动适中</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>C — 混合路线</h3>
+      <p>固定位置+微动弹跳+丰富动画+自主气泡+触控反馈，轻量但生动。最小改动</p>
+    </div>
+  </div>
+</div>

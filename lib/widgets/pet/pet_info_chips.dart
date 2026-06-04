@@ -1,7 +1,8 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import '../services/pet_token_service.dart';
+import '../../services/pet/pet_token_service.dart';
 
 class PetInfoChips extends StatefulWidget {
   const PetInfoChips({super.key});
@@ -41,8 +42,14 @@ class _PetInfoChipsState extends State<PetInfoChips> {
         spacing: 6,
         runSpacing: 4,
         children: [
-          _Chip(label: '💰 $_today / ${(_budget / 1000).round()}k Token'),
-          _Chip(label: '剩余 ${(_remaining / 1000).round()}k'),
+          _Chip(label: '💰 $_today / ${(_budget / 1000).round()}k Token')
+              .animate()
+              .slideY(begin: 0.3, end: 0, delay: 600.ms, duration: 400.ms, curve: Curves.easeOut)
+              .fadeIn(delay: 600.ms, duration: 300.ms),
+          _Chip(label: '剩余 ${(_remaining / 1000).round()}k')
+              .animate()
+              .slideY(begin: 0.3, end: 0, delay: 700.ms, duration: 400.ms, curve: Curves.easeOut)
+              .fadeIn(delay: 700.ms, duration: 300.ms),
         ],
       ),
     );

@@ -1,24 +1,85 @@
+// Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
-import '../services/conversation_service.dart';
-import '../services/memory_service.dart';
+import '../services/app/conversation_service.dart';
+import '../services/app/memory_service.dart';
+import '../services/pet/pet_chat_service.dart';
 import '../utils/memory_extractor.dart';
 
 const _impLabels = ['', '临时提及', '技术约束', '已做决策', '当前任务', '核心目标'];
 const _impColors = [Colors.transparent, Color(0xFF94A3B8), Color(0xFF60A5FA), Color(0xFF34D399), Color(0xFFF59E0B), Color(0xFF7C3AED)];
 
-class MemoryScreen extends StatelessWidget {
+class MemoryScreen extends StatefulWidget {
   const MemoryScreen({super.key});
+
+  @override
+  State<MemoryScreen> createState() => _MemoryScreenState();
+}
+
+class _MemoryScreenState extends State<MemoryScreen> {
+  bool _selecting = false;
+  final _selected = <String>{};
+
+  void _exitSelecting() {
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  Future<void> _importToPet(BuildContext context) async {
+    if (_selected.isEmpty) return;
+    final svc = context.read<MemoryService>();
+    final selected = svc.memories.where((m) => _selected.contains(m.id)).toList();
+    final summaries = selected.map((m) => {
+      'summary': m.content,
+      'id': m.id,
+      'title': '主App记忆: ${m.content.length > 20 ? m.content.substring(0, 20) : m.content}',
+    }).toList();
+
+    final petSvc = PetChatService();
+    await petSvc.init();
+    final count = await petSvc.importMemories(summaries);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已导入 $count 条记忆到糯糯 🐾')),
+    );
+    _exitSelecting();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('任务上下文'), actions: [
-        IconButton(icon: const Icon(Icons.auto_awesome_outlined, size: 18), tooltip: '从当前对话提取任务上下文', onPressed: () => _extractFromChat(context)),
-        const SizedBox(width: C.s4),
-        IconButton(icon: const Icon(Icons.add, size: 20), onPressed: () => _edit(context, null)),
-      ]),
+      appBar: AppBar(
+        title: Hero(tag: 'hero_title_任务上下文', child: Text(_selecting ? '已选 ${_selected.length} 条' : '任务上下文')),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+            tooltip: '从当前对话提取任务上下文',
+            onPressed: () => _extractFromChat(context),
+          ),
+          const SizedBox(width: C.s4),
+          if (!_selecting)
+            IconButton(
+              icon: const Text('🐾', style: TextStyle(fontSize: 18)),
+              tooltip: '导入记忆到糯糯',
+              onPressed: () => setState(() => _selecting = true),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: _exitSelecting,
+            ),
+          const SizedBox(width: C.s4),
+          if (!_selecting)
+            IconButton(
+              icon: const Icon(Icons.add, size: 20),
+              onPressed: () => _edit(context, null),
+            ),
+        ],
+      ),
       body: Consumer<MemoryService>(
         builder: (context, svc, _) {
           if (svc.memories.isEmpty) {
@@ -50,42 +111,66 @@ class MemoryScreen extends StatelessWidget {
             ),
             Expanded(
               child: ListView.builder(
+                physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: C.s16),
                 itemCount: svc.memories.length,
                 itemBuilder: (_, i) {
                   final m = svc.memories[i];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: C.s8),
-                    padding: const EdgeInsets.all(C.s12),
-                    decoration: BoxDecoration(
-                      color: C.scheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(C.r8),
-                      border: Border(left: BorderSide(color: _impColors[m.importance], width: 3)),
-                    ),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: C.s8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _impColors[m.importance].withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(C.r6),
+                  final isSelected = _selected.contains(m.id);
+                  return GestureDetector(
+                    onTap: _selecting ? () {
+                      setState(() {
+                        isSelected ? _selected.remove(m.id) : _selected.add(m.id);
+                      });
+                    } : null,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: C.s8),
+                      padding: const EdgeInsets.all(C.s12),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? C.scheme.primaryContainer.withValues(alpha: 0.3)
+                            : C.scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(C.r8),
+                        border: Border(
+                          left: BorderSide(color: _impColors[m.importance], width: 3),
+                        ),
+                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          if (_selecting)
+                            Padding(
+                              padding: const EdgeInsets.only(right: C.s8),
+                              child: Icon(
+                                isSelected ? Icons.check_circle : Icons.circle_outlined,
+                                size: 20,
+                                color: isSelected ? C.scheme.primary : const Color(0xFF5B5B65),
+                              ),
+                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: C.s8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _impColors[m.importance].withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(C.r6),
+                            ),
+                            child: Text(_impLabels[m.importance],
+                              style: TextStyle(fontSize: 11, color: _impColors[m.importance])),
                           ),
-                          child: Text(_impLabels[m.importance],
-                            style: TextStyle(fontSize: 11, color: _impColors[m.importance])),
-                        ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => _edit(context, m),
-                          child: const Padding(padding: EdgeInsets.all(C.s8), child: Icon(Icons.edit, size: 15, color: Color(0xFF5B5B65))),
-                        ),
-                        GestureDetector(
-                          onTap: () => svc.delete(m.id),
-                          child: const Padding(padding: EdgeInsets.all(C.s8), child: Icon(Icons.close, size: 15, color: Color(0xFF5B5B65))),
-                        ),
+                          const Spacer(),
+                          if (!_selecting) ...[
+                            GestureDetector(
+                              onTap: () => _edit(context, m),
+                              child: const Padding(padding: EdgeInsets.all(C.s8), child: Icon(Icons.edit, size: 15, color: Color(0xFF5B5B65))),
+                            ),
+                            GestureDetector(
+                              onTap: () => svc.delete(m.id),
+                              child: const Padding(padding: EdgeInsets.all(C.s8), child: Icon(Icons.close, size: 15, color: Color(0xFF5B5B65))),
+                            ),
+                          ],
+                        ]),
+                        const SizedBox(height: C.s8),
+                        Text(m.content, style: C.body),
                       ]),
-                      const SizedBox(height: C.s8),
-                      Text(m.content, style: C.body),
-                    ]),
+                    ),
                   );
                 },
               ),
@@ -93,6 +178,22 @@ class MemoryScreen extends StatelessWidget {
           ]);
         },
       ),
+      bottomNavigationBar: _selecting
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton.icon(
+                    onPressed: _selected.isEmpty ? null : () => _importToPet(context),
+                    icon: const Text('🐾', style: TextStyle(fontSize: 16)),
+                    label: Text(_selected.isEmpty ? '请选择要导入的记忆' : '导入 ${_selected.length} 条到糯糯'),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 
@@ -137,11 +238,13 @@ class MemoryScreen extends StatelessWidget {
             const SizedBox(height: C.s12),
             Text('重要度', style: C.label),
             const SizedBox(height: C.s8),
-            ...List.generate(5, (i) {
+            RadioGroup<int>(
+              groupValue: imp,
+              onChanged: (v) => setSt(() => imp = v!),
+              child: Column(children: List.generate(5, (i) {
               final lvl = i + 1;
               return RadioListTile<int>(
-                value: lvl, groupValue: imp,
-                onChanged: (v) => setSt(() => imp = v!),
+                value: lvl,
                 title: Row(children: [
                   Text('$lvl', style: C.title),
                   const SizedBox(width: C.s8),
@@ -154,7 +257,8 @@ class MemoryScreen extends StatelessWidget {
                 ]),
                 dense: true, contentPadding: EdgeInsets.zero,
               );
-            }),
+            })),
+            ),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(c), child: const Text('取消')),
@@ -180,13 +284,13 @@ class MemoryScreen extends StatelessWidget {
 
     try {
       final added = await extractMemories(ctx);
+      if (!ctx.mounted) return;
       Navigator.pop(ctx);
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(added > 0 ? '已提取 $added 条上下文' : 'AI 未能提取到有效信息')));
-      }
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(added > 0 ? '已提取 $added 条上下文' : 'AI 未能提取到有效信息')));
     } catch (e) {
+      if (!ctx.mounted) return;
       Navigator.pop(ctx);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('提取失败: $e')));
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('提取失败: $e')));
     }
   }
 

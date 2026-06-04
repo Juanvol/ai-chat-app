@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/model_config.dart';
-import '../services/token_stats_service.dart';
+import '../services/app/token_stats_service.dart';
 
 class TokenStatsScreen extends StatelessWidget {
   const TokenStatsScreen({super.key});

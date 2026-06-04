@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/model_config.dart';
 import '../main.dart' show themeModeNotifier;
-import '../services/conversation_service.dart';
+import '../services/app/conversation_service.dart';
+import '../utils/page_routes.dart';
 import 'token_stats_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -78,10 +79,10 @@ class _SSState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('设置'), actions: [
+      appBar: AppBar(title: const Hero(tag: 'hero_title_设置', child: Text('设置')), actions: [
         TextButton(onPressed: _save, child: const Text('保存')),
       ]),
-      body: ListView(padding: const EdgeInsets.symmetric(horizontal: C.s16, vertical: C.s12), children: [
+      body: ListView(padding: const EdgeInsets.symmetric(horizontal: C.s16, vertical: C.s12), physics: const BouncingScrollPhysics(), children: [
         // === 密钥 ===
         _section('API 密钥'),
         const SizedBox(height: C.s8),
@@ -136,7 +137,7 @@ class _SSState extends State<SettingsScreen> {
           onChanged: (v) => setState(() => _thinkingEnabled = v),
           title: Text(_thinkingEnabled ? '已开启' : '已关闭', style: C.body),
           dense: true, contentPadding: EdgeInsets.zero,
-          activeColor: const Color(0xFFA78BFA),
+          activeThumbColor: const Color(0xFFA78BFA),
         ),
 
         if (_thinkingEnabled) ...[
@@ -157,7 +158,7 @@ class _SSState extends State<SettingsScreen> {
               style: const TextStyle(fontSize: 12)),
             selected: _reasoningEffort == e,
             onSelected: (_) => setState(() => _reasoningEffort = e),
-            selectedColor: C.scheme.primary.withOpacity(0.2),
+            selectedColor: C.scheme.primary.withValues(alpha: 0.2),
           )).toList()),
           const SizedBox(height: C.s8),
           Container(
@@ -204,7 +205,7 @@ class _SSState extends State<SettingsScreen> {
           label: Text(v >= 1024 ? '${(v / 1024).toStringAsFixed(v == 512 ? 1 : 0)}K' : '$v', style: const TextStyle(fontSize: 12)),
           selected: _maxTokens == v,
           onSelected: (_) => setState(() { _maxTokens = v; }),
-          selectedColor: C.scheme.primary.withOpacity(0.2),
+          selectedColor: C.scheme.primary.withValues(alpha: 0.2),
         )).toList()),
         const SizedBox(height: C.s8),
         Row(children: [
@@ -216,7 +217,7 @@ class _SSState extends State<SettingsScreen> {
           )),
           const Text('32K', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 11)),
         ]),
-        Center(child: Text('${_maxTokens} tokens ≈ ${(_maxTokens / 2).round()} 中文字', style: C.caption)),
+        Center(child: Text('$_maxTokens tokens ≈ ${(_maxTokens / 2).round()} 中文字', style: C.caption)),
         const SizedBox(height: C.s8),
         Container(
           padding: const EdgeInsets.all(10),
@@ -258,23 +259,24 @@ class _SSState extends State<SettingsScreen> {
         const SizedBox(height: C.s8),
         ValueListenableBuilder<ThemeMode>(
           valueListenable: themeModeNotifier,
-          builder: (_, mode, __) => Column(children: [
+          builder: (_, mode, __) => RadioGroup<ThemeMode>(
+            groupValue: mode,
+            onChanged: (v) => _setTheme(v!),
+            child: const Column(children: [
             RadioListTile<ThemeMode>(
-              value: ThemeMode.light, groupValue: mode,
-              onChanged: (v) => _setTheme(v!), title: const Text('浅色', style: TextStyle(fontSize: 15)),
+              value: ThemeMode.light, title: Text('浅色', style: TextStyle(fontSize: 15)),
               dense: true, contentPadding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
             ),
             RadioListTile<ThemeMode>(
-              value: ThemeMode.dark, groupValue: mode,
-              onChanged: (v) => _setTheme(v!), title: const Text('深色', style: TextStyle(fontSize: 15)),
+              value: ThemeMode.dark, title: Text('深色', style: TextStyle(fontSize: 15)),
               dense: true, contentPadding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
             ),
             RadioListTile<ThemeMode>(
-              value: ThemeMode.system, groupValue: mode,
-              onChanged: (v) => _setTheme(v!), title: const Text('跟随系统', style: TextStyle(fontSize: 15)),
+              value: ThemeMode.system, title: Text('跟随系统', style: TextStyle(fontSize: 15)),
               dense: true, contentPadding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
             ),
           ]),
+          ),
         ),
 
         const SizedBox(height: C.s32),
@@ -286,9 +288,7 @@ class _SSState extends State<SettingsScreen> {
           subtitle: const Text('查看 API 调用次数、Token 消耗与费用', style: TextStyle(fontSize: 13)),
           trailing: const Icon(Icons.chevron_right, size: 20),
           contentPadding: EdgeInsets.zero,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TokenStatsScreen()),
-          ),
+          onTap: () => pushElastic(context, const TokenStatsScreen()),
         ),
 
         const SizedBox(height: C.s32),
@@ -313,7 +313,7 @@ class _SSState extends State<SettingsScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: C.s4),
           decoration: BoxDecoration(
-            border: Border.all(color: isSelectedProvider ? const Color(0xFFA78BFA).withOpacity(0.5) : const Color(0xFFE5E5E5)),
+            border: Border.all(color: isSelectedProvider ? const Color(0xFFA78BFA).withValues(alpha: 0.5) : const Color(0xFFE5E5E5)),
             borderRadius: BorderRadius.circular(C.r8),
           ),
           child: Column(
@@ -347,11 +347,12 @@ class _SSState extends State<SettingsScreen> {
               if (isExpanded)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                  child: Column(
+                  child: RadioGroup<String>(
+                    groupValue: _model,
+                    onChanged: (v) => setState(() => _model = v!),
+                    child: Column(
                     children: models.map((m) => RadioListTile<String>(
                       value: m.id,
-                      groupValue: _model,
-                      onChanged: (v) => setState(() => _model = v!),
                       title: Row(children: [
                         Expanded(child: Text(m.name, style: C.body.copyWith(fontSize: 15))),
                         Text(
@@ -364,6 +365,7 @@ class _SSState extends State<SettingsScreen> {
                       visualDensity: VisualDensity.compact,
                       contentPadding: const EdgeInsets.only(left: 4),
                     )).toList(),
+                  ),
                   ),
                 ),
             ],

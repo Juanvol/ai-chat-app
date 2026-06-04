@@ -1,0 +1,83 @@
+<h2>方案 B 详细设计 — 可折叠宠物顶栏</h2>
+<p class="subtitle">展开时看完整猫卡片和互动按钮，上滑后收起为一行状态条</p>
+
+<div class="section">
+  <h3>展开态（刚进入宠物中心，或下滑到底）</h3>
+  <div class="mockup">
+    <div class="mockup-header">头部 ~210dp</div>
+    <div class="mockup-body" style="background:#121212;color:#eee;padding:8px;font-size:10px;display:flex;flex-direction:column;gap:4px;max-height:320px;overflow:hidden;">
+      <div style="background:#1e1e2e;padding:8px 14px;font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;">
+        <span>←</span><span>🐾 宠物中心</span>
+      </div>
+      <div style="text-align:center;padding:16px 12px 8px;">
+        <span style="font-size:56px;">🐱</span>
+        <div style="margin-top:4px;"><b style="font-size:16px;">弗糯糯</b> <span style="font-size:10px;background:#7c3aed;color:#fff;padding:1px 6px;border-radius:4px;">Lv.2</span></div>
+        <div style="color:#999;font-size:11px;margin-top:2px;">初识 · 😊 心情60</div>
+        <div style="display:flex;justify-content:center;gap:14px;margin-top:6px;font-size:12px;">
+          <span>🍖 <b style="color:#4ecca3">80</b></span>
+          <span>😊 <b style="color:#e94560">60</b></span>
+          <span>⚡ <b style="color:#ffc107">75</b></span>
+          <span>❤️ <b style="color:#ff6b9d">50</b></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;padding:0 4px;">
+        <span style="flex:1;text-align:center;background:#1e1e2e;border-radius:8px;padding:8px 0;font-size:11px;"><span style="font-size:18px;">🍖</span><br>喂食</span>
+        <span style="flex:1;text-align:center;background:#1e1e2e;border-radius:8px;padding:8px 0;font-size:11px;"><span style="font-size:18px;">🎾</span><br>玩耍</span>
+        <span style="flex:1;text-align:center;background:#1e1e2e;border-radius:8px;padding:8px 0;font-size:11px;"><span style="font-size:18px;">💤</span><br>哄睡</span>
+        <span style="flex:1;text-align:center;background:#1e1e2e;border-radius:8px;padding:8px 0;font-size:11px;"><span style="font-size:18px;">✋</span><br>摸摸</span>
+      </div>
+      <div style="display:flex;background:#1e1e2e;border-radius:6px;overflow:hidden;font-size:11px;">
+        <div style="flex:1;text-align:center;padding:10px 0;color:#a78bfa;border-bottom:2px solid #a78bfa;">💬 聊天</div>
+        <div style="flex:1;text-align:center;padding:10px 0;color:#888;">🧠 记忆</div>
+        <div style="flex:1;text-align:center;padding:10px 0;color:#888;">📖 日记</div>
+        <div style="flex:1;text-align:center;padding:10px 0;color:#888;">⚙️ 设置</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>收起态（上滑后）</h3>
+  <div class="mockup">
+    <div class="mockup-header">头部 ~100dp（仅 AppBar + TabBar）</div>
+    <div class="mockup-body" style="background:#121212;color:#eee;padding:8px;font-size:10px;display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:hidden;">
+      <div style="background:#1e1e2e;padding:8px 14px;font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;">
+        <span>←</span><span style="font-size:18px;">🐱</span><span>糯糯</span>
+        <span style="font-size:10px;margin-left:auto;">🍖<b style="color:#4ecca3">80</b></span>
+        <span style="font-size:10px;">😊<b style="color:#e94560">60</b></span>
+        <span style="font-size:10px;">⚡<b style="color:#ffc107">75</b></span>
+        <span style="font-size:10px;">❤️<b style="color:#ff6b9d">50</b></span>
+      </div>
+      <div style="display:flex;background:#1e1e2e;border-radius:6px;overflow:hidden;font-size:11px;">
+        <div style="flex:1;text-align:center;padding:10px 0;color:#a78bfa;border-bottom:2px solid #a78bfa;">💬 聊天</div>
+        <div style="flex:1;text-align:center;padding:10px 0;color:#888;">🧠 记忆</div>
+        <div style="flex:1;text-align:center;padding:10px 0;color:#888;">📖 日记</div>
+        <div style="flex:1;text-align:center;padding:10px 0;color:#888;">⚙️ 设置</div>
+      </div>
+      <div style="flex:1;background:#1a1a2e;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#4ecca3;min-height:40px;">Tab 内容 ~580dp</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>实现要点</h3>
+  <table style="width:100%;border-collapse:collapse;">
+    <tr style="border-bottom:1px solid #333"><td style="padding:6px 12px;width:120px;">组件</td><td style="padding:6px 0;">NestedScrollView + SliverAppBar</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:6px 12px;">展开高度</td><td style="padding:6px 0;">约 210dp（猫56px + 名字 + 状态 + 4按钮 + TabBar）</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:6px 12px;">收起高度</td><td style="padding:6px 0;">约 100dp（AppBar一行 + TabBar）</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:6px 12px;">猫 emoji 安全</td><td style="padding:6px 0;">兜底：🖼️ Image.asset 或 Icon(Icons.pets) 当 emoji 渲染失败时</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:6px 12px;">Tab Bar</td><td style="padding:6px 0;">始终 pinned 在底部（SliverPersistentHeader）</td></tr>
+    <tr style="border-bottom:1px solid #333"><td style="padding:6px 12px;">互动按钮</td><td style="padding:6px 0;">放在 FlexibleSpaceBar 内，随滚动收起</td></tr>
+    <tr><td style="padding:6px 12px;">滚动同步</td><td style="padding:6px 0;">TabBarView 内各列表独立滚动，收起/展开由各自列表驱动</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>交互细节</h3>
+  <ul style="line-height:1.8;">
+    <li>进入宠物中心 → 展开态，看完整猫卡片</li>
+    <li>下滑 Tab 内容 → 猫卡片逐渐收起，AppBar 从"🐾 宠物中心"变成"🐱糯糯 🍖80 😊60 ⚡75 ❤️50"</li>
+    <li>上滑到顶 → 卡片重新展开，看到 4 个互动按钮</li>
+    <li>切 Tab → 保持当前展开/收起状态</li>
+  </ul>
+</div>

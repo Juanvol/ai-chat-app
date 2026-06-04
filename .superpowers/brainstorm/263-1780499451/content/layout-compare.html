@@ -1,0 +1,118 @@
+<h2>宠物中心布局 — 改前 vs 改后</h2>
+<p class="subtitle">参考主流宠物 App（会说话的汤姆猫、旅行青蛙），宠物居中C位，状态一行，头部从 410dp 压缩到 210dp</p>
+
+<div class="split">
+
+<!-- BEFORE -->
+<div class="mockup">
+  <div class="mockup-header">改前 · 头部 410dp · Tab 仅剩 250dp</div>
+  <div class="mockup-body" style="background:#121212;color:#eee;padding:8px;font-size:10px;line-height:1.4;display:flex;flex-direction:column;gap:4px;max-height:540px;overflow:hidden;">
+    <div style="background:#1e1e2e;padding:6px 10px;font-weight:600;font-size:11px;">🐾 宠物中心</div>
+    <!-- HeroCard -->
+    <div style="background:#1e1e2e;border-radius:10px;padding:10px;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:36px;">🐱</span>
+      <div style="flex:1">
+        <div><b>弗糯糯</b> <span style="font-size:8px;background:#7c3aed;color:#fff;padding:1px 5px;border-radius:4px;">Lv.1</span></div>
+        <div style="color:#999;font-size:9px;">初识 · 😊 心情60 · 陪伴第1天</div>
+      </div>
+    </div>
+    <!-- StatusBars R1 -->
+    <div style="display:flex;gap:4px;">
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>🍖 饥饿</span><span style="color:#4ecca3">80</span></div>
+        <div style="height:5px;background:#333;border-radius:2px;margin-top:3px;"><div style="height:5px;background:#4ecca3;border-radius:2px;width:80%;"></div></div>
+      </div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>😊 心情</span><span style="color:#e94560">60</span></div>
+        <div style="height:5px;background:#333;border-radius:2px;margin-top:3px;"><div style="height:5px;background:#e94560;border-radius:2px;width:60%;"></div></div>
+      </div>
+    </div>
+    <!-- StatusBars R2 -->
+    <div style="display:flex;gap:4px;">
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>⚡ 体力</span><span style="color:#ffc107">75</span></div>
+        <div style="height:5px;background:#333;border-radius:2px;margin-top:3px;"><div style="height:5px;background:#ffc107;border-radius:2px;width:75%;"></div></div>
+      </div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>❤️ 好感</span><span style="color:#ff6b9d">50</span></div>
+        <div style="height:5px;background:#333;border-radius:2px;margin-top:3px;"><div style="height:5px;background:#ff6b9d;border-radius:2px;width:50%;"></div></div>
+      </div>
+    </div>
+    <!-- ActionBar -->
+    <div style="display:flex;gap:4px;">
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:16px;">🍖</div>喂食</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:16px;">🎾</div>玩耍</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:16px;">💤</div>哄睡</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:16px;">💬</div>聊天</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:16px;">✋</div>摸摸</div>
+    </div>
+    <!-- InfoChips -->
+    <div style="display:flex;gap:4px;font-size:9px;color:#999;">
+      <span style="background:#1e1e2e;padding:2px 6px;border-radius:4px;">💰 0/50k Token</span>
+      <span style="background:#1e1e2e;padding:2px 6px;border-radius:4px;">剩余 50k</span>
+    </div>
+    <!-- TabBar -->
+    <div style="display:flex;background:#1e1e2e;border-radius:6px;overflow:hidden;font-size:10px;">
+      <div style="flex:1;text-align:center;padding:8px 0;color:#a78bfa;border-bottom:2px solid #a78bfa;">💬聊天</div>
+      <div style="flex:1;text-align:center;padding:8px 0;color:#888;">🧠记忆</div>
+      <div style="flex:1;text-align:center;padding:8px 0;color:#888;">📖日记</div>
+      <div style="flex:1;text-align:center;padding:8px 0;color:#888;">⚙️设置</div>
+    </div>
+    <!-- Content -->
+    <div style="flex:1;background:#1a1a2e;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#e94560;font-size:10px;min-height:60px;">
+      键盘弹出后对话完全看不见
+    </div>
+  </div>
+</div>
+
+<!-- AFTER -->
+<div class="mockup">
+  <div class="mockup-header">改后 · 头部 210dp · Tab 剩 480dp</div>
+  <div class="mockup-body" style="background:#121212;color:#eee;padding:8px;font-size:10px;line-height:1.4;display:flex;flex-direction:column;gap:4px;max-height:540px;overflow:hidden;">
+    <div style="background:#1e1e2e;padding:6px 10px;font-weight:600;font-size:11px;">🐾 宠物中心</div>
+    <!-- HeroCard: cat centered -->
+    <div style="background:#1e1e2e;border-radius:10px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <span style="font-size:52px;">🐱</span>
+      <div><b>弗糯糯</b> <span style="font-size:8px;background:#7c3aed;color:#fff;padding:1px 5px;border-radius:4px;">Lv.1</span></div>
+      <div style="color:#999;font-size:9px;">初识 · 陪伴第1天</div>
+      <div style="display:flex;gap:10px;margin-top:4px;font-size:11px;">
+        <span>🍖<b style="color:#4ecca3">80</b></span>
+        <span>😊<b style="color:#e94560">60</b></span>
+        <span>⚡<b style="color:#ffc107">75</b></span>
+        <span>❤️<b style="color:#ff6b9d">50</b></span>
+      </div>
+    </div>
+    <!-- ActionBar: 4 btns -->
+    <div style="display:flex;gap:4px;">
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:18px;">🍖</div>喂食</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:18px;">🎾</div>玩耍</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:18px;">💤</div>哄睡</div>
+      <div style="flex:1;background:#1e1e2e;border-radius:8px;padding:6px 0;text-align:center;font-size:9px;"><div style="font-size:18px;">✋</div>摸摸</div>
+    </div>
+    <!-- TabBar -->
+    <div style="display:flex;background:#1e1e2e;border-radius:6px;overflow:hidden;font-size:10px;">
+      <div style="flex:1;text-align:center;padding:8px 0;color:#a78bfa;border-bottom:2px solid #a78bfa;">💬聊天</div>
+      <div style="flex:1;text-align:center;padding:8px 0;color:#888;">🧠记忆</div>
+      <div style="flex:1;text-align:center;padding:8px 0;color:#888;">📖日记</div>
+      <div style="flex:1;text-align:center;padding:8px 0;color:#888;">⚙️设置</div>
+    </div>
+    <!-- Content -->
+    <div style="flex:1;background:#1a1a2e;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#4ecca3;font-size:10px;min-height:130px;">
+      键盘弹出仍可见对话上下文
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="section">
+  <h3>改动清单</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr style="border-bottom:1px solid #333;"><td style="padding:6px 0;">🐱 角色</td><td>48px 左对齐 → <b>52px 居中</b></td></tr>
+    <tr style="border-bottom:1px solid #333;"><td style="padding:6px 0;">状态条</td><td>4 张独立卡片 2 行 → <b>一行迷你数字</b></td></tr>
+    <tr style="border-bottom:1px solid #333;"><td style="padding:6px 0;">💬 聊天按钮</td><td>有 → <b>去掉（Tab 已有）</b></td></tr>
+    <tr style="border-bottom:1px solid #333;"><td style="padding:6px 0;">Token Chips</td><td>有 → <b>去掉（设置页已有）</b></td></tr>
+    <tr style="border-bottom:1px solid #333;"><td style="padding:6px 0;">头部总高</td><td style="color:#e94560;">410dp</td></tr>
+    <tr><td style="padding:6px 0;">Tab 可用空间</td><td style="color:#4ecca3;">480dp (+90%)</td></tr>
+  </table>
+</div>

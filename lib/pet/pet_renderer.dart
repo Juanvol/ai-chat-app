@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
-import 'pet_state.dart';
+import '../models/pet_state.dart';
 
 class PetRenderer extends StatefulWidget {
   final PetStatus status;
@@ -101,7 +101,7 @@ class _PetRendererState extends State<PetRenderer>
             ? 0
             : (_ac.value * _frames.length).floor().clamp(0, _frames.length - 1);
         return Image.asset(
-          '${_skinBase}/${_resolveDir(widget.status)}/frame_${idx.toString().padLeft(2, '0')}.png',
+          '$_skinBase/${_resolveDir(widget.status)}/frame_${idx.toString().padLeft(2, '0')}.png',
           width: widget.size,
           height: widget.size,
           fit: BoxFit.contain,

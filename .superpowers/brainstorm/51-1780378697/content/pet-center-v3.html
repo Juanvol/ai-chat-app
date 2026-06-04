@@ -1,0 +1,206 @@
+<style>
+  .hero-pet { text-align:center;padding:24px 16px 16px;background:linear-gradient(180deg,#1a1a2e,#0d1117);border-radius:14px;border:1px solid #30363d;margin-bottom:14px }
+  .pet-avatar { font-size:64px;margin-bottom:8px;animation:float 3s ease-in-out infinite }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .pet-name-row { display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px }
+  .level-chip { background:#a371f7;color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600 }
+  .mood-tag { font-size:12px;color:#8b949e;margin-bottom:12px }
+  .action-grid { display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;max-width:480px;margin:0 auto }
+  .action-btn { background:#16213e;border:1px solid #2a2a4a;border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;transition:all .15s }
+  .action-btn:hover { background:#1a2745;border-color:#4ecca3;transform:translateY(-2px) }
+  .action-btn .icon { font-size:28px;display:block;margin-bottom:4px }
+  .action-btn .label { font-size:11px;color:#c9d1d9 }
+  .action-btn .hint { font-size:10px;color:#8b949e;margin-top:2px }
+  .stats-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 }
+  .stat-card { background:#16213e;border-radius:10px;padding:12px 14px;border:1px solid #2a2a4a }
+  .stat-card .header { display:flex;justify-content:space-between;align-items:center;margin-bottom:6px }
+  .stat-card .emoji { font-size:18px }
+  .stat-card .value { font-size:13px;font-weight:600;color:#c9d1d9 }
+  .stat-card .bar { background:#0d1117;height:6px;border-radius:3px;overflow:hidden }
+  .stat-card .fill { height:100%;border-radius:3px;transition:width 0.5s }
+  .tab-row { display:flex;background:#0d1117;border-radius:10px;padding:4px;gap:2px;margin:14px 0 }
+  .tab-item { flex:1;text-align:center;padding:10px 6px;border-radius:8px;font-size:12px;cursor:pointer;transition:background .15s;color:#8b949e }
+  .tab-item.active { background:#16213e;color:#fff;font-weight:600 }
+  .section-title { font-size:13px;font-weight:600;color:#c9d1d9;margin:16px 0 8px;display:flex;align-items:center;gap:6px }
+  .info-chip { display:inline-flex;align-items:center;gap:4px;background:#16213e;border-radius:8px;padding:6px 12px;font-size:11px;margin:4px }
+  .info-chip .val { font-weight:600;color:#a371f7 }
+</style>
+
+<h2>弗糯糯宠物中心 — 用户友好设计</h2>
+<p class="subtitle">更大操作空间 · 一键照顾 · 实时反馈 · 所有宠物功能触手可及</p>
+
+<!-- ═══════════════ 宠物卡片 ═══════════════ -->
+<div class="hero-pet">
+  <div class="pet-avatar">🐱</div>
+  <div class="pet-name-row">
+    <span style="font-size:18px;font-weight:700">弗糯糯</span>
+    <span class="level-chip">Lv.3 · 默契</span>
+  </div>
+  <div class="mood-tag">今天心情还不错喵~ 陪你第 45 天</div>
+
+  <div class="action-grid">
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="feed">
+      <span class="icon">🍖</span>
+      <span class="label">喂食</span>
+      <span class="hint">好感 +10</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="play">
+      <span class="icon">🎾</span>
+      <span class="label">玩耍</span>
+      <span class="hint">好感 +20</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="sleep">
+      <span class="icon">💤</span>
+      <span class="label">哄睡</span>
+      <span class="hint">恢复体力</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="chat">
+      <span class="icon">💬</span>
+      <span class="label">聊天</span>
+      <span class="hint">好感 +5</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="pet">
+      <span class="icon">✋</span>
+      <span class="label">摸摸</span>
+      <span class="hint">心情 +10</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="rename">
+      <span class="icon">✏️</span>
+      <span class="label">改名</span>
+      <span class="hint">自定义</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="dress">
+      <span class="icon">👗</span>
+      <span class="label">换装</span>
+      <span class="hint">即将推出</span>
+    </div>
+    <div class="action-btn" onclick="toggleSelect(this)" data-choice="share">
+      <span class="icon">📤</span>
+      <span class="label">分享</span>
+      <span class="hint">日记/状态</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 状态面板 ═══════════════ -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="header">
+      <span class="emoji">🍖</span>
+      <span class="value">85/100</span>
+      <span style="font-size:10px;color:#8b949e">饥饿度</span>
+    </div>
+    <div class="bar"><div class="fill" style="width:85%;background:linear-gradient(90deg,#4ecca3,#7eecc3)"></div></div>
+    <div style="font-size:10px;color:#8b949e;margin-top:4px">每分钟 -1 · &lt;30 自动提醒</div>
+  </div>
+  <div class="stat-card">
+    <div class="header">
+      <span class="emoji">😊</span>
+      <span class="value">60/100</span>
+      <span style="font-size:10px;color:#8b949e">心情</span>
+    </div>
+    <div class="bar"><div class="fill" style="width:60%;background:linear-gradient(90deg,#e94560,#f07080)"></div></div>
+    <div style="font-size:10px;color:#8b949e;margin-top:4px">每分钟 -0.5 · 互动可提升</div>
+  </div>
+  <div class="stat-card">
+    <div class="header">
+      <span class="emoji">⚡</span>
+      <span class="value">72/100</span>
+      <span style="font-size:10px;color:#8b949e">体力</span>
+    </div>
+    <div class="bar"><div class="fill" style="width:72%;background:linear-gradient(90deg,#ffc107,#ffd54f)"></div></div>
+    <div style="font-size:10px;color:#8b949e;margin-top:4px">每分钟 -1 · 睡觉恢复</div>
+  </div>
+  <div class="stat-card">
+    <div class="header">
+      <span class="emoji">❤️</span>
+      <span class="value">450/999</span>
+      <span style="font-size:10px;color:#8b949e">好感度</span>
+    </div>
+    <div class="bar"><div class="fill" style="width:45%;background:linear-gradient(90deg,#ff6b9d,#ff8fb3)"></div></div>
+    <div style="font-size:10px;color:#8b949e;margin-top:4px">解锁新阶段还需 150</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 快捷信息 ═══════════════ -->
+<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+  <div class="info-chip">💰 Token <span class="val">1,234/50,000</span></div>
+  <div class="info-chip">📅 陪伴 <span class="val">45 天</span></div>
+  <div class="info-chip">💬 聊天 <span class="val">128 次</span></div>
+  <div class="info-chip">🦴 喂食 <span class="val">89 次</span></div>
+  <div class="info-chip">📖 日记 <span class="val">32 篇</span></div>
+</div>
+
+<!-- ═══════════════ 功能标签 ═══════════════ -->
+<div class="tab-row">
+  <div class="tab-item active">💬 聊天</div>
+  <div class="tab-item" style="color:#8b949e">🧠 记忆</div>
+  <div class="tab-item" style="color:#8b949e">📖 日记</div>
+  <div class="tab-item" style="color:#8b949e">⚙️ 设置</div>
+</div>
+
+<!-- ═══════════════ 对比 ═══════════════ -->
+<h3 style="margin-top:20px">改动对比</h3>
+<div class="split">
+  <div class="mockup" style="background:#0d1117">
+    <div class="mockup-header" style="color:#e94560">当前问题</div>
+    <div class="mockup-body" style="font-size:12px;color:#8b949e;line-height:1.8">
+      ❌ 无操作按钮 — 只能看不能动<br>
+      ❌ 数据不实时 — Hive 直读不刷新<br>
+      ❌ 4 个状态用文字 — 不可视化<br>
+      ❌ 无互动反馈 — 点完没反应<br>
+      ❌ TokenDashboard 独立读 Hive<br>
+      ❌ AppBar 只有标题 — 浪费空间<br>
+      ❌ 标签栏拥挤 — 4 个挤一行<br>
+    </div>
+  </div>
+  <div class="mockup" style="background:#0d1117">
+    <div class="mockup-header" style="color:#4ecca3">优化方案</div>
+    <div class="mockup-body" style="font-size:12px;color:#8b949e;line-height:1.8">
+      ✅ 8 个快捷操作按钮 — 喂食/玩耍/哄睡/聊天/摸摸/改名<br>
+      ✅ Consumer 实时监听 — 状态变化自动刷新<br>
+      ✅ 4 条渐变色进度条 — 一眼看懂<br>
+      ✅ 操作后即时反馈 — Emoji 变化 + 进度条动画<br>
+      ✅ Token 信息精简为 chip — 不占主空间<br>
+      ✅ 宠物卡片占视觉焦点 — 头像 + 等级 + 陪伴天数<br>
+      ✅ 大号标签栏 — 每组 4 个图标+文字<br>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 文件改动 ═══════════════ -->
+<h3 style="margin-top:20px">实施清单</h3>
+<div class="grid-2">
+  <div class="file-card">
+    <span class="file-tag tag-new">新建</span>
+    <h3 style="margin-top:6px">pet_hero_card.dart</h3>
+    <p style="font-size:12px;color:#8b949e">宠物头像 + 名字 + 等级 + 心情 · AppBar 区域</p>
+  </div>
+  <div class="file-card">
+    <span class="file-tag tag-new">新建</span>
+    <h3 style="margin-top:6px">pet_action_bar.dart</h3>
+    <p style="font-size:12px;color:#8b949e">8 个操作按钮 · 4×2 网格 · 带好感度提示</p>
+  </div>
+  <div class="file-card">
+    <span class="file-tag tag-new">新建</span>
+    <h3 style="margin-top:6px">pet_status_bars.dart</h3>
+    <p style="font-size:12px;color:#8b949e">4 个进度条卡片 · 渐变色 · Consumer&lt;PetController&gt;</p>
+  </div>
+  <div class="file-card">
+    <span class="file-tag tag-new">新建</span>
+    <h3 style="margin-top:6px">pet_info_chips.dart</h3>
+    <p style="font-size:12px;color:#8b949e">Token/天数/统计 chip 行 · Consumer&lt;PetTokenService&gt;</p>
+  </div>
+  <div class="file-card">
+    <span class="file-tag tag-mod">修改</span>
+    <h3 style="margin-top:6px">pet_center_screen.dart</h3>
+    <p style="font-size:12px;color:#8b949e">257→~100 行 · 组装上述组件 + TabBar</p>
+  </div>
+  <div class="file-card">
+    <span class="file-tag tag-mod">修改</span>
+    <h3 style="margin-top:6px">pet_controller.dart</h3>
+    <p style="font-size:12px;color:#8b949e">+pet() +rename() 方法 · 200→~220 行</p>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:20px">满意这个设计吗？有什么要增加或删除的？</p>

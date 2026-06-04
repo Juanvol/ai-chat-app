@@ -56,32 +56,46 @@ class PetOverlayController {
 
           switch (type) {
             case 'tap':
+              // 单击 → 聊天（由 Kotlin 侧弹出 Dialog，Dart 侧记录交互）
               _rhythm.recordInteraction();
               _idleSeconds = 0;
-              final poke = _pokeTracker.recordPoke();
-              if (_controller == null) {
-                PetLogger().warn('Overlay', 'tap IGNORED: controller is null (pet not started?)');
-              } else {
-                _controller!.chat();
-                _cmd('playAnim', {'anim': 'talking'});
-                final b = _onPoke(poke);
-                _cmd('showBubble', {'text': b, 'durationMs': 3000});
-                _recordDiary('tap', detail: poke.name);
-                Future.delayed(const Duration(seconds: 3), () => _syncAnim());
+              _recordDiary('tap');
+            case 'pet':
+              // 双击 → 抚摸
+              _rhythm.recordInteraction();
+              _idleSeconds = 0;
+              if (_controller != null) {
+                _controller!.pet();  // 好感+心情
+                _cmd('playAnim', {'anim': 'jump'});
+                _showBubbleWithDismiss('好开心~ 💕');
+                _recordDiary('pet');
               }
-            case 'longPress':
+            case 'feed':
+              // 快捷菜单 → 喂食
               _rhythm.recordInteraction();
               _idleSeconds = 0;
-              if (_controller == null) {
-                PetLogger().warn('Overlay', 'longPress IGNORED: controller is null');
-              } else {
+              if (_controller != null) {
                 _controller!.feed();
-                _cmd('playAnim', {'anim': 'hungry'});
-                final eatBubbles = ['好吃好吃~ 😋', '谢谢主人！', '再来一份~', '好幸福喵~', '吃饱了！'];
-                _showBubbleWithDismiss(eatBubbles[_rng.nextInt(eatBubbles.length)]);
-                _recordDiary('longPress');
+                _cmd('playAnim', {'anim': 'talking'});
                 Future.delayed(const Duration(seconds: 2), () => _syncAnim());
+                _recordDiary('feed');
               }
+            case 'play':
+              // 快捷菜单 → 玩耍
+              _rhythm.recordInteraction();
+              _idleSeconds = 0;
+              if (_controller != null) {
+                _controller!.play();
+                _cmd('playAnim', {'anim': 'jump'});
+                Future.delayed(const Duration(seconds: 2), () => _syncAnim());
+                _recordDiary('play');
+              }
+            case 'status':
+              // 快捷菜单 → 查看状态（通过 pet_agent_bridge 通知主应用导航）
+              _navigateToPetCenter();
+            case 'diary':
+              // 快捷菜单 → 查看日记
+              _navigateToPetDiary();
             case 'screen':
               if (x == -1) {
                 _screenOn = false;
@@ -394,5 +408,17 @@ class PetOverlayController {
     } catch (e) {
       PetLogger().error('Overlay', '_recordDiary failed', e);
     }
+  }
+
+  /// 通知主应用导航到宠物中心
+  void _navigateToPetCenter() {
+    const MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+        .invokeMethod('navigate', {'screen': 'pet_center'});
+  }
+
+  /// 通知主应用导航到宠物日记
+  void _navigateToPetDiary() {
+    const MethodChannel('com.example.deepseek_chat/pet_agent_bridge')
+        .invokeMethod('navigate', {'screen': 'pet_diary'});
   }
 }

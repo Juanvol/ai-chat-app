@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:deepseek_chat/screens/home_screen.dart';
-import 'package:deepseek_chat/services/conversation_service.dart';
-import 'package:deepseek_chat/services/memory_service.dart';
-import 'package:deepseek_chat/services/persona_service.dart';
-import 'package:deepseek_chat/services/feedback_service.dart';
+import 'package:deepseek_chat/services/app/conversation_service.dart';
+import 'package:deepseek_chat/services/app/memory_service.dart';
+import 'package:deepseek_chat/services/app/persona_service.dart';
+import 'package:deepseek_chat/services/app/feedback_service.dart';
 import 'fake_storage_service.dart';
 import 'fake_llm_client.dart';
 

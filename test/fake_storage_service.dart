@@ -1,5 +1,5 @@
 // Flutter 3.24 / Dart 3.5
-import 'package:deepseek_chat/services/storage_service.dart';
+import 'package:deepseek_chat/services/app/storage_service.dart';
 import 'package:deepseek_chat/models/conversation.dart';
 import 'package:deepseek_chat/models/memory.dart';
 import 'package:deepseek_chat/models/persona.dart';

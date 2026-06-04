@@ -79,14 +79,14 @@ class BehaviorWeights {
 
     // 关注度
     switch (al) {
-      case AttentionLevel.L3: break;
-      case AttentionLevel.L2:
+      case AttentionLevel.l3: break;
+      case AttentionLevel.l2:
         wander = (wander * 0.7).round();
         speakBubble = (speakBubble * 0.5).round();
-      case AttentionLevel.L1:
+      case AttentionLevel.l1:
         wander = (wander * 0.5).round();
         speakBubble = (speakBubble * 0.3).round();
-      case AttentionLevel.L0:
+      case AttentionLevel.l0:
         idleBreath = 0; lookAround = 0; wander = 0; sitDown = 0;
         rareAction = 0; hungryBubble = 0; speakBubble = 0;
         sleep = 100;
@@ -145,8 +145,8 @@ class UserRhythm {
   int get freqPerMin => _freqPerMin;
 
   AttentionLevel suggestLevel(AttentionLevel current) {
-    if (_freqPerMin > 10) return AttentionLevel.L2;  // 用户忙 → 安静
-    if (_freqPerMin < 3 && current == AttentionLevel.L2) return AttentionLevel.L3;
+    if (_freqPerMin > 10) return AttentionLevel.l2;  // 用户忙 → 安静
+    if (_freqPerMin < 3 && current == AttentionLevel.l2) return AttentionLevel.l3;
     return current;
   }
 }

@@ -1,0 +1,71 @@
+<h2>为什么 Custom View 不会有黑屏问题</h2>
+<p class="subtitle">SurfaceView 的黑屏和 Custom View 的透明是两回事</p>
+
+<div class="split">
+  <div class="mockup" style="flex:1;border:2px solid #ef4444">
+    <div class="mockup-header" style="background:#fecaca;color:#991b1b">❌ SurfaceView 为什么黑</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>根因：独立窗口层</b><br>
+      <br>
+      ① SurfaceView 在 Window 下面<br>
+      &nbsp;&nbsp;&nbsp;挖了一个"洞"<br>
+      ② SurfaceView 自己的 Surface<br>
+      &nbsp;&nbsp;&nbsp;在洞下面渲染<br>
+      ③ 如果 z-order 不对 → <b>黑</b><br>
+      ④ 如果透明没配好 → <b>黑</b><br>
+      ⑤ 如果 WindowManager 冲突 → <b>黑</b><br>
+      <br>
+      <b>三层都容易出问题</b>
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:1;border:2px solid #22c55e">
+    <div class="mockup-header" style="background:#dcfce7;color:#166534">✅ Custom View 为什么不会</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>普通 View，只有一层</b><br>
+      <br>
+      ① WindowManager 创建透明窗口<br>
+      &nbsp;&nbsp;&nbsp;(PixelFormat.TRANSLUCENT)<br>
+      ② Custom View 作为窗口的唯一子 View<br>
+      ③ onDraw 里 drawColor(CLEAR) → 透明<br>
+      ④ 画 Bitmap → 宠物<br>
+      <br>
+      <b>没有"洞"，没有独立 Surface，没有 z-order冲突</b><br>
+      <br>
+      <b>只有一层窗口 → 要么透明、要么显示</b>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:20px">防黑三条保险</h3>
+
+<pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;line-height:1.6">
+// ① 窗口级：PixelFormat.TRANSLUCENT（现有代码已有，保留）
+val params = WindowManager.LayoutParams(
+    ...
+    PixelFormat.TRANSLUCENT   // ← 窗口本身支持透明
+)
+
+// ② View级：标记为非不透明
+class PetView(context: Context) : View(context) {
+    init {
+        setLayerType(LAYER_TYPE_HARDWARE, null)
+        setBackgroundColor(Color.TRANSPARENT)  // ← View 背景透明
+        // 不需要这个：isOpaque 默认为 false（View 默认透明）
+    }
+}
+
+// ③ Canvas级：每帧清空到透明
+override fun onDraw(canvas: Canvas) {
+    canvas.drawColor(0, PorterDuff.Mode.CLEAR)  // ← 清空为完全透明
+    // ... 画宠物 ...
+}</pre>
+
+<div style="padding:16px;background:#fef3c7;border-radius:8px;margin-top:16px;font-size:13px">
+  <b>⚠️ 唯一需要注意的：</b>如果将来给 PetView 的父容器（FrameLayout/rootView）设置了背景色，会挡住透明。<br>
+  当前代码里 rootView 是 FrameLayout，没有设置背景色 → 默认透明 → 没问题。
+</div>
+
+<h3 style="margin-top:20px">验证方法</h3>
+<p style="font-size:13px">改完后只需验证一个场景：打开宠物 → 切到桌面 → 宠物浮在桌面上，周围是桌面背景而非黑色方块。<br>
+如果看到宠物的矩形边界有黑边，检查上面三条保险的任意一条即可。</p>

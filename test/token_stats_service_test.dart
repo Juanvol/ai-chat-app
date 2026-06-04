@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import 'package:deepseek_chat/services/token_stats_service.dart';
+import 'package:deepseek_chat/services/app/token_stats_service.dart';
 import 'package:deepseek_chat/models/token_usage.dart';
 import 'fake_storage_service.dart';
 

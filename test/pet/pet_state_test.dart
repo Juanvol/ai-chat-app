@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/pet/pet_state.dart';
+import 'package:deepseek_chat/models/pet_state.dart';
 
 void main() {
   group('PetStatus', () {

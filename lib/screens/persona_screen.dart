@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/persona.dart';
-import '../services/persona_service.dart';
+import '../services/app/persona_service.dart';
 
 class PersonaScreen extends StatelessWidget {
   const PersonaScreen({super.key});
@@ -11,7 +11,7 @@ class PersonaScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('人格画廊'), actions: [
+      appBar: AppBar(title: const Hero(tag: 'hero_title_人格管理', child: Text('人格画廊')), actions: [
         PopupMenuButton<String>(
           icon: const Icon(Icons.add, size: 20),
           onSelected: (v) {
@@ -75,7 +75,7 @@ class PersonaScreen extends StatelessWidget {
                     color: C.scheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(C.r10),
                     border: Border.all(
-                      color: sel ? const Color(0xFF7C3AED) : C.scheme.outlineVariant.withOpacity(0.3),
+                      color: sel ? const Color(0xFF7C3AED) : C.scheme.outlineVariant.withValues(alpha: 0.3),
                       width: sel ? 2 : 1,
                     ),
                   ),
@@ -120,7 +120,7 @@ class PersonaScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: C.scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(C.r10),
-          border: Border.all(color: C.scheme.outlineVariant.withOpacity(0.4)),
+          border: Border.all(color: C.scheme.outlineVariant.withValues(alpha: 0.4)),
         ),
         child: Column(children: [
           Icon(icon, size: 24, color: C.scheme.primary),
@@ -261,7 +261,7 @@ class PersonaScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: C.s8),
                     decoration: BoxDecoration(
-                      color: mbti.isEmpty ? C.scheme.primary.withOpacity(0.15) : C.scheme.surfaceContainerHighest,
+                      color: mbti.isEmpty ? C.scheme.primary.withValues(alpha: 0.15) : C.scheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(C.s8),
                     ),
                     child: const Text('无', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 12)),
@@ -274,9 +274,9 @@ class PersonaScreen extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: C.s8),
                       decoration: BoxDecoration(
-                        color: sel ? C.scheme.primary.withOpacity(0.15) : C.scheme.surfaceContainerHighest,
+                        color: sel ? C.scheme.primary.withValues(alpha: 0.15) : C.scheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(C.s8),
-                        border: sel ? Border.all(color: C.scheme.primary.withOpacity(0.3)) : null,
+                        border: sel ? Border.all(color: C.scheme.primary.withValues(alpha: 0.3)) : null,
                       ),
                       child: Text(t, style: TextStyle(fontSize: 12, fontWeight: sel ? FontWeight.w600 : FontWeight.w400, color: sel ? C.scheme.primary : const Color(0xFFA1A1AA))),
                     ),
@@ -333,9 +333,9 @@ class PersonaScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: C.s8),
           decoration: BoxDecoration(
-            color: sel ? C.scheme.primary.withOpacity(0.15) : C.scheme.surfaceContainerHighest,
+            color: sel ? C.scheme.primary.withValues(alpha: 0.15) : C.scheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(C.r8),
-            border: sel ? Border.all(color: C.scheme.primary.withOpacity(0.3)) : null,
+            border: sel ? Border.all(color: C.scheme.primary.withValues(alpha: 0.3)) : null,
           ),
           child: Column(children: [
             Text(o['label']!, style: sel ? C.body.copyWith(fontWeight: FontWeight.w600) : C.body),

@@ -1,5 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../config/theme.dart';
 
 class ChatInput extends StatefulWidget {
@@ -20,7 +21,7 @@ class _ChatInputState extends State<ChatInput> {
   @override
   void initState() { super.initState(); _ctrl.addListener(() { final v = _ctrl.text.trim().isNotEmpty; if (v != _has) setState(() => _has = v); }); }
 
-  void _send() { final t = _ctrl.text.trim(); if (t.isEmpty || widget.loading) return; widget.onSend(t); _ctrl.clear(); _focus.unfocus(); }
+  void _send() { final t = _ctrl.text.trim(); if (t.isEmpty || widget.loading) return; HapticFeedback.lightImpact(); widget.onSend(t); _ctrl.clear(); _focus.unfocus(); }
 
   @override
   void dispose() { _ctrl.dispose(); _focus.dispose(); super.dispose(); }
@@ -52,9 +53,9 @@ class _ChatInputState extends State<ChatInput> {
                 controller: _ctrl, focusNode: _focus, style: C.body,
                 decoration: const InputDecoration(
                   hintText: '输入消息...',
-                  hintStyle: const TextStyle(color: Color(0xFFA0A0AB), fontSize: 15),
+                  hintStyle: TextStyle(color: Color(0xFFA0A0AB), fontSize: 15),
                   border: InputBorder.none, filled: false,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
                 textInputAction: TextInputAction.newline, maxLines: 5, minLines: 1, cursorColor: const Color(0xFF4A90D9),
               ),

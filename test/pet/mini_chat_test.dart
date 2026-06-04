@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import '../../lib/pet/mini_chat.dart';
+import 'package:deepseek_chat/pet/mini_chat.dart';
 
 void _noop() {}
 
@@ -124,8 +124,8 @@ void main() {
 
     group('上下文轮数计算', () {
       test('3 轮 = 6 条消息', () {
-        final rounds = 3;
-        final messages = 10;
+        const rounds = 3;
+        const messages = 10;
         final msgCount = (rounds * 2).clamp(0, messages);
         final start = messages - msgCount;
         expect(start, 4);
@@ -133,15 +133,15 @@ void main() {
       });
 
       test('0 轮 = 无上下文', () {
-        final rounds = 0;
-        final messages = 10;
+        const rounds = 0;
+        const messages = 10;
         final msgCount = (rounds * 2).clamp(0, messages);
         expect(msgCount, 0);
       });
 
       test('消息数不足时 clamp', () {
-        final rounds = 5;
-        final messages = 4;
+        const rounds = 5;
+        const messages = 4;
         final msgCount = (rounds * 2).clamp(0, messages);
         expect(msgCount, 4); // 取全部
       });
@@ -149,7 +149,7 @@ void main() {
 
     group('记忆摘要 JSON 解析', () {
       test('标准 JSON 数组解析', () {
-        final json = '[{"content":"主人喜欢蓝色","context":"pet_chat"},{"content":"写代码","context":"coding"}]';
+        const json = '[{"content":"主人喜欢蓝色","context":"pet_chat"},{"content":"写代码","context":"coding"}]';
         final start = json.indexOf('[');
         final end = json.lastIndexOf(']');
         final sub = json.substring(start, end + 1);
@@ -160,7 +160,7 @@ void main() {
       });
 
       test('空数组正常处理', () {
-        final json = '[]';
+        const json = '[]';
         final start = json.indexOf('[');
         final end = json.lastIndexOf(']');
         final sub = json.substring(start, end + 1);
@@ -169,7 +169,7 @@ void main() {
       });
 
       test('content 为空跳过', () {
-        final json = '[{"content":"","context":"x"},{"content":"有效","context":"y"}]';
+        const json = '[{"content":"","context":"x"},{"content":"有效","context":"y"}]';
         final list = (jsonDecode(json) as List).cast<Map<String, dynamic>>();
         final valid = list.where((m) {
           final c = m['content'] as String?;

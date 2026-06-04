@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../models/conversation.dart';
-import '../models/memory.dart';
-import '../models/persona.dart';
-import '../models/feedback_entry.dart';
-import '../models/token_usage.dart';
+import '../../models/conversation.dart';
+import '../../models/memory.dart';
+import '../../models/persona.dart';
+import '../../models/feedback_entry.dart';
+import '../../models/token_usage.dart';
 
 class StorageService {
   static const _conv = 'conversations';
@@ -40,37 +40,37 @@ class StorageService {
   }
 
   Future<Box> _openBoxSafe(String name) async {
-    Future<void> _cleanLock() async {
+    Future<void> cleanLock() async {
       if (kIsWeb) return;
       try {
         final appDir = (await getApplicationDocumentsDirectory()).path;
-        final lockFile = File('$appDir/${name}.lock');
+        final lockFile = File('$appDir/$name.lock');
         if (lockFile.existsSync()) lockFile.deleteSync();
       } catch (_) {}
     }
 
-    Future<void> _deleteBox() async {
+    Future<void> deleteBox() async {
       if (kIsWeb) return;
       try {
         final appDir = (await getApplicationDocumentsDirectory()).path;
-        final boxFile = File('$appDir/${name}.hive');
+        final boxFile = File('$appDir/$name.hive');
         if (boxFile.existsSync()) boxFile.deleteSync();
-        final lockFile = File('$appDir/${name}.lock');
+        final lockFile = File('$appDir/$name.lock');
         if (lockFile.existsSync()) lockFile.deleteSync();
       } catch (_) {}
     }
 
     // 每次尝试前都清锁文件——前一次失败的 openBox 可能留下了新锁
-    await _cleanLock();
+    await cleanLock();
     try {
       return await Hive.openBox(name);
     } catch (e) {
-      await _cleanLock();
+      await cleanLock();
       try {
         return await Hive.openBox(name);
       } catch (e2) {
         // 两次都失败 → 文件损坏，删除重建（连锁文件一起删干净）
-        await _deleteBox();
+        await deleteBox();
         return await Hive.openBox(name);
       }
     }

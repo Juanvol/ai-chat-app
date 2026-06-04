@@ -1,28 +1,29 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
 import '../models/model_config.dart';
-import '../services/conversation_service.dart';
-import '../services/memory_service.dart';
-import '../services/persona_service.dart';
-import '../services/feedback_service.dart';
+import '../services/app/conversation_service.dart';
+import '../services/app/memory_service.dart';
+import '../services/app/persona_service.dart';
+import '../services/app/feedback_service.dart';
 import '../utils/memory_extractor.dart';
 import '../utils/export.dart';
+import '../utils/page_routes.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input.dart';
 import '../widgets/home_welcome.dart';
-import '../widgets/home_message_menu.dart';
 import 'settings_screen.dart';
 import 'persona_screen.dart';
 import 'memory_screen.dart';
 import 'feedback_screen.dart';
-import 'pet_center_screen.dart';
-import '../services/pet_chat_service.dart';
-import '../services/pet_logger.dart';
+import './pet/pet_center_screen.dart';
+import '../services/pet/pet_chat_service.dart';
+import '../services/pet/pet_logger.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -60,7 +61,7 @@ class HomeScreen extends StatelessWidget {
                           Positioned(top: 0, right: 0, child: Container(width: 7, height: 7, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFEF4444)))),
                       ]),
                       tooltip: active ? 'AI 已根据你的反馈进化' : '反馈',
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedbackScreen())),
+                      onPressed: () => pushElastic(context, const FeedbackScreen()),
                     );
                   },
                 ),
@@ -69,9 +70,17 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           drawer: _Drawer(svc: svc),
-          body: svc.currentConversation == null
-              ? HomeWelcome(onTap: (q) { svc.createConversation(); WidgetsBinding.instance.addPostFrameCallback((_) => svc.sendMessage(q)); })
-              : _ChatView(conversation: svc.currentConversation!, loading: svc.isLoading,
+          body: AnimatedSwitcher(
+            duration: 300.ms,
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: svc.currentConversation == null
+                ? HomeWelcome(
+                    key: const ValueKey('welcome'),
+                    onTap: (q) { svc.createConversation(); WidgetsBinding.instance.addPostFrameCallback((_) => svc.sendMessage(q)); })
+                : _ChatView(
+                    key: ValueKey('chat_${svc.currentConversation!.id}'),
+                    conversation: svc.currentConversation!, loading: svc.isLoading,
                   onSend: (t) {
                     final memSvc = context.read<MemoryService>();
                     final perSvc = context.read<PersonaService>();
@@ -91,6 +100,7 @@ class HomeScreen extends StatelessWidget {
                     );
                   },
                 ),
+          ),
         );
       },
     );
@@ -139,6 +149,7 @@ void _showSearch(BuildContext context, ConversationService svc) {
               Expanded(
                 child: ListView.builder(
                   controller: scrollCtrl,
+                  physics: const BouncingScrollPhysics(),
                   itemCount: results.length,
                   itemBuilder: (_, i) {
                     final r = results[i];
@@ -173,7 +184,7 @@ void _showPersonaSwitcher(BuildContext context, PersonaService ps) {
           Text('切换人格', style: C.title),
           const Spacer(),
           TextButton.icon(
-            onPressed: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(builder: (_) => const PersonaScreen())); },
+            onPressed: () { Navigator.pop(ctx); pushElastic(context, const PersonaScreen()); },
             icon: const Icon(Icons.add, size: 14),
             label: const Text('管理', style: TextStyle(fontSize: 12)),
           ),
@@ -238,7 +249,7 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
                 return Container(
                   margin: const EdgeInsets.only(bottom: C.s4),
                   decoration: BoxDecoration(
-                    border: Border.all(color: hasSelected ? const Color(0xFFA78BFA).withOpacity(0.5) : const Color(0xFFE5E5E5)),
+                    border: Border.all(color: hasSelected ? const Color(0xFFA78BFA).withValues(alpha: 0.5) : const Color(0xFFE5E5E5)),
                     borderRadius: BorderRadius.circular(C.r8),
                   ),
                   child: Column(children: [
@@ -260,9 +271,11 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
                     if (isExpanded)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                        child: Column(children: models.map((m) => RadioListTile<String>(
-                          value: m.id, groupValue: selId,
-                          onChanged: (v) { PetLogger().info('Home', 'model switch: ${svc.storage.selModel} -> $v'); svc.setModel(v!); Navigator.pop(ctx); },
+                        child: RadioGroup<String>(
+                          groupValue: selId,
+                          onChanged: (v) { if (v == null) return; PetLogger().info('Home', 'model switch: ${svc.storage.selModel} -> $v'); svc.setModel(v); Navigator.pop(ctx); },
+                          child: Column(children: models.map((m) => RadioListTile<String>(
+                          value: m.id,
                           title: Row(children: [
                             Expanded(child: Text(m.name, style: C.body.copyWith(fontSize: 15))),
                             Text('¥${m.inputPricePerM.toStringAsFixed(m.inputPricePerM == m.inputPricePerM.roundToDouble() ? 0 : 2)} / ¥${m.outputPricePerM.toStringAsFixed(m.outputPricePerM == m.outputPricePerM.roundToDouble() ? 0 : 2)}', style: C.caption),
@@ -271,6 +284,7 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
                           dense: true, visualDensity: VisualDensity.compact,
                           contentPadding: const EdgeInsets.only(left: 4),
                         )).toList()),
+                      ),
                       ),
                   ]),
                 );
@@ -506,10 +520,18 @@ class _DrawerState extends State<_Drawer> {
 
           // List
           Expanded(
-            child: list.isEmpty
-                ? Center(child: Text(_query.isNotEmpty ? '无匹配对话' : '暂无对话', style: C.caption))
+            child: AnimatedSwitcher(
+              duration: 250.ms,
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: list.isEmpty
+                ? Center(
+                    key: ValueKey('empty_$_query'),
+                    child: Text(_query.isNotEmpty ? '无匹配对话' : '暂无对话', style: C.caption))
                 : ListView.builder(
+                    key: const ValueKey('list'),
                     padding: const EdgeInsets.symmetric(vertical: C.s4),
+                    physics: const BouncingScrollPhysics(),
                     itemCount: list.length,
                     itemBuilder: (_, i) {
                       final c = list[i];
@@ -566,7 +588,7 @@ class _DrawerState extends State<_Drawer> {
                                 PopupMenuItem(value: 'rename', child: Text('重命名', style: C.body)),
                                 PopupMenuItem(value: 'md', child: Text('导出 Markdown', style: C.body)),
                                 PopupMenuItem(value: 'json', child: Text('导出 JSON', style: C.body)),
-                                PopupMenuItem(value: 'delete', child: const Text('删除', style: TextStyle(color: Color(0xFFE53E3E), fontSize: 14))),
+                                const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Color(0xFFE53E3E), fontSize: 14))),
                               ],
                               onSelected: (v) async {
                                 switch (v) {
@@ -595,6 +617,7 @@ class _DrawerState extends State<_Drawer> {
                       );
                     },
                   ),
+            ), // AnimatedSwitcher
           ),
 
           if (_selectionMode && _selectedConvIds.isNotEmpty)
@@ -630,9 +653,9 @@ String _currentModelName(ConversationService svc) {
 Widget _drawerItem(BuildContext context, IconData icon, String label, Widget page) {
   return ListTile(
     dense: true,
-    leading: Icon(icon, size: 17, color: const Color(0xFFA0A0AB)),
-    title: Text(label, style: C.label),
-    onTap: () { PetLogger().info('Home', 'navigate: $label'); Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => page)); },
+    leading: Hero(tag: 'hero_icon_$label', child: Icon(icon, size: 17, color: const Color(0xFFA0A0AB))),
+    title: Hero(tag: 'hero_title_$label', child: Text(label, style: C.label)),
+    onTap: () { PetLogger().info('Home', 'navigate: $label'); Navigator.pop(context); pushElastic(context, page); },
   );
 }
 
@@ -641,7 +664,7 @@ class _ChatView extends StatefulWidget {
   final bool loading;
   final void Function(String) onSend;
   final VoidCallback? onStop;
-  const _ChatView({required this.conversation, required this.loading, required this.onSend, this.onStop});
+  const _ChatView({super.key, required this.conversation, required this.loading, required this.onSend, this.onStop});
   @override
   State<_ChatView> createState() => _ChatViewState();
 }
@@ -861,14 +884,14 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
       builder: (_) => const Center(child: CircularProgressIndicator()));
     try {
       final added = await extractMemories(context);
+      if (!mounted) return;
       Navigator.pop(context);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(added > 0 ? '已提取 $added 条上下文' : '未检测到可提取的信息')));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(added > 0 ? '已提取 $added 条上下文' : '未检测到可提取的信息')));
     } catch (e) {
+      if (!mounted) return;
       Navigator.pop(context);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('提取失败: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('提取失败: $e')));
     }
   }
 
@@ -937,7 +960,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
             GestureDetector(
               onTap: () {
                 fb.markAdjustmentSeen();
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedbackScreen()));
+                pushElastic(context, const FeedbackScreen());
               },
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: C.s8),
@@ -984,6 +1007,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
           ? Center(child: Text('发送消息开始对话', style: C.caption))
           : ListView.builder(
               controller: _sc,
+              physics: const BouncingScrollPhysics(),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.only(top: C.s16, bottom: C.s12),
               itemCount: widget.conversation.messages.length,
@@ -1001,7 +1025,10 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
                       _showDislikeDialog(context, widget.conversation.id, prev?.content ?? '', msg.content);
                     } : null,
                     onRegenerate: isAiCompleted && !widget.loading ? _doRegenerate : null,
-                  ),
+                  )
+                      .animate(key: ValueKey('enter_${msg.id}'))
+                      .fadeIn(duration: 200.ms, curve: Curves.easeOut)
+                      .slideY(begin: 0.1, end: 0, duration: 250.ms, curve: Curves.easeOutCubic),
                 );
               },
             ),

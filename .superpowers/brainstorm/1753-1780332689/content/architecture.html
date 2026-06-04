@@ -1,0 +1,98 @@
+<h2>宠物渲染架构 v2</h2>
+<p class="subtitle">方案三：Canvas 混合 + 轻量物理</p>
+
+<div style="display:flex;gap:16px;margin-bottom:16px">
+  <div class="mockup" style="flex:1">
+    <div class="mockup-header">当前架构（改前）</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>PetForegroundService.kt</b> (360行)<br>
+      ├── ImageView (单帧切换)<br>
+      │   └── Handler.postDelayed 67ms = 15fps<br>
+      ├── TextView (气泡) → 硬切显隐<br>
+      ├── TextView (Emoji) → 同上<br>
+      ├── OnTouchListener (tap/longPress)<br>
+      │   └── 无视觉反馈<br>
+      └── WindowManager → 固定位置 (100,400)<br>
+      <br>
+      <b>问题：</b><br>
+      ❌ 无物理感（重力/惯性/弹性）<br>
+      ❌ 无帧间过渡（A→B动画生硬）<br>
+      ❌ 无移动动画（瞬间传送）<br>
+      ❌ 气泡闪现消失<br>
+      ❌ 点击无反馈<br>
+      ❌ 像张贴图
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:1;border:2px solid #22c55e">
+    <div class="mockup-header" style="background:#22c55e;color:#000">新架构（改后）</div>
+    <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8">
+      <b>PetForegroundService.kt</b> (重构)<br>
+      ├── <b>SurfaceView + Canvas</b> (硬件加速 60fps)<br>
+      │   ├── PetSprite (精灵渲染器)<br>
+      │   │   ├── 帧序列播放 + 帧间补间<br>
+      │   │   └── 交叉淡入淡出（动画切换）<br>
+      │   ├── PetPhysics (轻量物理引擎)<br>
+      │   │   ├── 重力加速度 980px/s²<br>
+      │   │   ├── 边界碰撞 + 弹性系数 0.6<br>
+      │   │   ├── 拖拽惯性（速度继承）<br>
+      │   │   └── 落地挤压拉伸效果<br>
+      │   ├── BubbleRenderer (气泡+Emoji)<br>
+      │   │   └── 淡入淡出 + 弹性弹出<br>
+      │   └── TouchFeedback (触控波纹)<br>
+      ├── <b>PetBrain (Dart端)</b><br>
+      │   ├── 行为决策（走动/坐下/睡觉）<br>
+      │   ├── 目标位置计算<br>
+      │   └── 情绪驱动动画选择<br>
+      └── <b>MethodChannel 命令协议 v2</b><br>
+          ├── Dart→Kotlin: moveTo/playAnim/bubble/touch<br>
+          └── Kotlin→Dart: onTouch/onArrive/onAnimEnd
+    </div>
+  </div>
+</div>
+
+<h3>核心组件详解</h3>
+
+<div class="section">
+  <h4>1. SurfaceView 渲染循环 (60fps)</h4>
+  <p>替换 ImageView + Handler。独立的 Surface 在自己的线程上渲染，不阻塞 UI 线程：</p>
+  <pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:12px">
+class PetRenderer(surface: SurfaceView) {
+    // 60fps 渲染循环
+    fun start() {
+        Thread {
+            while (running) {
+                val canvas = surfaceHolder.lockCanvas()
+                canvas.drawColor(0, PorterDuff.Mode.CLEAR) // 透明背景
+                petSprite.draw(canvas)     // 绘制当前帧
+                bubble.draw(canvas)        // 绘制气泡
+                physics.update(deltaTime)  // 更新物理位置
+                surfaceHolder.unlockCanvasAndPost(canvas)
+                sleep(16) // ~60fps
+            }
+        }.start()
+    }
+}</pre>
+</div>
+
+<div class="section">
+  <h4>2. 轻量物理引擎 (~150行)</h4>
+  <table style="width:100%;font-size:13px;border-collapse:collapse">
+    <tr style="background:#f1f5f9"><th style="padding:8px;text-align:left">物理属性</th><th style="padding:8px;text-align:left">公式/值</th><th style="padding:8px;text-align:left">效果</th></tr>
+    <tr><td style="padding:8px">重力</td><td style="padding:8px;font-family:monospace">vy += 980 * dt</td><td style="padding:8px">被扔出后下落</td></tr>
+    <tr style="background:#f8fafc"><td style="padding:8px">边界碰撞</td><td style="padding:8px;font-family:monospace">if (x < 0) { x=0; vx*=-0.6 }</td><td style="padding:8px">碰到屏幕边缘弹回</td></tr>
+    <tr><td style="padding:8px">弹性挤压</td><td style="padding:8px;font-family:monospace">scaleX = 1 + (abs(vx)/2000)</td><td style="padding:8px">落地时变扁，跳起时变长</td></tr>
+    <tr style="background:#f8fafc"><td style="padding:8px">拖拽惯性</td><td style="padding:8px;font-family:monospace">vx = (x - prevX) / dt</td><td style="padding:8px">松手后继续飞</td></tr>
+    <tr><td style="padding:8px">摩擦力</td><td style="padding:8px;font-family:monospace">vx *= 0.95; vy *= 0.95</td><td style="padding:8px">自然减速停止</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h4>3. 帧插值混合</h4>
+  <p>从 A 动画切换到 B 动画时，不是硬切而是：A 淡出 + B 淡入，交叉时间约 200ms。解决"动画切换生硬"的问题</p>
+</div>
+
+<div class="section">
+  <h4>4. 气泡系统升级</h4>
+  <p>替换 TextView 的 VISIBLE/GONE 硬切：Alpha 淡入(200ms) + 弹性缩放(scale 0→1.1→1.0, 300ms)，消失同理</p>
+</div>

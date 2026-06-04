@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import '../api/deepseek_client.dart';
-import '../models/feedback_entry.dart';
+import '../../api/deepseek_client.dart';
+import '../../models/feedback_entry.dart';
 import 'storage_service.dart';
 
 class FeedbackService extends ChangeNotifier {

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/model_config.dart';
-import '../services/conversation_service.dart';
-import '../services/feedback_service.dart';
+import '../services/app/conversation_service.dart';
+import '../services/app/feedback_service.dart';
 
 class FeedbackScreen extends StatelessWidget {
   const FeedbackScreen({super.key});
@@ -11,7 +11,7 @@ class FeedbackScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('反馈知识库'), actions: [
+      appBar: AppBar(title: const Hero(tag: 'hero_title_反馈知识库', child: Text('反馈知识库')), actions: [
         IconButton(icon: const Icon(Icons.add, size: 20), onPressed: () => _addManual(context)),
       ]),
       body: Consumer<FeedbackService>(
@@ -129,7 +129,7 @@ class FeedbackScreen extends StatelessWidget {
               child: svc.entries.isEmpty
                   ? Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.feedback_outlined, size: 36, color: Color(0xFF5B5B65)),
+                        const Icon(Icons.feedback_outlined, size: 36, color: Color(0xFF5B5B65)),
                         const SizedBox(height: C.s8),
                         Text('暂无反馈', style: C.caption),
                       ]),
@@ -206,7 +206,7 @@ class FeedbackScreen extends StatelessWidget {
                 label: Text(r, style: const TextStyle(fontSize: 12)),
                 selected: reason == r,
                 onSelected: (_) => setSt(() => reason = r),
-                selectedColor: C.scheme.primary.withOpacity(0.2),
+                selectedColor: C.scheme.primary.withValues(alpha: 0.2),
               )).toList()),
             ]),
           ),
