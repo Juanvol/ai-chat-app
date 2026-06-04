@@ -1073,6 +1073,163 @@ class PetForegroundService : Service() {
     // 多会话管理（会话索引 CRUD）
     // ═══════════════════════════════════════════
 
+    /**
+     * 弹窗会话存储 — 纯 SharedPreferences 操作，不依赖 Service 实例。
+     * MainActivity 在服务未运行时直接用此类操作数据，确保创建/删除/切换等功能始终可用。
+     */
+    object PopupSessionStore {
+        private const val PREFS_NAME = "pet_chat"
+        private fun prefs(ctx: android.content.Context) = ctx.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+
+        private fun ensureIndex(ctx: android.content.Context) {
+            val p = prefs(ctx)
+            if (p.contains("popup_sessions")) return
+            val lastId = p.getString("last_session_id", null) ?: return
+            val msgCount = p.getInt("msg_count_$lastId", 0)
+            if (msgCount == 0) return
+            var title = "旧对话"
+            for (i in 0 until msgCount) {
+                if (p.getBoolean("msg_${lastId}_${i}_isUser", false)) {
+                    val t = p.getString("msg_${lastId}_${i}_text", "") ?: ""
+                    if (t.isNotEmpty()) { title = if (t.length <= 20) t else t.substring(0, 20) + "..."; break }
+                }
+            }
+            val sessions = mutableListOf(mapOf(
+                "id" to lastId, "title" to title,
+                "createdAt" to (lastId.toLongOrNull() ?: System.currentTimeMillis()),
+                "msgCount" to msgCount
+            ))
+            p.edit().putString("popup_sessions", org.json.JSONArray(sessions.map { org.json.JSONObject(it).toString() }).toString()).apply()
+        }
+
+        private fun updateMeta(ctx: android.content.Context, id: String, title: String?, msgCount: Int) {
+            try {
+                val p = prefs(ctx)
+                val raw = p.getString("popup_sessions", null) ?: "[]"
+                val arr = org.json.JSONArray(raw)
+                val now = System.currentTimeMillis()
+                var found = false
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    if (obj.getString("id") == id) {
+                        found = true
+                        if (title != null) obj.put("title", title)
+                        obj.put("msgCount", msgCount)
+                    }
+                }
+                if (!found) {
+                    val t = title ?: "新对话"
+                    arr.put(org.json.JSONObject().apply {
+                        put("id", id); put("title", t)
+                        put("createdAt", id.toLongOrNull() ?: now); put("msgCount", msgCount)
+                    })
+                }
+                // 重建排序数组
+                val sorted = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    (0 until obj.length()).associate { k -> obj.keys().next() to obj.get(obj.keys().next()) }
+                }.sortedByDescending { (it["createdAt"] as? Long) ?: 0L }
+                p.edit().putString("popup_sessions", org.json.JSONArray(sorted.map { org.json.JSONObject(it).toString() }).toString()).apply()
+            } catch (e: Exception) {
+                Log.e("PopupStore", "updateMeta failed: ${e.message}")
+            }
+        }
+
+        fun listSessions(ctx: android.content.Context): List<Map<String, Any>> {
+            try {
+                ensureIndex(ctx)
+                val p = prefs(ctx)
+                val raw = p.getString("popup_sessions", null) ?: return emptyList()
+                val arr = org.json.JSONArray(raw)
+                val result = mutableListOf<Map<String, Any>>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    result.add(mapOf(
+                        "id" to obj.getString("id"),
+                        "title" to (obj.optString("title", "新对话")),
+                        "createdAt" to obj.optLong("createdAt", 0L),
+                        "msgCount" to obj.optInt("msgCount", 0)
+                    ))
+                }
+                return result
+            } catch (e: Exception) { return emptyList() }
+        }
+
+        fun createSession(ctx: android.content.Context): String {
+            val id = System.currentTimeMillis().toString()
+            prefs(ctx).edit().putString("last_session_id", id).apply()
+            ensureIndex(ctx)
+            updateMeta(ctx, id, "新对话", 0)
+            return id
+        }
+
+        fun deleteSession(ctx: android.content.Context, sessionId: String) {
+            try {
+                val p = prefs(ctx)
+                val editor = p.edit()
+                val msgCount = p.getInt("msg_count_$sessionId", 0)
+                for (i in 0 until msgCount) {
+                    editor.remove("msg_${sessionId}_${i}_isUser")
+                    editor.remove("msg_${sessionId}_${i}_text")
+                }
+                editor.remove("msg_count_$sessionId").apply()
+                val raw = p.getString("popup_sessions", null) ?: "[]"
+                val arr = org.json.JSONArray(raw)
+                val filtered = (0 until arr.length()).mapNotNull { i ->
+                    val obj = arr.getJSONObject(i)
+                    if (obj.getString("id") != sessionId) obj.toString() else null
+                }
+                p.edit().putString("popup_sessions", org.json.JSONArray(filtered).toString()).apply()
+                val lastId = p.getString("last_session_id", null)
+                if (lastId == sessionId) {
+                    val sessions = listSessions(ctx)
+                    if (sessions.isNotEmpty()) p.edit().putString("last_session_id", sessions.first()["id"] as String).apply()
+                    else p.edit().remove("last_session_id").apply()
+                }
+                Log.d("PopupStore", "session deleted: $sessionId ($msgCount msgs)")
+            } catch (e: Exception) {
+                Log.e("PopupStore", "deleteSession failed: ${e.message}")
+            }
+        }
+
+        fun switchSession(ctx: android.content.Context, sessionId: String) {
+            prefs(ctx).edit().putString("last_session_id", sessionId).apply()
+        }
+
+        fun getMessages(ctx: android.content.Context, sessionId: String?): List<Map<String, Any>> {
+            try {
+                val p = prefs(ctx)
+                val sid = sessionId ?: p.getString("last_session_id", null) ?: return emptyList()
+                val msgCount = p.getInt("msg_count_$sid", 0)
+                val result = mutableListOf<Map<String, Any>>()
+                for (i in 0 until msgCount) {
+                    val isUser = p.getBoolean("msg_${sid}_${i}_isUser", false)
+                    val text = p.getString("msg_${sid}_${i}_text", "") ?: ""
+                    if (text.isNotEmpty()) result.add(mapOf("isUser" to isUser, "text" to text))
+                }
+                return result
+            } catch (e: Exception) { return emptyList() }
+        }
+
+        fun saveMessage(ctx: android.content.Context, sessionId: String, isUser: Boolean, text: String) {
+            try {
+                val p = prefs(ctx)
+                val msgCount = p.getInt("msg_count_$sessionId", 0)
+                p.edit()
+                    .putBoolean("msg_${sessionId}_${msgCount}_isUser", isUser)
+                    .putString("msg_${sessionId}_${msgCount}_text", text)
+                    .putInt("msg_count_$sessionId", msgCount + 1)
+                    .putString("last_session_id", sessionId)
+                    .apply()
+                ensureIndex(ctx)
+                val title = if (isUser) (if (text.length <= 20) text else text.substring(0, 20) + "...") else null
+                updateMeta(ctx, sessionId, title, msgCount + 1)
+            } catch (e: Exception) {
+                Log.e("PopupStore", "saveMessage failed: ${e.message}")
+            }
+        }
+    }
+
     /** 会话索引记录 */
     private data class PopupSessionMeta(
         val id: String,

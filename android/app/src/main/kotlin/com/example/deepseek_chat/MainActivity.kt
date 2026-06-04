@@ -90,28 +90,26 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "listPopupSessions" -> {
-                    val sessions = PetForegroundService.instance?.listPopupSessions()
-                        ?: emptyList<Map<String, Any>>()
+                    val sessions = PetForegroundService.PopupSessionStore.listSessions(this@MainActivity)
                     result.success(sessions)
                 }
                 "createPopupSession" -> {
-                    val id = PetForegroundService.instance?.createPopupSession() ?: ""
+                    val id = PetForegroundService.PopupSessionStore.createSession(this@MainActivity)
                     result.success(id)
                 }
                 "deletePopupSession" -> {
                     val sessionId = call.argument<String>("sessionId") ?: ""
-                    PetForegroundService.instance?.deletePopupSession(sessionId)
+                    PetForegroundService.PopupSessionStore.deleteSession(this@MainActivity, sessionId)
                     result.success(null)
                 }
                 "switchPopupSession" -> {
                     val sessionId = call.argument<String>("sessionId") ?: ""
-                    PetForegroundService.instance?.switchPopupSession(sessionId)
+                    PetForegroundService.PopupSessionStore.switchSession(this@MainActivity, sessionId)
                     result.success(null)
                 }
                 "getPopupSessionMessages" -> {
                     val sessionId = call.argument<String>("sessionId")
-                    val msgs = PetForegroundService.instance?.getPopupSessionMessages(sessionId)
-                        ?: emptyList<Map<String, Any>>()
+                    val msgs = PetForegroundService.PopupSessionStore.getMessages(this@MainActivity, sessionId)
                     result.success(msgs)
                 }
                 "isPetRunning" -> {
@@ -121,7 +119,7 @@ class MainActivity : FlutterActivity() {
                     val sessionId = call.argument<String>("sessionId") ?: ""
                     val isUser = call.argument<Boolean>("isUser") ?: true
                     val text = call.argument<String>("text") ?: ""
-                    PetForegroundService.instance?.savePopupMessage(sessionId, isUser, text)
+                    PetForegroundService.PopupSessionStore.saveMessage(this@MainActivity, sessionId, isUser, text)
                     result.success(null)
                 }
                 else -> result.notImplemented()
