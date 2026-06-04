@@ -24,7 +24,6 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
   List<Map<String, dynamic>> _petChats = [];
   List<PopupSession> _popupSessions = [];
   bool _loading = true;
-  bool _petRunning = false;
 
   @override
   void initState() {
@@ -35,12 +34,10 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
   Future<void> _loadAll() async {
     final petChats = await widget.chatService.listChats();
     final popupSessions = await _popupSvc.listSessions();
-    final petRunning = await _popupSvc.isPetRunning();
     if (!mounted) return;
     setState(() {
       _petChats = petChats;
       _popupSessions = popupSessions;
-      _petRunning = petRunning;
       _loading = false;
     });
   }
@@ -155,8 +152,8 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
           onDelete: _deletePetChat,
           trailingBuilder: null,
         ),
-        // ── 弹窗聊天（仅当宠物运行时显示）──
-        if (_petRunning) ...[
+        // ── 弹窗聊天 ──
+        if (_popupSessions.isNotEmpty) ...[
           const SizedBox(height: 8),
           _SessionPanel(
             title: '弹窗聊天',
