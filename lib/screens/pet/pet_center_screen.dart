@@ -70,13 +70,13 @@ class _PetCenterScreenState extends State<PetCenterScreen>
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '弗糯糯',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                '雪乃',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
               ),
               const SizedBox(width: 6),
               ColoredBox(
-                color: Colors.deepPurple.shade400,
+                color: const Color(0xFFB8935D),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   child: Text(
@@ -299,7 +299,7 @@ class _ABtnState extends State<_ABtn> {
             children: [
               Text(widget.icon, style: const TextStyle(fontSize: 20)),
               const SizedBox(height: 1),
-              Text(widget.label, style: const TextStyle(fontSize: 10)),
+              Text(widget.label, style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ],
           ),
         ),
@@ -324,7 +324,7 @@ class _CollapsedTitle extends StatelessWidget {
           children: [
             const _FunuonuoIcon(size: 18),
             const SizedBox(width: 4),
-            const Text('糯糯', style: TextStyle(fontSize: 14)),
+            const Text('雪乃', style: TextStyle(fontSize: 14, color: Color(0xFFB8935D))),
             const SizedBox(width: 10),
             Text(
               '🍖${ctrl.state.hunger}',

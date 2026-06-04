@@ -24,6 +24,7 @@ class C {
 
   static const _error  = Color(0xFFD95555);  // 柔红
 
+  // 兼容旧代码：scheme 返回亮色方案，新代码用 schemeOf(context)
   static const ColorScheme scheme = ColorScheme(
     brightness: Brightness.light,
     primary: _accent,
@@ -47,14 +48,19 @@ class C {
   // 圆角 — 克制（6-14dp，不做大圆角可爱风）
   static const r4 = 4.0, r6 = 6.0, r8 = 8.0, r10 = 10.0, r12 = 12.0, r14 = 14.0, r16 = 16.0;
 
-  // 排版
+  // ═══════════════════════════════════════════
+  // 排版 — 上下文感知（自动适配亮/暗色主题）
+  // ═══════════════════════════════════════════
   static const _f = 'YaHei';
-  static TextStyle get h1 => const TextStyle(fontFamily: _f, fontSize: 26, fontWeight: FontWeight.w600, letterSpacing: -0.5, color: _text, height: 1.3);
-  static TextStyle get h2 => const TextStyle(fontFamily: _f, fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: -0.3, color: _text, height: 1.35);
-  static TextStyle get title => const TextStyle(fontFamily: _f, fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: -0.2, color: _text, height: 1.4);
-  static TextStyle get body => const TextStyle(fontFamily: _f, fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.1, color: _text, height: 1.55);
-  static TextStyle get caption => const TextStyle(fontFamily: _f, fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: 0.0, color: _text2, height: 1.45);
-  static TextStyle get label => const TextStyle(fontFamily: _f, fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.3, color: _text3);
+
+  static ColorScheme schemeOf(BuildContext context) => Theme.of(context).colorScheme;
+
+  static TextStyle h1(BuildContext context) => TextStyle(fontFamily: _f, fontSize: 26, fontWeight: FontWeight.w600, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface, height: 1.3);
+  static TextStyle h2(BuildContext context) => TextStyle(fontFamily: _f, fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: -0.3, color: Theme.of(context).colorScheme.onSurface, height: 1.35);
+  static TextStyle title(BuildContext context) => TextStyle(fontFamily: _f, fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: -0.2, color: Theme.of(context).colorScheme.onSurface, height: 1.4);
+  static TextStyle body(BuildContext context) => TextStyle(fontFamily: _f, fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.1, color: Theme.of(context).colorScheme.onSurface, height: 1.55);
+  static TextStyle caption(BuildContext context) => TextStyle(fontFamily: _f, fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: 0.0, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45);
+  static TextStyle label(BuildContext context) => TextStyle(fontFamily: _f, fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.3, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6));
 
   // ═══════════════════════════════════════════
   // Dark — 深炭灰底（默认）

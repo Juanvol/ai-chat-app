@@ -24,29 +24,29 @@ class FeedbackScreen extends StatelessWidget {
                 margin: const EdgeInsets.all(C.s16),
                 padding: const EdgeInsets.all(C.s12),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFFEDE9FE), Color(0xFFDDD6FE)]),
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(C.r10),
-                  border: Border.all(color: const Color(0xFFC4B5FD)),
+                  border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Text('AI 已在为你进化', style: C.title.copyWith(color: const Color(0xFF5B21B6))),
+                    Text('AI 已在为你进化', style: C.title(context).copyWith(color: Theme.of(context).colorScheme.primary)),
                     const Spacer(),
                     if (svc.lastAnalysisTime != null)
-                      Text('${svc.lastAnalysisTime!.month}/${svc.lastAnalysisTime!.day} 分析', style: C.label),
+                      Text('${svc.lastAnalysisTime!.month}/${svc.lastAnalysisTime!.day} 分析', style: C.label(context)),
                   ]),
                   const SizedBox(height: C.s8),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                    _statCol('${svc.processedCount}', '已处理', const Color(0xFF6D28D9)),
-                    _statCol('${svc.evolutionCount}', '次进化', const Color(0xFF6D28D9)),
-                    _statCol('${svc.unprocessedCount}', '待分析', const Color(0xFF6D28D9)),
+                    _statCol('${svc.processedCount}', '已处理', Theme.of(context).colorScheme.primary, context),
+                    _statCol('${svc.evolutionCount}', '次进化', Theme.of(context).colorScheme.primary, context),
+                    _statCol('${svc.unprocessedCount}', '待分析', Theme.of(context).colorScheme.primary, context),
                   ]),
                   const SizedBox(height: C.s12),
                   Container(
                     padding: const EdgeInsets.all(C.s12),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(C.r8)),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(C.r8)),
                     child: Text('当前修正：${svc.adjustmentText.length > 80 ? '${svc.adjustmentText.split('\n---\n').last.replaceAll('\n', ' · ').substring(0, 80)}...' : svc.adjustmentText.replaceAll('\n', ' · ')}',
-                      style: C.caption.copyWith(height: 1.4)),
+                      style: C.caption(context).copyWith(height: 1.4)),
                   ),
                   const SizedBox(height: C.s8),
                   Row(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -54,14 +54,14 @@ class FeedbackScreen extends StatelessWidget {
                       onPressed: svc.isAnalyzing ? null : () => _autoAnalyze(context, svc),
                       icon: svc.isAnalyzing
                           ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5))
-                          : const Icon(Icons.auto_awesome, size: 13, color: Color(0xFF7C3AED)),
+                          : Icon(Icons.auto_awesome, size: 13, color: Theme.of(context).colorScheme.primary),
                       label: Text(svc.isAnalyzing ? '分析中...' : 'AI 分析',
-                        style: const TextStyle(color: Color(0xFF7C3AED), fontSize: 12)),
+                        style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12)),
                     ),
                     TextButton.icon(
                       onPressed: () => _editAdjustment(context, svc),
-                      icon: const Icon(Icons.edit, size: 13, color: Color(0xFF7C3AED)),
-                      label: const Text('编辑', style: TextStyle(color: Color(0xFF7C3AED), fontSize: 12)),
+                      icon: Icon(Icons.edit, size: 13, color: Theme.of(context).colorScheme.primary),
+                      label: Text('编辑', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12)),
                     ),
                   ]),
                 ]),
@@ -72,7 +72,7 @@ class FeedbackScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: C.s16),
                 child: Row(children: [
-                  Text('进化历程', style: C.label),
+                  Text('进化历程', style: C.label(context)),
                   const Spacer(),
                 ]),
               ),
@@ -99,10 +99,10 @@ class FeedbackScreen extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(C.s12),
                             decoration: BoxDecoration(
-                              color: C.scheme.surfaceContainerHighest,
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(C.r8),
                             ),
-                            child: Text(v.content, style: C.caption.copyWith(height: 1.4)),
+                            child: Text(v.content, style: C.caption(context).copyWith(height: 1.4)),
                           ),
                         ),
                       ]),
@@ -118,10 +118,10 @@ class FeedbackScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(C.s16),
               child: Row(children: [
-                Text('反馈记录 (${svc.entries.length})', style: C.title),
+                Text('反馈记录 (${svc.entries.length})', style: C.title(context)),
                 const Spacer(),
                 if (svc.unprocessedCount > 0)
-                  Text('${svc.unprocessedCount} 条未处理', style: C.label),
+                  Text('${svc.unprocessedCount} 条未处理', style: C.label(context)),
               ]),
             ),
 
@@ -131,7 +131,7 @@ class FeedbackScreen extends StatelessWidget {
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const Icon(Icons.feedback_outlined, size: 36, color: Color(0xFF5B5B65)),
                         const SizedBox(height: C.s8),
-                        Text('暂无反馈', style: C.caption),
+                        Text('暂无反馈', style: C.caption(context)),
                       ]),
                     )
                   : ListView.builder(
@@ -143,7 +143,7 @@ class FeedbackScreen extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: C.s8),
                           padding: const EdgeInsets.all(C.s12),
                           decoration: BoxDecoration(
-                            color: C.scheme.surfaceContainerHighest,
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(C.r8),
                           ),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -151,23 +151,25 @@ class FeedbackScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: C.s8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: e.processed ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                                  color: e.processed
+                                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+                                      : Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(C.r6),
                                 ),
                                 child: Text(e.processed ? '已处理' : '未处理',
-                                  style: const TextStyle(fontSize: 11, color: Colors.white)),
+                                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface)),
                               ),
                               const Spacer(),
-                              Text(e.reason, style: C.label),
+                              Text(e.reason, style: C.label(context)),
                             ]),
                             const SizedBox(height: C.s8),
-                            Text('提问: ${e.userMessage}', style: C.caption),
+                            Text('提问: ${e.userMessage}', style: C.caption(context)),
                             const SizedBox(height: C.s4),
                             Text('回答: ${e.aiResponse.length > 80 ? '${e.aiResponse.substring(0, 80)}...' : e.aiResponse}',
-                              style: C.body),
+                              style: C.body(context)),
                             if (e.adjustmentResult != null) ...[
                               const SizedBox(height: C.s8),
-                              Text('修正: ${e.adjustmentResult}', style: C.caption.copyWith(color: const Color(0xFFA78BFA))),
+                              Text('修正: ${e.adjustmentResult}', style: C.caption(context).copyWith(color: Theme.of(context).colorScheme.primary)),
                             ],
                           ]),
                         );
@@ -180,10 +182,10 @@ class FeedbackScreen extends StatelessWidget {
     );
   }
 
-  Widget _statCol(String value, String label, Color color) => Column(children: [
-    Text(value, style: C.h2.copyWith(color: color)),
+  Widget _statCol(String value, String label, Color color, BuildContext context) => Column(children: [
+    Text(value, style: C.h2(context).copyWith(color: color)),
     const SizedBox(height: 2),
-    Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF7C3AED))),
+    Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary)),
   ]);
 
   void _addManual(BuildContext ctx) {
@@ -197,16 +199,16 @@ class FeedbackScreen extends StatelessWidget {
           title: const Text('手动添加反馈'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: userCtrl, style: C.body, maxLines: 2, decoration: const InputDecoration(labelText: '用户提问')),
+              TextField(controller: userCtrl, style: C.body(ctx), maxLines: 2, decoration: const InputDecoration(labelText: '用户提问')),
               const SizedBox(height: C.s8),
-              TextField(controller: aiCtrl, style: C.body, maxLines: 3, decoration: const InputDecoration(labelText: 'AI 回答')),
+              TextField(controller: aiCtrl, style: C.body(ctx), maxLines: 3, decoration: const InputDecoration(labelText: 'AI 回答')),
               const SizedBox(height: C.s12),
-              Text('原因', style: C.label),
+              Text('原因', style: C.label(ctx)),
               Wrap(spacing: C.s8, children: ['不满意', '不准确', '跑题', '太啰嗦', '太简短', '格式差'].map((r) => ChoiceChip(
                 label: Text(r, style: const TextStyle(fontSize: 12)),
                 selected: reason == r,
                 onSelected: (_) => setSt(() => reason = r),
-                selectedColor: C.scheme.primary.withValues(alpha: 0.2),
+                selectedColor: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.2),
               )).toList()),
             ]),
           ),
@@ -250,7 +252,7 @@ class FeedbackScreen extends StatelessWidget {
       context: ctx,
       builder: (c) => AlertDialog(
         title: const Text('AI 自我修正指令'),
-        content: TextField(controller: ctrl, style: C.body, maxLines: 8,
+        content: TextField(controller: ctrl, style: C.body(ctx), maxLines: 8,
           decoration: const InputDecoration(hintText: '编写 AI 行为修正指令...\n例如：回答不要太啰嗦，直接给代码')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text('取消')),

@@ -37,9 +37,9 @@ class PersonaScreen extends StatelessWidget {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.people_outline, size: 48, color: Color(0xFF5B5B65)),
                   const SizedBox(height: C.s16),
-                  Text('创建你的第一个 AI 人格', style: C.title),
+                  Text('创建你的第一个 AI 人格', style: C.title(context)),
                   const SizedBox(height: C.s8),
-                  Text('选择一种方式开始', style: C.caption),
+                  Text('选择一种方式开始', style: C.caption(context)),
                   const SizedBox(height: C.s24),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     _emptyBtn(context, Icons.psychology, 'MBTI 人格', () => _showMbtiSheet(context)),
@@ -83,7 +83,7 @@ class PersonaScreen extends StatelessWidget {
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Text(p.avatar, style: const TextStyle(fontSize: 28)),
                     const SizedBox(height: C.s8),
-                    Text(p.name, style: C.title, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(p.name, style: C.title(context), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: C.s4),
                     if (p.mbti.isNotEmpty)
                       Container(
@@ -125,7 +125,7 @@ class PersonaScreen extends StatelessWidget {
         child: Column(children: [
           Icon(icon, size: 24, color: C.scheme.primary),
           const SizedBox(height: C.s8),
-          Text(label, style: C.caption, textAlign: TextAlign.center),
+          Text(label, style: C.caption(ctx), textAlign: TextAlign.center),
         ]),
       ),
     );
@@ -153,15 +153,15 @@ class PersonaScreen extends StatelessWidget {
           controller: sc,
           padding: const EdgeInsets.all(C.s16),
           children: [
-            Text('选择 MBTI 人格', style: C.title),
+            Text('选择 MBTI 人格', style: C.title(ctx)),
             const SizedBox(height: C.s4),
-            Text('一键创建 16 种 MBTI 人格，自动填充性格设定', style: C.caption),
+            Text('一键创建 16 种 MBTI 人格，自动填充性格设定', style: C.caption(ctx)),
             const SizedBox(height: C.s16),
             ...templates.map((t) => ListTile(
               leading: Text(t.avatar, style: const TextStyle(fontSize: 24)),
-              title: Text(t.name, style: C.body),
-              subtitle: Text(t.traits, style: C.caption),
-              trailing: Text(t.mbti, style: C.label),
+              title: Text(t.name, style: C.body(ctx)),
+              subtitle: Text(t.traits, style: C.caption(ctx)),
+              trailing: Text(t.mbti, style: C.label(ctx)),
               onTap: () {
                 ctx.read<PersonaService>().addFromTemplate(t);
                 Navigator.pop(ctx);
@@ -180,15 +180,15 @@ class PersonaScreen extends StatelessWidget {
       builder: (_) => Padding(
         padding: const EdgeInsets.all(C.s16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('选择情感模板', style: C.title),
+          Text('选择情感模板', style: C.title(ctx)),
           const SizedBox(height: C.s4),
-          Text('5 种情感角色，满足不同的对话需求', style: C.caption),
+          Text('5 种情感角色，满足不同的对话需求', style: C.caption(ctx)),
           const SizedBox(height: C.s16),
           ...templates.map((t) => ListTile(
             leading: Text(t.avatar, style: const TextStyle(fontSize: 24)),
-            title: Text(t.name, style: C.body),
-            subtitle: Text(t.traits, maxLines: 1, overflow: TextOverflow.ellipsis, style: C.caption),
-            trailing: Text(t.mbti, style: C.label),
+            title: Text(t.name, style: C.body(ctx)),
+            subtitle: Text(t.traits, maxLines: 1, overflow: TextOverflow.ellipsis, style: C.caption(ctx)),
+            trailing: Text(t.mbti, style: C.label(ctx)),
             onTap: () {
               ctx.read<PersonaService>().addFromTemplate(t);
               Navigator.pop(ctx);
@@ -221,39 +221,39 @@ class PersonaScreen extends StatelessWidget {
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Expanded(child: TextField(controller: nameCtrl, style: C.body, decoration: const InputDecoration(labelText: '名称'))),
+                Expanded(child: TextField(controller: nameCtrl, style: C.body(ctx), decoration: const InputDecoration(labelText: '名称'))),
                 const SizedBox(width: C.s8),
                 SizedBox(width: 60, child: TextField(controller: avatarCtrl, style: const TextStyle(fontSize: 22), decoration: const InputDecoration(labelText: '头像'), maxLength: 2, textAlign: TextAlign.center)),
               ]),
               const SizedBox(height: C.s8),
-              TextField(controller: promptCtrl, style: C.body, maxLines: 3, decoration: const InputDecoration(labelText: 'System Prompt')),
+              TextField(controller: promptCtrl, style: C.body(ctx), maxLines: 3, decoration: const InputDecoration(labelText: 'System Prompt')),
               const SizedBox(height: C.s12),
-              Text('温度', style: C.label),
+              Text('温度', style: C.label(ctx)),
               Row(children: [
                 const Text('0', style: TextStyle(fontSize: 11)),
                 Expanded(child: Slider(value: temp, min: 0.0, max: 1.5, divisions: 15, onChanged: (v) => setSt(() => temp = v))),
                 const Text('1.5', style: TextStyle(fontSize: 11)),
               ]),
-              Center(child: Text(temp.toStringAsFixed(1), style: C.title)),
+              Center(child: Text(temp.toStringAsFixed(1), style: C.title(ctx))),
               const SizedBox(height: C.s12),
-              Text('回复长度', style: C.label),
-              _chipSelector(Persona.replyLengthOptions, replyLength, (v) => setSt(() => replyLength = v)),
+              Text('回复长度', style: C.label(ctx)),
+              _chipSelector(Persona.replyLengthOptions, replyLength, (v) => setSt(() => replyLength = v), ctx),
               const SizedBox(height: C.s12),
-              Text('语气风格', style: C.label),
-              _chipSelector(Persona.toneOptions, tone, (v) => setSt(() => tone = v)),
+              Text('语气风格', style: C.label(ctx)),
+              _chipSelector(Persona.toneOptions, tone, (v) => setSt(() => tone = v), ctx),
               const SizedBox(height: C.s12),
-              Text('回复语言', style: C.label),
-              _chipSelector(Persona.languageOptions, language, (v) => setSt(() => language = v)),
+              Text('回复语言', style: C.label(ctx)),
+              _chipSelector(Persona.languageOptions, language, (v) => setSt(() => language = v), ctx),
               const SizedBox(height: C.s12),
-              Text('专业领域', style: C.label),
-              _chipSelector(Persona.expertiseOptions, expertise, (v) => setSt(() => expertise = v)),
+              Text('专业领域', style: C.label(ctx)),
+              _chipSelector(Persona.expertiseOptions, expertise, (v) => setSt(() => expertise = v), ctx),
               if (expertise == 'custom')
                 Padding(
                   padding: const EdgeInsets.only(top: C.s8),
-                  child: TextField(controller: customCtrl, style: C.body, decoration: const InputDecoration(hintText: '描述 AI 擅长的领域...')),
+                  child: TextField(controller: customCtrl, style: C.body(ctx), decoration: const InputDecoration(hintText: '描述 AI 擅长的领域...')),
                 ),
               const SizedBox(height: C.s16),
-              Text('MBTI 性格类型', style: C.label),
+              Text('MBTI 性格类型', style: C.label(ctx)),
               const SizedBox(height: C.s4),
               Wrap(spacing: C.s8, runSpacing: C.s8, children: [
                 GestureDetector(
@@ -284,11 +284,11 @@ class PersonaScreen extends StatelessWidget {
                 }),
               ]),
               if (mbti.isNotEmpty)
-                Padding(padding: const EdgeInsets.only(top: C.s4), child: Text(Persona.mbtiDescriptions[mbti] ?? '', style: C.caption)),
+                Padding(padding: const EdgeInsets.only(top: C.s4), child: Text(Persona.mbtiDescriptions[mbti] ?? '', style: C.caption(ctx))),
               const SizedBox(height: C.s12),
-              Text('性格特质', style: C.label),
+              Text('性格特质', style: C.label(ctx)),
               const SizedBox(height: C.s4),
-              TextField(controller: traitsCtrl, style: C.body, maxLines: 2,
+              TextField(controller: traitsCtrl, style: C.body(ctx), maxLines: 2,
                 decoration: const InputDecoration(hintText: '例如：好奇心强、逻辑思维严谨、偶尔毒舌')),
               const SizedBox(height: C.s12),
               if (existing != null)
@@ -325,7 +325,7 @@ class PersonaScreen extends StatelessWidget {
     );
   }
 
-  Widget _chipSelector(List<Map<String, String>> opts, String val, void Function(String) onSelect) {
+  Widget _chipSelector(List<Map<String, String>> opts, String val, void Function(String) onSelect, BuildContext context) {
     return Wrap(spacing: C.s8, runSpacing: C.s4, children: opts.map((o) {
       final sel = o['value'] == val;
       return GestureDetector(
@@ -333,13 +333,13 @@ class PersonaScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: C.s8),
           decoration: BoxDecoration(
-            color: sel ? C.scheme.primary.withValues(alpha: 0.15) : C.scheme.surfaceContainerHighest,
+            color: sel ? C.schemeOf(context).primary.withValues(alpha: 0.15) : C.schemeOf(context).surfaceContainerHighest,
             borderRadius: BorderRadius.circular(C.r8),
-            border: sel ? Border.all(color: C.scheme.primary.withValues(alpha: 0.3)) : null,
+            border: sel ? Border.all(color: C.schemeOf(context).primary.withValues(alpha: 0.3)) : null,
           ),
           child: Column(children: [
-            Text(o['label']!, style: sel ? C.body.copyWith(fontWeight: FontWeight.w600) : C.body),
-            Text(o['desc']!, style: C.caption),
+            Text(o['label']!, style: sel ? C.body(context).copyWith(fontWeight: FontWeight.w600) : C.body(context)),
+            Text(o['desc']!, style: C.caption(context)),
           ]),
         ),
       );

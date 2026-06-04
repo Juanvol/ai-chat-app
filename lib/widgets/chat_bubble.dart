@@ -50,8 +50,8 @@ class ChatBubble extends StatelessWidget {
         children: [
           if (!isUser) ...[
             Container(width: 26, height: 26, margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF2E2E32)),
-              child: const Icon(Icons.auto_awesome, size: 12, color: Color(0xFFB8935D)),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: cs.surfaceContainerHighest),
+              child: Icon(Icons.auto_awesome, size: 12, color: cs.primary),
             ),
             const SizedBox(width: C.s8),
           ],
@@ -67,12 +67,12 @@ class ChatBubble extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: highlighted
-                        ? const Color(0xFF3D3524)
-                        : isUser ? const Color(0xFF2E2E32) : const Color(0xFF28282C),
+                        ? cs.primary.withValues(alpha: 0.18)
+                        : isUser
+                            ? cs.primary.withValues(alpha: 0.1)
+                            : cs.surfaceContainerHighest,
                     border: Border.all(
-                      color: highlighted
-                          ? const Color(0xFFB8935D)
-                          : const Color(0xFF3A3A3E),
+                      color: highlighted ? cs.primary : cs.outline,
                       width: highlighted ? 1.5 : 1,
                     ),
                     borderRadius: BorderRadius.only(
@@ -83,16 +83,16 @@ class ChatBubble extends StatelessWidget {
                   ),
                   child: answerText.isEmpty && msg.isStreaming
                       ? _ThreeDots()
-                      : isUser ? SelectableText(answerText, style: C.body)
+                      : isUser ? SelectableText(answerText, style: C.body(context))
                           : MarkdownBody(data: answerText, selectable: true,
                               builders: {
                                 'pre': _CodeBlockBuilder(),
                                 'code': _InlineCodeBuilder(),
                               },
                               styleSheet: MarkdownStyleSheet(
-                                p: C.body,
-                                code: const TextStyle(color: Color(0xFFE4DFD8), backgroundColor: Color(0xFF1C1B1F), fontSize: 14),
-                                codeblockDecoration: const BoxDecoration(color: Color(0xFF1C1B1F), borderRadius: BorderRadius.only(
+                                p: C.body(context),
+                                code: TextStyle(color: cs.onSurface, backgroundColor: cs.surface, fontSize: 14),
+                                codeblockDecoration: BoxDecoration(color: cs.surface, borderRadius: const BorderRadius.only(
                                   bottomLeft: Radius.circular(C.r8), bottomRight: Radius.circular(C.r8),
                                 )),
                                 blockquoteDecoration: BoxDecoration(
@@ -103,7 +103,7 @@ class ChatBubble extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.only(top: C.s4, left: isUser ? 0 : 4, right: isUser ? 4 : 0),
                   child: Text(msg.createdAt.toLocal().toString().substring(11, 16),
-                    style: C.label.copyWith(fontSize: 10)),
+                    style: C.label(context).copyWith(fontSize: 10)),
                 ),
               if (!isUser && onDislike != null && !msg.isStreaming)
                 Padding(
@@ -144,8 +144,8 @@ class ChatBubble extends StatelessWidget {
             const SizedBox(width: C.s8),
             Container(
               width: 26, height: 26, margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF2E2E32)),
-              child: const Icon(Icons.person, size: 14, color: Color(0xFFB8935D)),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: cs.surfaceContainerHighest),
+              child: Icon(Icons.person, size: 14, color: cs.primary),
             ),
           ],
         ],
@@ -238,6 +238,7 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: C.s8),
       child: GestureDetector(
@@ -245,8 +246,8 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
         child: Container(
           constraints: BoxConstraints(maxWidth: widget.mw),
           decoration: BoxDecoration(
-            color: const Color(0xFF28282C), borderRadius: BorderRadius.circular(C.r8),
-            border: Border.all(color: const Color(0xFF3A3A3E)),
+            color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(C.r8),
+            border: Border.all(color: cs.outline),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Padding(
@@ -256,21 +257,21 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
                   const _Bulb(pulse: true),
                   const SizedBox(width: C.s8),
                   Text('思考中${_secs > 0 ? ' （用时${_secs.toStringAsFixed(1)}s）' : ''}',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFFB8935D))),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: cs.primary)),
                   if (_hasMore && !_open) ...[
                     const Spacer(),
                     GestureDetector(
                       onTap: () => setState(() => _open = true),
-                      child: const Text('展开', style: TextStyle(fontSize: 13, color: Color(0xFFB8935D))),
+                      child: Text('展开', style: TextStyle(fontSize: 13, color: cs.primary)),
                     ),
                   ],
                 ] else ...[
-                  const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFB8935D)),
+                  Icon(Icons.lightbulb_outline, size: 14, color: cs.primary),
                   const SizedBox(width: C.s8),
                   Text('已深度思考${_secs > 0 ? ' （用时${_secs.toStringAsFixed(1)}s）' : ''}',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF8B857D))),
+                    style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
                   const Spacer(),
-                  Icon(_open ? Icons.expand_less : Icons.expand_more, size: 16, color: const Color(0xFF8B857D)),
+                  Icon(_open ? Icons.expand_less : Icons.expand_more, size: 16, color: cs.onSurfaceVariant),
                 ],
               ]),
             ),
@@ -285,7 +286,7 @@ class _DeepThinkingState extends State<_DeepThinking> with SingleTickerProviderS
                         child: SizedBox(
                           width: widget.mw - C.s16 * 2,
                           child: Text(widget.isThinking && !_open ? _preview : widget.thinking,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: Color(0xFF6B6B75), height: 1.6, letterSpacing: 0.15)),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w300, color: cs.onSurfaceVariant.withValues(alpha: 0.6), height: 1.6, letterSpacing: 0.15)),
                         ),
                       ),
                     )
@@ -323,10 +324,11 @@ class _BulbState extends State<_Bulb> with SingleTickerProviderStateMixin {
   void dispose() { _c.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: _c,
       builder: (_, child) => Opacity(opacity: 0.5 + _c.value * 0.5, child: child),
-      child: const Icon(Icons.lightbulb_outline, size: 14, color: Color(0xFFB8935D)),
+      child: Icon(Icons.lightbulb_outline, size: 14, color: cs.primary),
     );
   }
 }

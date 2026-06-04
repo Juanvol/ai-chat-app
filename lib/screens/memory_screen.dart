@@ -44,7 +44,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已导入 $count 条记忆到糯糯 🐾')),
+      SnackBar(content: Text('已导入 $count 条记忆到雪乃 🐾')),
     );
     _exitSelecting();
   }
@@ -64,7 +64,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
           if (!_selecting)
             IconButton(
               icon: const Text('🐾', style: TextStyle(fontSize: 18)),
-              tooltip: '导入记忆到糯糯',
+              tooltip: '导入记忆到雪乃',
               onPressed: () => setState(() => _selecting = true),
             )
           else
@@ -89,9 +89,9 @@ class _MemoryScreenState extends State<MemoryScreen> {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.work_outline, size: 40, color: Color(0xFF5B5B65)),
                   const SizedBox(height: C.s12),
-                  Text('任务上下文', style: C.title),
+                  Text('任务上下文', style: C.title(context)),
                   const SizedBox(height: C.s8),
-                  Text('记录你正在做的事、目标和决策，帮助 AI 更精准地理解你的问题。', style: C.caption, textAlign: TextAlign.center),
+                  Text('记录你正在做的事、目标和决策，帮助 AI 更精准地理解你的问题。', style: C.caption(context), textAlign: TextAlign.center),
                   const SizedBox(height: C.s20),
                   _importanceLegend(),
                   const SizedBox(height: C.s20),
@@ -143,7 +143,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
                               child: Icon(
                                 isSelected ? Icons.check_circle : Icons.circle_outlined,
                                 size: 20,
-                                color: isSelected ? C.scheme.primary : const Color(0xFF5B5B65),
+                                color: isSelected ? Theme.of(context).colorScheme.primary : const Color(0xFF5B5B65),
                               ),
                             ),
                           Container(
@@ -168,7 +168,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
                           ],
                         ]),
                         const SizedBox(height: C.s8),
-                        Text(m.content, style: C.body),
+                        Text(m.content, style: C.body(context)),
                       ]),
                     ),
                   );
@@ -188,7 +188,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
                   child: FilledButton.icon(
                     onPressed: _selected.isEmpty ? null : () => _importToPet(context),
                     icon: const Text('🐾', style: TextStyle(fontSize: 16)),
-                    label: Text(_selected.isEmpty ? '请选择要导入的记忆' : '导入 ${_selected.length} 条到糯糯'),
+                    label: Text(_selected.isEmpty ? '请选择要导入的记忆' : '导入 ${_selected.length} 条到雪乃'),
                   ),
                 ),
               ),
@@ -205,7 +205,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
         borderRadius: BorderRadius.circular(C.r8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('重要度说明', style: C.label),
+        Text('重要度说明', style: C.label(context)),
         const SizedBox(height: C.s4),
         Wrap(
           spacing: C.s8,
@@ -216,7 +216,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
               Container(width: 8, height: 8,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: _impColors[lvl])),
               const SizedBox(width: C.s4),
-              Text('$lvl=${_impLabels[lvl]}', style: C.label),
+              Text('$lvl=${_impLabels[lvl]}', style: C.label(context)),
             ]);
           }),
         ),
@@ -233,10 +233,10 @@ class _MemoryScreenState extends State<MemoryScreen> {
         builder: (c, setSt) => AlertDialog(
           title: Text(m == null ? '添加上下文' : '编辑上下文'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: ctrl, style: C.body, maxLines: 3,
+            TextField(controller: ctrl, style: C.body(context), maxLines: 3,
               decoration: const InputDecoration(hintText: '例如：正在用 Flutter 开发 AI Chat，当前在实现任务上下文功能')),
             const SizedBox(height: C.s12),
-            Text('重要度', style: C.label),
+            Text('重要度', style: C.label(context)),
             const SizedBox(height: C.s8),
             RadioGroup<int>(
               groupValue: imp,
@@ -246,14 +246,14 @@ class _MemoryScreenState extends State<MemoryScreen> {
               return RadioListTile<int>(
                 value: lvl,
                 title: Row(children: [
-                  Text('$lvl', style: C.title),
+                  Text('$lvl', style: C.title(context)),
                   const SizedBox(width: C.s8),
                   Container(width: 10, height: 10,
                     decoration: BoxDecoration(shape: BoxShape.circle, color: _impColors[lvl])),
                   const SizedBox(width: C.s8),
-                  Text(_impLabels[lvl], style: C.body),
+                  Text(_impLabels[lvl], style: C.body(context)),
                   const SizedBox(width: C.s8),
-                  Text(_impDesc(lvl), style: C.caption),
+                  Text(_impDesc(lvl), style: C.caption(context)),
                 ]),
                 dense: true, contentPadding: EdgeInsets.zero,
               );

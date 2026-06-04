@@ -84,7 +84,7 @@ class _SSState extends State<SettingsScreen> {
       ]),
       body: ListView(padding: const EdgeInsets.symmetric(horizontal: C.s16, vertical: C.s12), physics: const BouncingScrollPhysics(), children: [
         // === 密钥 ===
-        _section('API 密钥'),
+        _section('API 密钥', context),
         const SizedBox(height: C.s8),
         _keyRow('deepseek'),
         _keyRow('xiaomi'),
@@ -93,7 +93,7 @@ class _SSState extends State<SettingsScreen> {
           onTap: () => setState(() => _showMoreKeys = !_showMoreKeys),
           child: Padding(
             padding: const EdgeInsets.only(top: C.s4),
-            child: Text(_showMoreKeys ? '收起 ▲' : '更多密钥... ▼', style: C.caption),
+            child: Text(_showMoreKeys ? '收起 ▲' : '更多密钥... ▼', style: C.caption(context)),
           ),
         ),
         if (_showMoreKeys) ...[
@@ -107,9 +107,9 @@ class _SSState extends State<SettingsScreen> {
         const SizedBox(height: C.s20),
 
         // === System Prompt ===
-        _section('系统提示词'),
+        _section('系统提示词', context),
         const SizedBox(height: C.s8),
-        TextField(controller: _promptCtrl, maxLines: 2, style: C.body,
+        TextField(controller: _promptCtrl, maxLines: 2, style: C.body(context),
           decoration: const InputDecoration(hintText: '例如：请用中文回复。书名、技术术语、人名等专有名词保留原文。', isDense: true,
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
         ),
@@ -117,34 +117,34 @@ class _SSState extends State<SettingsScreen> {
         const SizedBox(height: C.s20),
 
         // === 模型 ===
-        _section('模型'),
+        _section('模型', context),
         const SizedBox(height: C.s4),
         _buildModelList(),
 
         const SizedBox(height: C.s16),
 
         // === 使用设置 ===
-        _section('使用设置'),
+        _section('使用设置', context),
         const SizedBox(height: C.s12),
 
         // Thinking 模式
-        Text('思考模式 (Thinking)', style: C.body),
+        Text('思考模式 (Thinking)', style: C.body(context)),
         const SizedBox(height: C.s4),
-        Text('开启后 AI 会先推理再回答，质量更高但稍慢。V4 Pro/Flash 默认开启。', style: C.caption),
+        Text('开启后 AI 会先推理再回答，质量更高但稍慢。V4 Pro/Flash 默认开启。', style: C.caption(context)),
         const SizedBox(height: C.s8),
         SwitchListTile(
           value: _thinkingEnabled,
           onChanged: (v) => setState(() => _thinkingEnabled = v),
-          title: Text(_thinkingEnabled ? '已开启' : '已关闭', style: C.body),
+          title: Text(_thinkingEnabled ? '已开启' : '已关闭', style: C.body(context)),
           dense: true, contentPadding: EdgeInsets.zero,
           activeThumbColor: const Color(0xFFA78BFA),
         ),
 
         if (_thinkingEnabled) ...[
           const SizedBox(height: C.s4),
-          Text('推理强度', style: C.label),
+          Text('推理强度', style: C.label(context)),
           const SizedBox(height: C.s4),
-          Text('控制 AI 在回答前进行内部推理的深度。推理越深，回答质量越高，但消耗的 Token 也越多。', style: C.caption),
+          Text('控制 AI 在回答前进行内部推理的深度。推理越深，回答质量越高，但消耗的 Token 也越多。', style: C.caption(context)),
           const SizedBox(height: C.s8),
           Wrap(spacing: C.s8, children: ['low', 'medium', 'high', 'max'].map((e) => ChoiceChip(
             label: Text(
@@ -175,7 +175,7 @@ class _SSState extends State<SettingsScreen> {
                 'max' => '最大推理：最深层的推理过程，消耗最多 Token。适合数学证明、复杂编程、逻辑推理等高难度任务。⚠ 注意：token 消耗会显著增加。',
                 _ => '',
               },
-              style: C.caption,
+              style: C.caption(context),
             ),
           ),
         ],
@@ -183,23 +183,23 @@ class _SSState extends State<SettingsScreen> {
         const SizedBox(height: C.s16),
 
         // 温度 (V4 不支持)
-        Text('温度', style: C.body),
+        Text('温度', style: C.body(context)),
         const SizedBox(height: C.s4),
-        Text('⚠ V4 Pro/Flash 不支持温度调节，此设置无效。仅对旧版模型 (deepseek-chat) 有效。', style: C.caption),
+        Text('⚠ V4 Pro/Flash 不支持温度调节，此设置无效。仅对旧版模型 (deepseek-chat) 有效。', style: C.caption(context)),
         const SizedBox(height: C.s4),
         Row(children: [
           const Text('0', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 11)),
           Expanded(child: Slider(value: _temp, min: 0.0, max: 1.5, divisions: 15, onChanged: (v) => setState(() => _temp = v))),
           const Text('1.5', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 11)),
         ]),
-        Center(child: Text('${_temp.toStringAsFixed(1)} — ${_tempDesc(_temp)}', style: C.caption)),
+        Center(child: Text('${_temp.toStringAsFixed(1)} — ${_tempDesc(_temp)}', style: C.caption(context))),
 
         const SizedBox(height: C.s16),
 
         // Max Tokens
-        Text('最大输出长度', style: C.body),
+        Text('最大输出长度', style: C.body(context)),
         const SizedBox(height: C.s4),
-        Text('控制 AI 每次回复的最大长度（含推理和回答）。点击预设值快速选择，或拖动滑块微调。值越大回答越完整，但 Token 消耗也越多。', style: C.caption),
+        Text('控制 AI 每次回复的最大长度（含推理和回答）。点击预设值快速选择，或拖动滑块微调。值越大回答越完整，但 Token 消耗也越多。', style: C.caption(context)),
         const SizedBox(height: C.s8),
         Wrap(spacing: C.s8, children: [512, 1024, 2048, 4096, 8192, 16384, 32768].map((v) => ChoiceChip(
           label: Text(v >= 1024 ? '${(v / 1024).toStringAsFixed(v == 512 ? 1 : 0)}K' : '$v', style: const TextStyle(fontSize: 12)),
@@ -217,7 +217,7 @@ class _SSState extends State<SettingsScreen> {
           )),
           const Text('32K', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 11)),
         ]),
-        Center(child: Text('$_maxTokens tokens ≈ ${(_maxTokens / 2).round()} 中文字', style: C.caption)),
+        Center(child: Text('$_maxTokens tokens ≈ ${(_maxTokens / 2).round()} 中文字', style: C.caption(context))),
         const SizedBox(height: C.s8),
         Container(
           padding: const EdgeInsets.all(10),
@@ -231,22 +231,22 @@ class _SSState extends State<SettingsScreen> {
             '• 4K–8K：一般对话、代码生成、文章写作（推荐）\n'
             '• 16K–32K：长文生成、大批量代码、深度分析\n'
             '⚠ 注意：已开启推理时，推理过程也计入 Token 上限。强度越高建议预留越大。',
-            style: C.caption,
+            style: C.caption(context),
           ),
         ),
 
         const SizedBox(height: C.s16),
 
         // 速率
-        Text('每分钟请求上限', style: C.body),
+        Text('每分钟请求上限', style: C.body(context)),
         const SizedBox(height: C.s4),
-        Text('防止误操作或程序死循环导致 API 费用飙升。达到上限后暂停发送。免费用户建议 5-10，付费用户 20-30。', style: C.caption),
+        Text('防止误操作或程序死循环导致 API 费用飙升。达到上限后暂停发送。免费用户建议 5-10，付费用户 20-30。', style: C.caption(context)),
         const SizedBox(height: C.s8),
         Row(children: [
           const Spacer(),
           SizedBox(width: 80, child: TextField(
             controller: _rateCtrl,
-            style: C.body, textAlign: TextAlign.center, keyboardType: TextInputType.number,
+            style: C.body(context), textAlign: TextAlign.center, keyboardType: TextInputType.number,
             decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
             onChanged: (v) { final n = int.tryParse(v); if (n != null && n > 0) _rateLimit = n; },
           )),
@@ -255,7 +255,7 @@ class _SSState extends State<SettingsScreen> {
         const SizedBox(height: C.s16),
 
         // 外观
-        _section('外观'),
+        _section('外观', context),
         const SizedBox(height: C.s8),
         ValueListenableBuilder<ThemeMode>(
           valueListenable: themeModeNotifier,
@@ -296,7 +296,7 @@ class _SSState extends State<SettingsScreen> {
     );
   }
 
-  Widget _section(String t) => Text(t, style: C.label);
+  Widget _section(String t, BuildContext context) => Text(t, style: C.label(context));
 
   Widget _buildModelList() {
     final providerOrder = ['deepseek', 'xiaomi', 'openai', 'siliconflow', 'zhipu', 'moonshot', 'custom'];
@@ -333,11 +333,11 @@ class _SSState extends State<SettingsScreen> {
                     if (isSelectedProvider)
                       Container(width: 6, height: 6, margin: const EdgeInsets.only(right: C.s8),
                         decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFA78BFA))),
-                    Text(provider?.name ?? pid, style: isSelectedProvider ? C.body.copyWith(fontWeight: FontWeight.w600) : C.body),
+                    Text(provider?.name ?? pid, style: isSelectedProvider ? C.body(context).copyWith(fontWeight: FontWeight.w600) : C.body(context)),
                     if (isSelectedProvider)
                       Padding(
                         padding: const EdgeInsets.only(left: C.s8),
-                        child: Text(selectedModel.name, style: C.caption.copyWith(color: const Color(0xFFA78BFA))),
+                        child: Text(selectedModel.name, style: C.caption(context).copyWith(color: const Color(0xFFA78BFA))),
                       ),
                     const Spacer(),
                     Icon(isExpanded ? Icons.expand_less : Icons.expand_more, size: 20, color: const Color(0xFF9D9DA8)),
@@ -354,13 +354,13 @@ class _SSState extends State<SettingsScreen> {
                     children: models.map((m) => RadioListTile<String>(
                       value: m.id,
                       title: Row(children: [
-                        Expanded(child: Text(m.name, style: C.body.copyWith(fontSize: 15))),
+                        Expanded(child: Text(m.name, style: C.body(context).copyWith(fontSize: 15))),
                         Text(
                           '¥${m.inputPricePerM.toStringAsFixed(m.inputPricePerM == m.inputPricePerM.roundToDouble() ? 0 : 2)} / ¥${m.outputPricePerM.toStringAsFixed(m.outputPricePerM == m.outputPricePerM.roundToDouble() ? 0 : 2)}',
-                          style: C.caption,
+                          style: C.caption(context),
                         ),
                       ]),
-                      subtitle: Text(m.description, style: C.caption.copyWith(fontSize: 12)),
+                      subtitle: Text(m.description, style: C.caption(context).copyWith(fontSize: 12)),
                       dense: true,
                       visualDensity: VisualDensity.compact,
                       contentPadding: const EdgeInsets.only(left: 4),
@@ -383,10 +383,10 @@ class _SSState extends State<SettingsScreen> {
       if (isCur)
         Container(width: 6, height: 6, margin: const EdgeInsets.only(right: C.s4),
           decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFA78BFA))),
-      SizedBox(width: isCur ? 54 : 64, child: Text(p?.name ?? pid, style: C.caption)),
+      SizedBox(width: isCur ? 54 : 64, child: Text(p?.name ?? pid, style: C.caption(context))),
       const SizedBox(width: C.s8),
       Expanded(child: TextField(
-        controller: _keys[pid], obscureText: true, style: C.body,
+        controller: _keys[pid], obscureText: true, style: C.body(context),
         decoration: InputDecoration(hintText: '点击粘贴 API Key...', isDense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           suffixIcon: IconButton(

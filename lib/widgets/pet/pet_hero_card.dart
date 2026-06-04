@@ -43,7 +43,7 @@ class PetHeroCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                             decoration: BoxDecoration(
-                                color: const Color(0xFFF97316), borderRadius: BorderRadius.circular(10)),
+                                color: const Color(0xFFB8935D), borderRadius: BorderRadius.circular(10)),
                             child: Text(_levelName(s.totalInteractions),
                                 style: const TextStyle(color: Colors.white, fontSize: 10)),
                           ),

@@ -10,6 +10,7 @@ class HomeWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final qs = [
       '写一个快速排序算法',
       '帮我写一封商务邮件',
@@ -26,15 +27,14 @@ class HomeWelcome extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(C.r16),
-              color: const Color(0xFFD6E8FB),
+              color: cs.primaryContainer,
             ),
-            child: const Icon(Icons.auto_awesome,
-                size: 24, color: Color(0xFF4A90D9)),
+            child: Icon(Icons.auto_awesome, size: 24, color: cs.primary),
           ),
           const SizedBox(height: C.s20),
-          Text('AI 助手', style: C.h1),
+          Text('AI 助手', style: C.h1(context)),
           const SizedBox(height: C.s8),
-          Text('选择任意模型，即刻开始对话', style: C.caption),
+          Text('选择任意模型，即刻开始对话', style: C.caption(context)),
           const SizedBox(height: C.s32),
           ...qs.map((q) => GestureDetector(
                 onTap: () {
@@ -46,15 +46,14 @@ class HomeWelcome extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: C.s16, vertical: C.s12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cs.surface,
                     borderRadius: BorderRadius.circular(C.r12),
-                    border: Border.all(color: const Color(0xFFE8E8EF)),
+                    border: Border.all(color: cs.outline),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.lightbulb_outline,
-                        size: 15, color: Color(0xFF4A90D9)),
+                    Icon(Icons.lightbulb_outline, size: 15, color: cs.primary),
                     const SizedBox(width: C.s12),
-                    Expanded(child: Text(q, style: C.body)),
+                    Expanded(child: Text(q, style: C.body(context))),
                   ]),
                 ),
               )),

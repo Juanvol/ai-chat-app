@@ -39,10 +39,10 @@ class HomeScreen extends StatelessWidget {
               onTap: svc.currentConversation != null ? () => _showModelSelector(context, svc) : null,
               behavior: HitTestBehavior.opaque,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(svc.currentConversation?.title ?? '', style: C.title),
+                Text(svc.currentConversation?.title ?? '', style: C.title(context)),
                 if (svc.currentConversation != null)
                   Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_currentModelName(svc), style: C.label),
+                    Text(_currentModelName(svc), style: C.label(context)),
                     const Icon(Icons.arrow_drop_down, size: 18, color: Color(0xFFA0A0AB)),
                   ]),
               ]),
@@ -132,7 +132,7 @@ void _showSearch(BuildContext context, ConversationService svc) {
               TextField(
                 controller: ctrl,
                 autofocus: true,
-                style: C.body,
+                style: C.body(context),
                 onChanged: (_) => setSt(() {}),
                 decoration: InputDecoration(
                   hintText: '搜索「${cov.title}」的内容...',
@@ -144,7 +144,7 @@ void _showSearch(BuildContext context, ConversationService svc) {
               ),
               const SizedBox(height: C.s12),
               if (ctrl.text.trim().isNotEmpty)
-                Text(results.isEmpty ? '无匹配结果' : '共 ${results.length} 条匹配', style: C.caption),
+                Text(results.isEmpty ? '无匹配结果' : '共 ${results.length} 条匹配', style: C.caption(context)),
               const SizedBox(height: C.s8),
               Expanded(
                 child: ListView.builder(
@@ -155,7 +155,7 @@ void _showSearch(BuildContext context, ConversationService svc) {
                     final r = results[i];
                     return ListTile(
                       dense: true,
-                      title: Text(r.snippet, style: C.body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      title: Text(r.snippet, style: C.body(context), maxLines: 2, overflow: TextOverflow.ellipsis),
                       onTap: () {
                         Navigator.pop(ctx);
                         _searchJumpNotifier.value = r.msgIndex;
@@ -181,7 +181,7 @@ void _showPersonaSwitcher(BuildContext context, PersonaService ps) {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Center(child: Container(width: 32, height: 4, margin: const EdgeInsets.only(bottom: C.s12), decoration: BoxDecoration(color: const Color(0xFFDDDDE5), borderRadius: BorderRadius.circular(2)))),
         Row(children: [
-          Text('切换人格', style: C.title),
+          Text('切换人格', style: C.title(context)),
           const Spacer(),
           TextButton.icon(
             onPressed: () { Navigator.pop(ctx); pushElastic(context, const PersonaScreen()); },
@@ -193,15 +193,15 @@ void _showPersonaSwitcher(BuildContext context, PersonaService ps) {
         if (ps.personas.isEmpty)
           Padding(
             padding: const EdgeInsets.all(C.s16),
-            child: Center(child: Text('暂无可用人格', style: C.caption)),
+            child: Center(child: Text('暂无可用人格', style: C.caption(context))),
           )
         else
           ...ps.personas.map((p) {
             final sel = ps.selected?.id == p.id;
             return ListTile(
               leading: Text(p.avatar, style: const TextStyle(fontSize: 22)),
-              title: Text(p.name, style: C.body.copyWith(fontWeight: sel ? FontWeight.w600 : FontWeight.w400)),
-              subtitle: Text(p.mbti.isNotEmpty ? '${p.mbti} · ${p.traits}' : p.traits, style: C.caption, maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(p.name, style: C.body(context).copyWith(fontWeight: sel ? FontWeight.w600 : FontWeight.w400)),
+              subtitle: Text(p.mbti.isNotEmpty ? '${p.mbti} · ${p.traits}' : p.traits, style: C.caption(context), maxLines: 1, overflow: TextOverflow.ellipsis),
               trailing: sel ? const Icon(Icons.check_circle, size: 18, color: Color(0xFF7C3AED)) : null,
               onTap: () {
                 ps.selectAndSave(p.id);
@@ -237,7 +237,7 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
             padding: const EdgeInsets.all(C.s16),
             children: [
               Center(child: Container(width: 32, height: 4, margin: const EdgeInsets.only(bottom: C.s12), decoration: BoxDecoration(color: const Color(0xFFDDDDE5), borderRadius: BorderRadius.circular(2)))),
-              Text('选择模型', style: C.title),
+              Text('选择模型', style: C.title(context)),
               const SizedBox(height: C.s12),
               ...providerOrder.map((pid) {
                 final models = ModelConfig.builtIn.where((m) => m.providerId == pid).toList();
@@ -262,7 +262,7 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
                           if (hasSelected)
                             Container(width: 6, height: 6, margin: const EdgeInsets.only(right: C.s8),
                               decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFA78BFA))),
-                          Text(provider?.name ?? pid, style: hasSelected ? C.body.copyWith(fontWeight: FontWeight.w600) : C.body),
+                          Text(provider?.name ?? pid, style: hasSelected ? C.body(context).copyWith(fontWeight: FontWeight.w600) : C.body(context)),
                           const Spacer(),
                           Icon(isExpanded ? Icons.expand_less : Icons.expand_more, size: 20, color: const Color(0xFF9D9DA8)),
                         ]),
@@ -277,10 +277,10 @@ void _showModelSelector(BuildContext context, ConversationService svc) {
                           child: Column(children: models.map((m) => RadioListTile<String>(
                           value: m.id,
                           title: Row(children: [
-                            Expanded(child: Text(m.name, style: C.body.copyWith(fontSize: 15))),
-                            Text('¥${m.inputPricePerM.toStringAsFixed(m.inputPricePerM == m.inputPricePerM.roundToDouble() ? 0 : 2)} / ¥${m.outputPricePerM.toStringAsFixed(m.outputPricePerM == m.outputPricePerM.roundToDouble() ? 0 : 2)}', style: C.caption),
+                            Expanded(child: Text(m.name, style: C.body(context).copyWith(fontSize: 15))),
+                            Text('¥${m.inputPricePerM.toStringAsFixed(m.inputPricePerM == m.inputPricePerM.roundToDouble() ? 0 : 2)} / ¥${m.outputPricePerM.toStringAsFixed(m.outputPricePerM == m.outputPricePerM.roundToDouble() ? 0 : 2)}', style: C.caption(context)),
                           ]),
-                          subtitle: Text(m.description, style: C.caption.copyWith(fontSize: 12)),
+                          subtitle: Text(m.description, style: C.caption(context).copyWith(fontSize: 12)),
                           dense: true, visualDensity: VisualDensity.compact,
                           contentPadding: const EdgeInsets.only(left: 4),
                         )).toList()),
@@ -416,16 +416,16 @@ class _DrawerState extends State<_Drawer> {
                 width: 28, height: 28,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(C.r6),
-                  color: const Color(0xFFD6E8FB),
+                  color: cs.primaryContainer,
                 ),
-                child: const Center(child: Text('C', style: TextStyle(color: Color(0xFF4A90D9), fontWeight: FontWeight.w700, fontSize: 14))),
+                child: Center(child: Text('C', style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 14))),
               ),
               const SizedBox(width: C.s12),
-              Text('AI Chat', style: C.title),
+              Text('AI Chat', style: C.title(context)),
               const Spacer(),
               if (widget.svc.conversations.isNotEmpty)
                 IconButton(
-                  icon: Icon(_selectionMode ? Icons.close : Icons.ios_share, size: 18),
+                  icon: Icon(_selectionMode ? Icons.close : Icons.ios_share, size: 18, color: cs.onSurfaceVariant),
                   tooltip: _selectionMode ? '取消选择' : '分享给糯糯',
                   onPressed: () => setState(() {
                     _selectionMode = !_selectionMode;
@@ -449,19 +449,19 @@ class _DrawerState extends State<_Drawer> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: C.s8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F3FF),
+                      color: cs.primaryContainer.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(C.r8),
-                      border: Border.all(color: const Color(0xFFDDD6FE)),
+                      border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
                     ),
                     child: Row(children: [
                       Text(p?.avatar ?? '🤖', style: const TextStyle(fontSize: 18)),
                       const SizedBox(width: C.s8),
                       Expanded(
-                        child: Text(p?.name ?? '默认助手', style: C.body.copyWith(color: const Color(0xFF6D28D9))),
+                        child: Text(p?.name ?? '默认助手', style: C.body(context).copyWith(color: cs.primary)),
                       ),
-                      Text(p?.mbti ?? '', style: C.label),
+                      Text(p?.mbti ?? '', style: C.label(context)),
                       const SizedBox(width: C.s4),
-                      const Icon(Icons.swap_horiz, size: 14, color: Color(0xFFA78BFA)),
+                      Icon(Icons.swap_horiz, size: 14, color: cs.primary),
                     ]),
                   ),
                 ),
@@ -498,16 +498,16 @@ class _DrawerState extends State<_Drawer> {
               padding: const EdgeInsets.symmetric(horizontal: C.s12),
               child: TextField(
                 controller: _searchCtrl,
-                style: C.body,
+                style: C.body(context),
                 onChanged: (v) => setState(() => _query = v),
                 decoration: InputDecoration(
                   hintText: '搜索对话标题和内容...',
                   isDense: true,
-                  prefixIcon: const Icon(Icons.search, size: 16, color: Color(0xFFA0A0AB)),
+                  prefixIcon: Icon(Icons.search, size: 16, color: cs.onSurfaceVariant),
                   suffixIcon: _query.isNotEmpty
                       ? GestureDetector(
                           onTap: () { _searchCtrl.clear(); setState(() => _query = ''); },
-                          child: const Icon(Icons.close, size: 14, color: Color(0xFFA0A0AB)),
+                          child: Icon(Icons.close, size: 14, color: cs.onSurfaceVariant),
                         )
                       : null,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -527,7 +527,7 @@ class _DrawerState extends State<_Drawer> {
               child: list.isEmpty
                 ? Center(
                     key: ValueKey('empty_$_query'),
-                    child: Text(_query.isNotEmpty ? '无匹配对话' : '暂无对话', style: C.caption))
+                    child: Text(_query.isNotEmpty ? '无匹配对话' : '暂无对话', style: C.caption(context)))
                 : ListView.builder(
                     key: const ValueKey('list'),
                     padding: const EdgeInsets.symmetric(vertical: C.s4),
@@ -555,7 +555,7 @@ class _DrawerState extends State<_Drawer> {
                           margin: const EdgeInsets.symmetric(horizontal: C.s8, vertical: 2),
                           padding: const EdgeInsets.symmetric(horizontal: C.s12, vertical: 10),
                           decoration: BoxDecoration(
-                            color: sel ? const Color(0xFFEEF2FF) : Colors.transparent,
+                            color: sel ? cs.primaryContainer.withValues(alpha: 0.3) : Colors.transparent,
                             borderRadius: BorderRadius.circular(C.r8),
                           ),
                           child: Row(children: [
@@ -565,7 +565,7 @@ class _DrawerState extends State<_Drawer> {
                                 child: Icon(
                                   _selectedConvIds.contains(c.id) ? Icons.check_box : Icons.check_box_outline_blank,
                                   size: 18,
-                                  color: _selectedConvIds.contains(c.id) ? const Color(0xFF7C3AED) : const Color(0xFFA0A0AB),
+                                  color: _selectedConvIds.contains(c.id) ? cs.primary : cs.onSurfaceVariant,
                                 ),
                               )
                             else
@@ -578,16 +578,16 @@ class _DrawerState extends State<_Drawer> {
                                 child: Icon(Icons.push_pin, size: 12, color: Color(0xFFF59E0B)),
                               ),
                             Expanded(child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: sel ? C.body.copyWith(fontWeight: FontWeight.w500) : C.body)),
+                              style: sel ? C.body(context).copyWith(fontWeight: FontWeight.w500) : C.body(context))),
                             PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, size: 14, color: Color(0xFFA0A0AB)),
+                              icon: Icon(Icons.more_vert, size: 14, color: cs.onSurfaceVariant),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                               itemBuilder: (_) => [
-                                PopupMenuItem(value: 'pin', child: Text(c.isPinned ? '取消置顶' : '置顶', style: C.body)),
-                                PopupMenuItem(value: 'rename', child: Text('重命名', style: C.body)),
-                                PopupMenuItem(value: 'md', child: Text('导出 Markdown', style: C.body)),
-                                PopupMenuItem(value: 'json', child: Text('导出 JSON', style: C.body)),
+                                PopupMenuItem(value: 'pin', child: Text(c.isPinned ? '取消置顶' : '置顶', style: C.body(context))),
+                                PopupMenuItem(value: 'rename', child: Text('重命名', style: C.body(context))),
+                                PopupMenuItem(value: 'md', child: Text('导出 Markdown', style: C.body(context))),
+                                PopupMenuItem(value: 'json', child: Text('导出 JSON', style: C.body(context))),
                                 const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Color(0xFFE53E3E), fontSize: 14))),
                               ],
                               onSelected: (v) async {
@@ -653,8 +653,8 @@ String _currentModelName(ConversationService svc) {
 Widget _drawerItem(BuildContext context, IconData icon, String label, Widget page) {
   return ListTile(
     dense: true,
-    leading: Hero(tag: 'hero_icon_$label', child: Icon(icon, size: 17, color: const Color(0xFFA0A0AB))),
-    title: Hero(tag: 'hero_title_$label', child: Text(label, style: C.label)),
+    leading: Hero(tag: 'hero_icon_$label', child: Icon(icon, size: 17, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+    title: Hero(tag: 'hero_title_$label', child: Text(label, style: C.label(context))),
     onTap: () { PetLogger().info('Home', 'navigate: $label'); Navigator.pop(context); pushElastic(context, page); },
   );
 }
@@ -729,11 +729,11 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
         builder: (c, setSt) => AlertDialog(
           title: const Text('记录反馈'),
           content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('AI 回答', style: C.label),
+            Text('AI 回答', style: C.label(context)),
             const SizedBox(height: C.s4),
-            Text(aiMsg.length > 120 ? '${aiMsg.substring(0, 120)}...' : aiMsg, style: C.caption),
+            Text(aiMsg.length > 120 ? '${aiMsg.substring(0, 120)}...' : aiMsg, style: C.caption(context)),
             const SizedBox(height: C.s16),
-            Text('原因', style: C.label),
+            Text('原因', style: C.label(context)),
             const SizedBox(height: C.s8),
             Wrap(spacing: C.s8, runSpacing: C.s8, children: ['不满意', '不准确', '跑题', '太啰嗦', '太简短', '格式差', '语义不明'].map((r) => ChoiceChip(
               label: Text(r, style: const TextStyle(fontSize: 12)),
@@ -805,7 +805,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('编辑消息'),
-        content: TextField(controller: ctrl, maxLines: 4, style: C.body,
+        content: TextField(controller: ctrl, maxLines: 4, style: C.body(context),
           decoration: const InputDecoration(hintText: '编辑后重新发送')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text('取消')),
@@ -955,7 +955,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
             const SizedBox(width: C.s8),
             Expanded(
               child: Text('AI 已根据你的 ${fb.processedCount} 条反馈进化',
-                style: C.caption.copyWith(color: const Color(0xFF5B21B6))),
+                style: C.caption(context).copyWith(color: const Color(0xFF5B21B6))),
             ),
             GestureDetector(
               onTap: () {
@@ -987,7 +987,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
           const Icon(Icons.auto_awesome, size: 15, color: Color(0xFFA78BFA)),
           const SizedBox(width: C.s8),
           Expanded(
-            child: Text('检测到可保存的任务上下文', style: C.caption.copyWith(color: const Color(0xFF7C3AED))),
+            child: Text('检测到可保存的任务上下文', style: C.caption(context).copyWith(color: const Color(0xFF7C3AED))),
           ),
           GestureDetector(
             onTap: _doExtractMemories,
@@ -1004,7 +1004,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
       ),
     Expanded(
       child: widget.conversation.messages.isEmpty
-          ? Center(child: Text('发送消息开始对话', style: C.caption))
+          ? Center(child: Text('发送消息开始对话', style: C.caption(context)))
           : ListView.builder(
               controller: _sc,
               physics: const BouncingScrollPhysics(),
