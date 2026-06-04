@@ -49,6 +49,9 @@ class PetView(context: Context) : View(context) {
     // 3连击检测（环形缓冲区）
     private val tapTimestamps = LongArray(3) { 0 }
     private var tapIndex = 0
+    // 双击延迟执行 → 给第3次 tap 取消窗口
+    private val tapHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingDoubleTap: Runnable? = null
 
     // 视线跟随
     private var cursorX = 0f
@@ -223,6 +226,11 @@ class PetView(context: Context) : View(context) {
         alpha = 0.3f
         idleTime = 0f
         Log.d("PetView", "transparency: ENTER (reason=$reason)")
+    }
+
+    private fun cancelPendingDoubleTap() {
+        pendingDoubleTap?.let { tapHandler.removeCallbacks(it) }
+        pendingDoubleTap = null
     }
 
     private fun exitTransparent(reason: String) {
@@ -440,6 +448,7 @@ class PetView(context: Context) : View(context) {
                     // 拖拽松手 → 停在原地（桌面宠物不需要重力/惯性）
                     physics.vx = 0f; physics.vy = 0f
                     physics.enableGravity = false
+                    cancelPendingDoubleTap()
                     onTouchEvent?.invoke("drag", event.rawX, event.rawY)
                 } else if (!hasMoved) {
                     if (duration < 300) {
@@ -449,14 +458,21 @@ class PetView(context: Context) : View(context) {
 
                         // ── 3连击检测（优先级最高）──
                         if (isTripleTap()) {
+                            cancelPendingDoubleTap()
                             toggleTransparent()
                             tapTimestamps.fill(0); tapIndex = 0
                             lastClickTime = 0
                             Log.d("PetView", "tripleTap → transparentState=$transparentState")
                         } else if ((System.currentTimeMillis() - lastClickTime) < 400) {
-                            // 双击 — 透明模式下也响应
+                            // 潜在双击 → 延迟执行，给第3次 tap 取消窗口（500ms）
                             lastClickTime = 0
-                            onTouchEvent?.invoke("doubleTap", event.rawX, event.rawY)
+                            cancelPendingDoubleTap()
+                            val rawX = event.rawX; val rawY = event.rawY
+                            pendingDoubleTap = Runnable {
+                                onTouchEvent?.invoke("doubleTap", rawX, rawY)
+                                pendingDoubleTap = null
+                            }
+                            tapHandler.postDelayed(pendingDoubleTap!!, 500)
                         } else {
                             // 单击
                             lastClickTime = System.currentTimeMillis()
@@ -473,6 +489,7 @@ class PetView(context: Context) : View(context) {
                         }
                     } else if (duration >= 500) {
                         // 长按
+                        cancelPendingDoubleTap()
                         tapTimestamps.fill(0); tapIndex = 0
                         if (transparentState == TransparencyState.NORMAL) {
                             onTouchEvent?.invoke("longPress", event.rawX, event.rawY)
@@ -484,6 +501,7 @@ class PetView(context: Context) : View(context) {
                 hasMoved = false
             }
             MotionEvent.ACTION_CANCEL -> {
+                cancelPendingDoubleTap()
                 isDragging = false
                 hasMoved = false
             }
