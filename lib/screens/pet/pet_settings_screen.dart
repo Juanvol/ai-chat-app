@@ -38,6 +38,10 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
   late final TextEditingController _budgetController;
   Timer? _budgetDebounce;
   int? _dailyBudget = 50000;
+  // D8: Token 用量统计
+  int _todayUsed = 0;
+  int _weekUsed = 0;
+  int _monthUsed = 0;
   int _chatContextRounds = 3;
   String _decisionModel = 'deepseek-chat';
   String _chatModel = 'deepseek-chat';
@@ -126,6 +130,19 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
       final svc = PetTokenService.instance;
       await svc.loadBudget();
       _dailyBudget = svc.dailyBudget;
+      // D8: 加载用量统计
+      await _loadUsageStats();
+    } catch (_) {}
+  }
+
+  Future<void> _loadUsageStats() async {
+    try {
+      final svc = PetTokenService.instance;
+      final today = await svc.getTodayUsage();
+      _todayUsed = today.totalTokens;
+      final weekList = await svc.getWeekUsage();
+      _weekUsed = weekList.fold(0, (sum, u) => sum + u.totalTokens);
+      _monthUsed = await svc.getMonthUsage();
     } catch (_) {}
   }
 
@@ -233,6 +250,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
           _buildPersonaSection(),
           const Divider(height: 32),
           _buildBudgetSection(),
+          _buildTokenDashboard(),
           const Divider(height: 32),
           _buildModelSection(),
           _buildContextRounds(),
@@ -522,6 +540,7 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
               PetLogger().info('PetSettings', 'budget: ${labels[i]}');
               _budgetController.clear();
               _saveBudget(values[i]);
+              _loadUsageStats(); // D8: 刷新用量
             },
           )),
         ),
@@ -542,12 +561,90 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
               final n = int.tryParse(v);
               if (n != null && n > 0 && mounted) {
                 _saveBudget(n);
+                _loadUsageStats(); // D8: 刷新用量
                 setState(() {});
               }
             });
           },
         ),
       ],
+    );
+  }
+
+  // ── D8: Token 用量仪表盘 ──
+
+  Widget _buildTokenDashboard() {
+    final budget = _dailyBudget ?? 50000;
+    final todayPercent = budget > 0 ? (_todayUsed / budget).clamp(0.0, 1.0) : 0.0;
+    final color = todayPercent > 0.8
+        ? Colors.red
+        : todayPercent > 0.5
+            ? Colors.orange
+            : Colors.green;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const Text('📊 Token 用量', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 12),
+        // 今日用量条
+        Row(
+          children: [
+            const Text('今日', style: TextStyle(fontSize: 13)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: todayPercent,
+                  minHeight: 10,
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${(_todayUsed / 1000).toStringAsFixed(1)}k / ${(budget / 1000).toStringAsFixed(0)}k',
+              style: TextStyle(fontSize: 12, color: color),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // 本周 / 本月
+        Row(
+          children: [
+            _buildUsageChip('本周', _weekUsed),
+            const SizedBox(width: 12),
+            _buildUsageChip('本月', _monthUsed),
+          ],
+        ),
+        // 超预算警告
+        if (todayPercent >= 1.0) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red),
+              const SizedBox(width: 4),
+              Text(
+                '今日预算已用尽，AI 仅响应主动聊天',
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildUsageChip(String label, int tokens) {
+    final k = (tokens / 1000).toStringAsFixed(1);
+    return Chip(
+      avatar: const Icon(Icons.token_outlined, size: 14),
+      label: Text('$label: ${k}k', style: const TextStyle(fontSize: 11)),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 
