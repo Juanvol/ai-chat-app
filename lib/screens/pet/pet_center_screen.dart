@@ -7,6 +7,7 @@ import 'pet_chat_screen.dart';
 import 'pet_memory_screen.dart';
 import 'pet_diary_screen.dart';
 import 'pet_settings_screen.dart';
+import '../../services/pet/pet_overlay_host.dart';
 
 class PetCenterScreen extends StatefulWidget {
   const PetCenterScreen({super.key});
@@ -181,11 +182,15 @@ class _PetCenterScreenState extends State<PetCenterScreen>
         },
         body: TabBarView(
           controller: _tabController,
-          children: const [
-            PetChatScreen(),
-            PetMemoryScreen(),
-            PetDiaryScreen(),
-            PetSettingsScreen(),
+          children: [
+            const PetChatScreen(),
+            PetMemoryScreen(
+              memoryStore: petOverlayController.knowledgeBase?.memoryStore,
+            ),
+            PetDiaryScreen(
+              knowledgeBase: petOverlayController.knowledgeBase,
+            ),
+            const PetSettingsScreen(),
           ],
         ),
       ),

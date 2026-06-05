@@ -51,6 +51,9 @@ class PetOverlayController {
   // ── 新知识库（D1-D2） ──
   KnowledgeBase? _knowledgeBase;
 
+  /// 公开知识库访问（供 UI 和 D8 ContextCollector 使用）
+  KnowledgeBase? get knowledgeBase => _knowledgeBase;
+
   bool get isActive => _started;
 
   void init() {
