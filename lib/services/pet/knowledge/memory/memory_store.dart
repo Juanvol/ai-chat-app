@@ -6,12 +6,14 @@ import '../models/memory_entry.dart';
 import '../models/user_profile.dart';
 import 'memory_repository.dart';
 import 'memory_extractor.dart';
+import 'memory_organizer.dart';
 import '../diary/diary_repository.dart';
 
 /// 记忆领域服务：提取/整理/过期/用户 CRUD
 class MemoryStore {
   final IMemoryRepository _repo;
   final MemoryExtractor _extractor;
+  final MemoryOrganizer _organizer;
   final IDiaryRepository? _diaryRepo; // 用于检索30天内事件（稀有检测）
   final PetTokenService? _tokenService;
 
@@ -20,10 +22,12 @@ class MemoryStore {
   MemoryStore({
     required IMemoryRepository repo,
     MemoryExtractor? extractor,
+    MemoryOrganizer? organizer,
     IDiaryRepository? diaryRepo,
     PetTokenService? tokenService,
   })  : _repo = repo,
         _extractor = extractor ?? MemoryExtractor(),
+        _organizer = organizer ?? MemoryOrganizer(),
         _diaryRepo = diaryRepo,
         _tokenService = tokenService;
 
@@ -53,12 +57,40 @@ class MemoryStore {
 
   /// 每3天触发一次 LLM 批量整理
   Future<void> organizeIfNeeded() async {
-    // Phase 2: MemoryOrganizer 调用 LLM
-    // if (_lastOrganizeAt != null &&
-    //     DateTime.now().difference(_lastOrganizeAt!).inDays < 3) return;
-    // if (_tokenService != null && _tokenService.remainingBudget < 500) return;
-    // await MemoryOrganizer.organize(_repo);
-    // _lastOrganizeAt = DateTime.now();
+    // 每3天检查一次
+    if (_lastOrganizeAt != null &&
+        DateTime.now().difference(_lastOrganizeAt!).inDays < 3) {
+      return;
+    }
+
+    int remaining = 0;
+    if (_tokenService != null) {
+      remaining = await _tokenService.getBudgetRemaining();
+    }
+    if (remaining < 500) {
+      PetLogger().trace('MemoryStore',
+          'organizeIfNeeded skip: budget $remaining < 500');
+      return;
+    }
+
+    final existing = await _repo.loadAll();
+    final result = await _organizer.organize(
+      existingMemories: existing,
+      remainingBudget: remaining,
+    );
+
+    if (result.toUpdate.isNotEmpty) {
+      await _repo.saveAll(result.toUpdate);
+      PetLogger().info('MemoryStore',
+          'organize: updated ${result.toUpdate.length} memories');
+    }
+
+    for (final id in result.toDelete) {
+      await _repo.delete(id);
+      PetLogger().info('MemoryStore', 'organize: deleted $id');
+    }
+
+    _lastOrganizeAt = DateTime.now();
   }
 
   // ═══ 用户 CRUD ═══
@@ -186,8 +218,8 @@ class MemoryStore {
     if (type == null) return false;
 
     // 高频事件不在稀有检测范围内
-    const _commonTypes = {'tap', 'talk'};
-    if (_commonTypes.contains(type)) return false;
+    const commonTypes = {'tap', 'talk'};
+    if (commonTypes.contains(type)) return false;
 
     final cutoff = event.date.subtract(const Duration(days: 30));
     // 检查记忆库
@@ -197,8 +229,9 @@ class MemoryStore {
         m.content.contains(type)).length;
     if (recentMentions > 0) return false;
     // 检查日记库
-    if (_diaryRepo != null) {
-      final recentDiary = await _diaryRepo!.loadRecent(days: 30);
+    final diaryRepo = _diaryRepo;
+    if (diaryRepo != null) {
+      final recentDiary = await diaryRepo.loadRecent(days: 30);
       final sameType = recentDiary
           .where((d) => d.sourceType == type && d.id != event.id)
           .length;

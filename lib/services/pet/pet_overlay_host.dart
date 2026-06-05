@@ -180,6 +180,7 @@ class PetOverlayController {
       final memoryStore = MemoryStore(
         repo: memoryRepo,
         diaryRepo: diaryRepo,
+        tokenService: PetTokenService.instance,
       );
 
       final diaryStore = DiaryStore(
@@ -219,6 +220,10 @@ class PetOverlayController {
     });
     _startBrainLoop();
     _scheduleIdleSecond();
+    // 每3天记忆整理检查（首次在start后5分钟触发）
+    Future.delayed(const Duration(minutes: 5), () {
+      _knowledgeBase?.memoryStore.organizeIfNeeded();
+    });
     PetLogger().info('Overlay', 'start done (PetBrain v2)');
   }
 
