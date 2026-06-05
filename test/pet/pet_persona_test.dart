@@ -90,7 +90,7 @@ void main() {
     });
 
     test('clamp 边界', () {
-      final s = SpeakingStyle(emojiFrequency: 2.0, cuteLevel: -0.5);
+      const s = SpeakingStyle(emojiFrequency: 2.0, cuteLevel: -0.5);
       // const 构造函数不 clamp，copyWith 会 clamp
       final clamped = s.copyWith();
       expect(clamped.emojiFrequency, 1.0);
