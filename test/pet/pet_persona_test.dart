@@ -24,8 +24,8 @@ void main() {
         systemPrompt: '你是一只高冷的猫',
         templateId: 'tsundere_cat',
         traits: '傲娇,毒舌',
-        personalityTraits: PersonalityTraits(tsundere: 0.9, energy: 0.3),
-        style: SpeakingStyle(sentenceEnding: '哼~', cuteLevel: 0.2),
+        personalityTraits: const PersonalityTraits(tsundere: 0.9, energy: 0.3),
+        style: const SpeakingStyle(sentenceEnding: '哼~', cuteLevel: 0.2),
         source: 'builtin',
       );
       final json = p.toJson();
@@ -61,7 +61,7 @@ void main() {
       final p = PetPersona(
         name: '小傲',
         species: '猫',
-        personalityTraits: PersonalityTraits(tsundere: 0.8, empathy: 0.8, curiosity: 0.7),
+        personalityTraits: const PersonalityTraits(tsundere: 0.8, empathy: 0.8, curiosity: 0.7),
       );
       final prompt = p.buildSystemPrompt();
       expect(prompt, contains('小傲'));
@@ -74,7 +74,7 @@ void main() {
     test('buildSystemPrompt 自定义 systemPrompt 优先', () {
       final p = PetPersona(
         systemPrompt: '你是一只来自外星的生物，说地球话很勉强。',
-        personalityTraits: PersonalityTraits(energy: 0.1),
+        personalityTraits: const PersonalityTraits(energy: 0.1),
       );
       final prompt = p.buildSystemPrompt();
       expect(prompt, contains('来自外星的生物'));
@@ -83,7 +83,7 @@ void main() {
 
   group('SpeakingStyle', () {
     test('默认值', () {
-      final s = SpeakingStyle();
+      const s = SpeakingStyle();
       expect(s.selfReference, '糯糯');
       expect(s.sentenceEnding, '喵~');
       expect(s.maxSentenceLength, 80);
@@ -91,14 +91,16 @@ void main() {
 
     test('clamp 边界', () {
       final s = SpeakingStyle(emojiFrequency: 2.0, cuteLevel: -0.5);
-      expect(s.emojiFrequency, 1.0);
-      expect(s.cuteLevel, 0.0);
+      // const 构造函数不 clamp，copyWith 会 clamp
+      final clamped = s.copyWith();
+      expect(clamped.emojiFrequency, 1.0);
+      expect(clamped.cuteLevel, 0.0);
     });
   });
 
   group('PersonalityTraits', () {
     test('describe 全部高', () {
-      final t = PersonalityTraits(
+      const t = PersonalityTraits(
         energy: 0.9,
         curiosity: 0.9,
         clinginess: 0.9,
@@ -115,7 +117,7 @@ void main() {
     });
 
     test('describe 全部低', () {
-      final t = PersonalityTraits(
+      const t = PersonalityTraits(
         energy: 0.1,
         clinginess: 0.1,
         tsundere: 0.1,
