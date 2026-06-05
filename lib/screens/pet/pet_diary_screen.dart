@@ -1,34 +1,52 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/pet/pet_diary_service.dart';
+import '../../services/pet/knowledge/knowledge_base.dart';
+import '../../services/pet/knowledge/models/diary_entry.dart';
+import '../../config/theme.dart';
 
 class PetDiaryScreen extends StatefulWidget {
-  const PetDiaryScreen({super.key});
+  final KnowledgeBase? knowledgeBase;
+
+  const PetDiaryScreen({super.key, this.knowledgeBase});
 
   @override
   State<PetDiaryScreen> createState() => _PetDiaryScreenState();
 }
 
 class _PetDiaryScreenState extends State<PetDiaryScreen> {
+  List<DiaryEntry> _entries = [];
+  bool _loading = true;
+  DateTime? _selectedDate;
+
   @override
   void initState() {
     super.initState();
-    // 确保 diary service 已初始化
-    Future.microtask(() {
-      if (!mounted) return;
-      context.read<PetDiaryService>().init();
-    });
+    _loadEntries();
   }
 
-  Future<void> _addEntry(PetDiaryService svc) async {
-    final contentController = TextEditingController();
-    final result = await showDialog<String>(
+  Future<void> _loadEntries() async {
+    final kb = widget.knowledgeBase;
+    if (kb == null) return;
+
+    setState(() => _loading = true);
+
+    if (_selectedDate != null) {
+      _entries = await kb.diaryStore.loadByDate(_selectedDate!);
+    } else {
+      _entries = await kb.getRecentDiary(days: 30);
+    }
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _addManualEntry() async {
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('写日记'),
         content: TextField(
-          controller: contentController,
+          controller: controller,
           maxLines: 4,
           decoration: const InputDecoration(hintText: '今天糯糯发生了什么...'),
         ),
@@ -36,148 +54,145 @@ class _PetDiaryScreenState extends State<PetDiaryScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, contentController.text),
+            onPressed: () => Navigator.pop(ctx, controller.text),
             child: const Text('保存'),
           ),
         ],
       ),
     );
-    if (result != null && result.trim().isNotEmpty) {
-      await svc.addEntry(content: result.trim());
+    if (text != null && text.trim().isNotEmpty) {
+      await widget.knowledgeBase!.diaryStore
+          .recordEvent('manual', detail: text.trim());
+      _loadEntries();
     }
-  }
-
-  Future<void> _confirmClear(PetDiaryService svc) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('清空日记'),
-        content: const Text('确定要删除所有日记条目吗？此操作不可撤销。'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确定清空'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await svc.clearAll();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.knowledgeBase == null) {
+      return const Center(child: Text('知识库未初始化'));
+    }
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('📖 糯糯日记'),
-        actions: [
-          Consumer<PetDiaryService>(
-            builder: (_, svc, __) => svc.entries.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    tooltip: '清空日记',
-                    onPressed: () => _confirmClear(svc),
-                  )
-                : const SizedBox.shrink(),
+      appBar: AppBar(title: const Text('📖 糯糯日记')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addManualEntry,
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          _buildDatePicker(),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _entries.isEmpty
+                    ? _buildEmpty()
+                    : _buildEntryList(),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          final svc = context.read<PetDiaryService>();
-          _addEntry(svc);
-        },
-        child: const Icon(Icons.add),
+    );
+  }
+
+  Widget _buildDatePicker() {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate ?? DateTime.now(),
+                firstDate: DateTime(2024),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                _selectedDate = picked;
+                _loadEntries();
+              }
+            },
+          ),
+          if (_selectedDate != null)
+            Chip(
+              label: Text(
+                  '${_selectedDate!.year}-${_selectedDate!.month}-${_selectedDate!.day}'),
+              onDeleted: () {
+                _selectedDate = null;
+                _loadEntries();
+              },
+            )
+          else
+            const Chip(label: Text('最近30天')),
+        ],
       ),
-      body: Consumer<PetDiaryService>(
-        builder: (context, svc, _) {
-          if (svc.entries.isEmpty) {
-            return Center(
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Text(
+        _selectedDate != null
+            ? '这天还没有日记'
+            : '还没有日记~ 和糯糯互动就会自动记日记喵~',
+        style: TextStyle(color: C.scheme.onSurface.withAlpha(128)),
+      ),
+    );
+  }
+
+  Widget _buildEntryList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _entries.length,
+      itemBuilder: (context, index) => _buildEntryCard(_entries[index]),
+    );
+  }
+
+  Widget _buildEntryCard(DiaryEntry entry) {
+    final isHighlight = entry.type == DiaryEntryType.highlight;
+    final isSummary = entry.type == DiaryEntryType.summary;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: isHighlight
+          ? C.scheme.primaryContainer.withAlpha(80)
+          : isSummary
+              ? C.scheme.secondaryContainer.withAlpha(80)
+              : null,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(entry.mood, style: const TextStyle(fontSize: 24)),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('📖', style: TextStyle(fontSize: 48)),
-                  const SizedBox(height: 12),
-                  Text('还没有日记条目~',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          )),
-                  const SizedBox(height: 8),
                   Text(
-                    '糯糯的事件会自动记录在这里\n也可以点击 + 手动添加',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurfaceVariant
-                              .withValues(alpha: 0.7),
-                        ),
+                    entry.content,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          isSummary ? FontWeight.bold : FontWeight.normal,
+                      color: C.scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${entry.date.hour.toString().padLeft(2, '0')}:${entry.date.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: C.scheme.onSurface.withAlpha(128),
+                    ),
                   ),
                 ],
               ),
-            );
-          }
-          return ListView.builder(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(12),
-            itemCount: svc.entries.length,
-            itemBuilder: (context, i) {
-              final entry = svc.entries[i];
-              final dateStr = entry['date'] as String? ?? '';
-              final date = DateTime.tryParse(dateStr);
-              final dateLabel = date != null
-                  ? '${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
-                  : dateStr;
-              final isAuto = entry['type'] != 'manual';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading:
-                      Text(entry['mood'] as String? ?? '📝', style: const TextStyle(fontSize: 24)),
-                  title: Text(entry['content'] as String? ?? '',
-                      maxLines: 3, overflow: TextOverflow.ellipsis),
-                  subtitle: Row(
-                    children: [
-                      if (isAuto)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 1),
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primaryContainer
-                                .withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text('自动',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer)),
-                        ),
-                      Text(dateLabel,
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant)),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    onPressed: () => svc.deleteEntry(entry['id'] as String? ?? ''),
-                  ),
-                ),
-              );
-            },
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }
