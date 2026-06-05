@@ -8,6 +8,7 @@ import './pet_service.dart';
 import './pet_ai_service.dart';
 import './pet_diary_service.dart';
 import './pet_logger.dart';
+import 'pet_token_service.dart';
 import 'pet_brain.dart';
 import 'pet_bubble_manager.dart';
 import 'pet_agent_core.dart';
@@ -187,6 +188,7 @@ class PetOverlayController {
           // 日记事件 → 自动提取记忆
           memoryStore.extractFrom(event);
         },
+        tokenService: PetTokenService.instance,
       );
 
       _knowledgeBase = KnowledgeBase(
@@ -194,6 +196,7 @@ class PetOverlayController {
         memoryStore: memoryStore,
         diaryRepo: diaryRepo,
         memoryRepo: memoryRepo,
+        tokenService: PetTokenService.instance,
       );
       PetLogger().info('Overlay', 'KnowledgeBase initialized');
     }

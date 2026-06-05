@@ -1,21 +1,30 @@
 // Flutter 3.24 / Dart 3.5
 import 'dart:math';
 import '../../pet_logger.dart';
+import '../../pet_token_service.dart';
 import '../models/diary_entry.dart';
 import 'diary_repository.dart';
+import 'diary_summarizer.dart';
 
 /// 日记领域服务：事件记录 + 高亮检测 + 日总结调度
 class DiaryStore {
   final IDiaryRepository _repo;
   final void Function(DiaryEntry event)? onEventRecorded;
+  final DiarySummarizer _summarizer;
+  final PetTokenService? _tokenService;
 
   /// 高亮检测用的滑动窗口（同一日内的近期事件）
   final List<DiaryEntry> _recentEventsByDay = [];
+  String _personaPrompt = '';
 
   DiaryStore({
     required IDiaryRepository repo,
     this.onEventRecorded,
-  }) : _repo = repo;
+    DiarySummarizer? summarizer,
+    PetTokenService? tokenService,
+  })  : _repo = repo,
+        _summarizer = summarizer ?? DiarySummarizer(),
+        _tokenService = tokenService;
 
   // ═══ 事件 → 内容映射（与旧 PetDiaryService 保持一致） ═══
 
@@ -137,9 +146,35 @@ class DiaryStore {
 
   /// 日总结占位：Phase 2 集成 LLM
   Future<DiaryEntry?> summarizeDay(DateTime date) async {
-    // Phase 2: DiarySummarizer 调用 LLM
-    // 此处返回 null 表示"未实现"
-    return null;
+    final dateKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final todayEvents = await _repo.loadByDate(date);
+
+    final existing = todayEvents
+        .where((e) => e.type == DiaryEntryType.summary)
+        .firstOrNull;
+    if (existing != null) return existing;
+
+    final remaining =
+        (await _tokenService?.getBudgetRemaining()) ?? 999999;
+
+    final summary = await _summarizer.summarize(
+      dateKey: dateKey,
+      todayEvents: todayEvents,
+      remainingBudget: remaining,
+      personaPrompt: _personaPrompt,
+    );
+
+    if (summary != null) {
+      await _repo.save(summary);
+      PetLogger().trace('DiaryStore', 'summary: ${summary.content}');
+    }
+
+    return summary;
+  }
+
+  void setPersonaPrompt(String prompt) {
+    _personaPrompt = prompt;
   }
 
   // ═══ 查询 ═══

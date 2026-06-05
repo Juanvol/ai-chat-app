@@ -1,6 +1,6 @@
 // Flutter 3.24 / Dart 3.5
-import '../pet_logger.dart';
 import '../../../pet/pet_persona.dart';
+import '../pet_token_service.dart';
 import 'models/diary_entry.dart';
 import 'models/memory_entry.dart';
 import 'models/user_profile.dart';
@@ -81,13 +81,18 @@ class KnowledgeBase {
     required IDiaryRepository diaryRepo,
     required IMemoryRepository memoryRepo,
     PetPersona? persona,
+    PetTokenService? tokenService, // ignore: unused_element
   })  : _diaryRepo = diaryRepo,
         _memoryRepo = memoryRepo,
-        _persona = persona;
+        _persona = persona {
+    diaryStore.setPersonaPrompt(
+        persona?.buildSystemPrompt() ?? PetPersona().buildSystemPrompt());
+  }
 
   /// 更新当前人格
   void updatePersona(PetPersona persona) {
     _persona = persona;
+    diaryStore.setPersonaPrompt(persona.buildSystemPrompt());
   }
 
   // ═══ D8 决策上下文 ═══
@@ -114,10 +119,10 @@ class KnowledgeBase {
       SuggestionLevel.l3 || SuggestionLevel.l4 => ContextDepth.deep,
     };
     // 取较低的（省 token）
-    final depths = ContextDepth.values;
-    final resolved = depths.indexOf(userDepth) < depths.indexOf(required)
-        ? userDepth
-        : required;
+    const depths = ContextDepth.values;
+    final userIdx = depths.indexOf(userDepth);
+    final requiredIdx = depths.indexOf(required);
+    final resolved = userIdx < requiredIdx ? userDepth : required;
     return resolved;
   }
 
