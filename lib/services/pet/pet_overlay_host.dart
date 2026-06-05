@@ -17,6 +17,8 @@ import 'knowledge/diary/diary_repository_hive.dart';
 import 'knowledge/diary/diary_store.dart';
 import 'knowledge/memory/memory_repository_hive.dart';
 import 'knowledge/memory/memory_store.dart';
+import 'suggestion/suggestion_engine.dart';
+import 'suggestion/budget_gate.dart';
 
 /// 全局宠物浮窗控制器
 final petOverlayController = PetOverlayController();
@@ -203,6 +205,13 @@ class PetOverlayController {
         tokenService: PetTokenService.instance,
       );
       PetLogger().info('Overlay', 'KnowledgeBase initialized');
+      // ── D8: 创建 SuggestionEngine 并注入 PetAgentCore ──
+      final suggestionEngine = SuggestionEngine(
+        knowledgeBase: _knowledgeBase!,
+        budgetGate: BudgetGate(getRemaining: PetTokenService.instance.getBudgetRemaining),
+      );
+      PetAgentCore.shared?.attachSuggestionEngine(suggestionEngine);
+      PetLogger().info('Overlay', 'SuggestionEngine created and attached');
     }
 
     _aiService!.startProactiveTimer((s) {

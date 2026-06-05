@@ -13,6 +13,7 @@ import 'pet_logger.dart';
 import 'pet_chat_service.dart';
 import 'pet_token_service.dart';
 import 'pet_profile_service.dart';
+import 'suggestion/suggestion_engine.dart';
 
 /// 原生浮窗动画控制通道（与 PetOverlayController 共用）
 const _overlayChannel = MethodChannel('com.example.deepseek_chat/pet_overlay');
@@ -144,6 +145,7 @@ class PetAgentCore extends ChangeNotifier {
   PetChatService? _chatSvc;
   String _decisionModelId = 'deepseek-chat';
   String _chatModelId = 'deepseek-chat';
+  SuggestionEngine? _suggestionEngine;
 
   PetAgentCore({
     PetTokenService? tokenService,
@@ -321,6 +323,20 @@ class PetAgentCore extends ChangeNotifier {
 
       final prompt = StringBuffer();
       if (context.isNotEmpty) prompt.writeln('当前语境：$context');
+
+      // ── D8: 注入 KnowledgeBase 上下文 ──
+      if (_suggestionEngine != null) {
+        try {
+          final enrichedContext = await _suggestionEngine!.buildDecisionContext();
+          if (enrichedContext.isNotEmpty) {
+            prompt.writeln(enrichedContext);
+          }
+        } catch (e) {
+          // KnowledgeBase 上下文获取失败不应阻断决策
+          PetLogger().warn('Agent', 'buildDecisionContext failed, continuing without enrichment');
+        }
+      }
+
       prompt.writeln('当前心情：活跃度=${mood.activity.toStringAsFixed(2)} 毒舌度=${mood.sass.toStringAsFixed(2)} 听话度=${mood.compliance.toStringAsFixed(2)}');
       prompt.writeln('决策：你现在想做什么？回复格式：{"action":"bubble/move/flip/speak/silent","content":"..."}');
 
@@ -437,6 +453,12 @@ class PetAgentCore extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+
+  /// D8: 注入建议引擎（由 PetOverlayController 在 KnowledgeBase 初始化后调用）
+  void attachSuggestionEngine(SuggestionEngine engine) {
+    _suggestionEngine = engine;
+    PetLogger().info('Agent', 'SuggestionEngine attached');
   }
 
   /// 回调版聊天流 — 供应用内 UI 使用（不依赖 MethodChannel）
