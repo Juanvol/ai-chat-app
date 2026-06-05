@@ -13,6 +13,7 @@ import '../../services/pet/pet_logger.dart';
 import '../../services/pet/pet_overlay_host.dart' show petOverlayController;
 import '../../widgets/shimmer_box.dart';
 import '../../models/model_config.dart';
+import '../../config/theme.dart';
 
 class PetSettingsScreen extends StatefulWidget {
   const PetSettingsScreen({super.key});
@@ -29,6 +30,10 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
 
   // ── 新增：性格/额度/模型/视觉 ──
   PetPersona _persona = PetPersona();
+  PersonalityTraits _traits = PersonalityTraits.balanced;
+  late TextEditingController _selfRefCtrl;
+  late TextEditingController _endingCtrl;
+  int _maxLen = 80;
   late final TextEditingController _promptController = TextEditingController();
   late final TextEditingController _budgetController;
   Timer? _budgetDebounce;
@@ -55,6 +60,8 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
     super.initState();
     _budgetController = TextEditingController();
     _visionKeyController = TextEditingController();
+    _selfRefCtrl = TextEditingController(text: _persona.style.selfReference);
+    _endingCtrl = TextEditingController(text: _persona.style.sentenceEnding);
     _loadConfig();
   }
 
@@ -64,6 +71,8 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
     _promptController.dispose();
     _budgetController.dispose();
     _visionKeyController.dispose();
+    _selfRefCtrl.dispose();
+    _endingCtrl.dispose();
     super.dispose();
   }
 
@@ -86,15 +95,28 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
         _persona = PetPersona.fromJson(Map<String, dynamic>.from(raw as Map));
       }
       _promptController.text = _persona.systemPrompt;
+      _selfRefCtrl.text = _persona.style.selfReference;
+      _endingCtrl.text = _persona.style.sentenceEnding;
+      _maxLen = _persona.style.maxSentenceLength;
+      _traits = _persona.personalityTraits;
     } catch (_) {}
   }
 
   Future<void> _savePersona(PetPersona p) async {
-    _persona = p;
-    _promptController.text = p.systemPrompt;
+    final updated = p.copyWith(
+      systemPrompt: _promptController.text,
+      personalityTraits: _traits,
+      style: p.style.copyWith(
+        selfReference: _selfRefCtrl.text,
+        sentenceEnding: _endingCtrl.text,
+        maxSentenceLength: _maxLen,
+      ),
+    );
+    _persona = updated;
+    _promptController.text = updated.systemPrompt;
     try {
       final box = await Hive.openBox('pet_config');
-      await box.put('persona', p.toJson());
+      await box.put('persona', updated.toJson());
     } catch (_) {}
     if (mounted) setState(() {});
   }
@@ -379,6 +401,82 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
               systemPrompt: prompts[v] ?? _persona.systemPrompt,
             ));
           },
+        ),
+        // ═══ 性格维度滑块 ═══
+        const SizedBox(height: 16),
+        Text('性格维度', style: C.body(context)),
+        const SizedBox(height: 8),
+        _TraitSlider(
+          label: '活力',
+          subtitle: _traits.energy.toStringAsFixed(1),
+          value: _traits.energy,
+          onChanged: (v) => setState(() => _traits = _traits.copyWith(energy: v)),
+        ),
+        _TraitSlider(
+          label: '好奇心',
+          subtitle: _traits.curiosity.toStringAsFixed(1),
+          value: _traits.curiosity,
+          onChanged: (v) => setState(() => _traits = _traits.copyWith(curiosity: v)),
+        ),
+        _TraitSlider(
+          label: '粘人度',
+          subtitle: _traits.clinginess.toStringAsFixed(1),
+          value: _traits.clinginess,
+          onChanged: (v) => setState(() => _traits = _traits.copyWith(clinginess: v)),
+        ),
+        _TraitSlider(
+          label: '傲娇度',
+          subtitle: _traits.tsundere.toStringAsFixed(1),
+          value: _traits.tsundere,
+          onChanged: (v) => setState(() => _traits = _traits.copyWith(tsundere: v)),
+        ),
+        _TraitSlider(
+          label: '共情力',
+          subtitle: _traits.empathy.toStringAsFixed(1),
+          value: _traits.empathy,
+          onChanged: (v) => setState(() => _traits = _traits.copyWith(empathy: v)),
+        ),
+        _TraitSlider(
+          label: '幽默感',
+          subtitle: _traits.humor.toStringAsFixed(1),
+          value: _traits.humor,
+          onChanged: (v) => setState(() => _traits = _traits.copyWith(humor: v)),
+        ),
+
+        // ═══ 说话风格 ═══
+        const SizedBox(height: 16),
+        Text('说话风格', style: C.body(context)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _selfRefCtrl,
+                decoration: const InputDecoration(labelText: '自称', helperText: '如"糯糯"、"本喵"'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _endingCtrl,
+                decoration: const InputDecoration(labelText: '句尾', helperText: '如"喵~"、"汪!"'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Text('句子长度: ${_maxLen.round()}字'),
+            ),
+            Slider(
+              value: _maxLen.toDouble(),
+              min: 40,
+              max: 200,
+              onChanged: (v) => setState(() => _maxLen = v.round()),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         // System Prompt 编辑
@@ -692,4 +790,43 @@ class _PetSettingsScreenState extends State<PetSettingsScreen> {
     TriggerScene.settings => '设置',
     TriggerScene.all => '全部',
   };
+}
+
+// Flutter 3.24 / Dart 3.5
+class _TraitSlider extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _TraitSlider({
+    required this.label,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 60,
+          child: Text(label, style: const TextStyle(fontSize: 13)),
+        ),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: 0.0,
+            max: 1.0,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(
+          width: 36,
+          child: Text(subtitle, style: const TextStyle(fontSize: 11), textAlign: TextAlign.right),
+        ),
+      ],
+    );
+  }
 }
