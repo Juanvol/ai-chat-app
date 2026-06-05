@@ -8,6 +8,10 @@ import 'models/suggestion.dart';
 /// 生产：`BudgetGate(getRemaining: PetTokenService.instance.getBudgetRemaining)`
 /// 测试：`BudgetGate.test(remaining: 30000)`
 class BudgetGate {
+  static const _budgetFull = 20000;
+  static const _budgetBalanced = 5000;
+  static const _budgetVisionThreshold = 10000;
+  static const _budgetSilent = 1000;
   final Future<int> Function() _getRemaining;
 
   /// 生产构造 — 注入任意异步查询函数
@@ -21,8 +25,8 @@ class BudgetGate {
   /// 获取当前预算允许的最高建议层级
   Future<SuggestionLevel> getAllowedLevel() async {
     final remaining = await _getRemaining();
-    if (remaining > 20000) return SuggestionLevel.l4;
-    if (remaining >= 5000) return SuggestionLevel.l2;
+    if (remaining > _budgetFull) return SuggestionLevel.l4;
+    if (remaining >= _budgetBalanced) return SuggestionLevel.l2;
     return SuggestionLevel.l1;
   }
 
@@ -35,15 +39,15 @@ class BudgetGate {
   /// 是否允许视觉分析（预算 > 10k 才开）
   Future<bool> isVisionAllowed() async {
     final remaining = await _getRemaining();
-    return remaining > 10000;
+    return remaining > _budgetVisionThreshold;
   }
 
   /// 预算档位 label（供 UI 显示）
   Future<String> getTierLabel() async {
     final remaining = await _getRemaining();
-    if (remaining > 20000) return '全力';
-    if (remaining >= 5000) return '均衡';
-    if (remaining > 1000) return '省电';
+    if (remaining > _budgetFull) return '全力';
+    if (remaining >= _budgetBalanced) return '均衡';
+    if (remaining > _budgetSilent) return '省电';
     return '静默';
   }
 

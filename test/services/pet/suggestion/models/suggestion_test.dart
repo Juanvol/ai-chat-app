@@ -7,6 +7,7 @@ void main() {
     test('estimatedTokens 合理', () {
       expect(SuggestionLevel.l1.estimatedTokens, lessThan(SuggestionLevel.l2.estimatedTokens));
       expect(SuggestionLevel.l3.estimatedTokens, greaterThan(SuggestionLevel.l2.estimatedTokens));
+      expect(SuggestionLevel.l4.estimatedTokens, 300);
     });
 
     test('isBubbleOnly', () {
@@ -51,12 +52,32 @@ void main() {
       expect(s.toBubbleText(), contains('来源：时段+日记'));
     });
 
+    test('toBubbleText L2 source 为空时不标注来源', () {
+      final s = Suggestion(
+        level: SuggestionLevel.l2,
+        text: '记得休息喵~',
+        source: '',
+      );
+      expect(s.toBubbleText(), '记得休息喵~');
+    });
+
     test('fromJson 缺字段用默认值', () {
       final s = Suggestion.fromJson({});
       expect(s.level, SuggestionLevel.l1);
       expect(s.text, '');
       expect(s.topic, '');
       expect(s.source, '');
+    });
+
+    test('fromJson 非法 level 回退到 l1', () {
+      final s = Suggestion.fromJson({'level': 'l5'});
+      expect(s.level, SuggestionLevel.l1);
+    });
+
+    test('fromJson 非法日期回退到当前时间', () {
+      final before = DateTime.now();
+      final s = Suggestion.fromJson({'createdAt': 'not-a-date'});
+      expect(s.createdAt.isAfter(before.subtract(const Duration(seconds: 1))), isTrue);
     });
   });
 }
