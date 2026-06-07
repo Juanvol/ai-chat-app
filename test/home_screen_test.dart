@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:hive/hive.dart';
 import 'package:deepseek_chat/screens/home_screen.dart';
 import 'package:deepseek_chat/services/app/conversation_service.dart';
 import 'package:deepseek_chat/services/app/memory_service.dart';
@@ -9,6 +10,7 @@ import 'package:deepseek_chat/services/app/persona_service.dart';
 import 'package:deepseek_chat/services/app/feedback_service.dart';
 import 'fake_storage_service.dart';
 import 'fake_llm_client.dart';
+import 'dart:io';
 
 Widget _wrapHome({ConversationService? svc}) {
   final storage = FakeStorageService();
@@ -27,6 +29,16 @@ Widget _wrapHome({ConversationService? svc}) {
 }
 
 void main() {
+  setUp(() async {
+    final dir = Directory.systemTemp.createTempSync('hive_test_');
+    Hive.init(dir.path);
+    await Hive.openBox('settings');
+  });
+
+  tearDown(() async {
+    await Hive.close();
+  });
+
   group('HomeScreen', () {
     testWidgets('无对话时显示欢迎页和建议问题', (tester) async {
       await tester.pumpWidget(_wrapHome());

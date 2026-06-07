@@ -159,7 +159,7 @@ void main() {
 
         await svc.sendMessage('hi');
         final msgs = svc.currentConversation!.messages;
-        expect(msgs.last.content, contains('信号不好喵...请稍后重试~'));
+        expect(msgs.last.content, contains('网络连接异常，请稍后重试'));
         expect(svc.isLoading, false);
       });
 

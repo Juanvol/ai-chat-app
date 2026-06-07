@@ -94,11 +94,11 @@ void main() {
       expect(conv.messageCount, 0);
     });
 
-    test('default modelId is deepseek-chat', () {
+    test('default modelId is deepseek-v4-pro', () {
       final conv = Conversation(id: 'c3', title: 'T',
         createdAt: DateTime.now(), updatedAt: DateTime.now(), messages: [],
       );
-      expect(conv.modelId, 'deepseek-chat');
+      expect(conv.modelId, 'deepseek-v4-pro');
     });
 
     test('title is mutable', () {
@@ -240,7 +240,7 @@ void main() {
       );
       expect(p.avatar, '🤖');
       expect(p.temperature, 0.7);
-      expect(p.modelId, 'deepseek-chat');
+      expect(p.modelId, 'deepseek-v4-pro');
       expect(p.replyLength, 'normal');
       expect(p.tone, 'professional');
       expect(p.language, 'zh');

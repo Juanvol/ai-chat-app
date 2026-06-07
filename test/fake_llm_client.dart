@@ -37,6 +37,7 @@ class FakeLLMClient extends LLMClient {
     required List<Message> history,
     required String userContent,
     String baseUrl = 'https://api.deepseek.com',
+    String chatPath = '/v1/chat/completions',
     String? apiKey,
     String model = 'deepseek-v4-pro',
     int maxTokens = 8192,
