@@ -8,11 +8,12 @@ import '../models/diary_entry.dart';
 class DiaryRepoHive implements IDiaryRepository {
   static const _boxName = 'pet_diary_v2';
   bool _initialized = false;
+  Future<Box>? _cachedBox;
 
   final StreamController<DiaryEntry> _watchCtrl =
       StreamController<DiaryEntry>.broadcast();
 
-  Future<Box> get _box => Hive.openBox(_boxName);
+  Future<Box> get _box => _cachedBox ??= Hive.openBox(_boxName);
 
   Future<void> init() async {
     if (_initialized) return;

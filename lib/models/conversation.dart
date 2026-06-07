@@ -15,7 +15,7 @@ class Conversation {
     required this.createdAt,
     required this.updatedAt,
     required this.messages,
-    this.modelId = 'deepseek-chat',
+    this.modelId = 'deepseek-v4-pro',
     this.isPinned = false,
   });
 
@@ -36,7 +36,7 @@ class Conversation {
         title: json['title'] as String,
         createdAt: DateTime.parse(json['createdAt'] as String),
         updatedAt: DateTime.parse(json['updatedAt'] as String),
-        modelId: json['modelId'] as String? ?? 'deepseek-chat',
+        modelId: json['modelId'] as String? ?? 'deepseek-v4-pro',
         isPinned: json['isPinned'] as bool? ?? false,
         messages: (json['messages'] as List<dynamic>)
             .map((e) => Message.fromJson(e as Map<String, dynamic>))

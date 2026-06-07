@@ -1,6 +1,7 @@
 // Flutter 3.24 / Dart 3.5
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
+import '../../pet/pet_persona.dart';
 
 class PetChatService extends ChangeNotifier {
   static const _chatsBox = 'pet_chats';
@@ -24,26 +25,35 @@ class PetChatService extends ChangeNotifier {
   }
 
   Future<String> createChat() async {
-    final box = await _chats;
-    final id = '${_sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}_${_idCounter++}';
-    await box.put(id, {
-      'id': id,
-      'title': '新对话',
-      'messages': <Map<String, dynamic>>[],
-      'createdAt': DateTime.now().toIso8601String(),
-      'updatedAt': DateTime.now().toIso8601String(),
-    });
-    _currentId = id;
-    await box.put('currentId', id);
-    notifyListeners();
-    return id;
+    try {
+      final box = await _chats;
+      final id = '${_sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}_${_idCounter++}';
+      await box.put(id, {
+        'id': id,
+        'title': '新对话',
+        'messages': <Map<String, dynamic>>[],
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      _currentId = id;
+      await box.put('currentId', id);
+      notifyListeners();
+      return id;
+    } catch (e) {
+      debugPrint('PetChatService.createChat failed: $e');
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>?> getChat(String id) async {
-    final box = await _chats;
-    final raw = box.get(id);
-    if (raw == null) return null;
-    return Map<String, dynamic>.from(raw as Map);
+    try {
+      final box = await _chats;
+      final raw = box.get(id);
+      if (raw == null) return null;
+      return Map<String, dynamic>.from(raw as Map);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> addMessage(String chatId, String role, String content) async {
@@ -60,29 +70,33 @@ class PetChatService extends ChangeNotifier {
   }
 
   Future<void> _doAddMessage(String chatId, String role, String content) async {
-    final box = await _chats;
-    final chat = await getChat(chatId);
-    if (chat == null) return;
-    final rawList = chat['messages'] as List? ?? [];
-    final messages = rawList
-        .map((m) => Map<String, dynamic>.from(m as Map))
-        .toList();
-    messages.add({
-      'role': role,
-      'content': content,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-    String title = chat['title'] as String? ?? '新对话';
-    if (title == '新对话' && role == 'user') {
-      title = content.length > 15 ? '${content.substring(0, 15)}...' : content;
+    try {
+      final box = await _chats;
+      final chat = await getChat(chatId);
+      if (chat == null) return;
+      final rawList = chat['messages'] as List? ?? [];
+      final messages = rawList
+          .map((m) => Map<String, dynamic>.from(m as Map))
+          .toList();
+      messages.add({
+        'role': role,
+        'content': content,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      String title = chat['title'] as String? ?? '新对话';
+      if (title == '新对话' && role == 'user') {
+        title = content.length > 15 ? '${content.substring(0, 15)}...' : content;
+      }
+      await box.put(chatId, {
+        ...chat,
+        'title': title,
+        'messages': messages,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      notifyListeners();
+    } catch (e) {
+      debugPrint('PetChatService._doAddMessage failed: $e');
     }
-    await box.put(chatId, {
-      ...chat,
-      'title': title,
-      'messages': messages,
-      'updatedAt': DateTime.now().toIso8601String(),
-    });
-    notifyListeners();
   }
 
   Future<void> renameChat(String id, String title) async {
@@ -145,7 +159,8 @@ class PetChatService extends ChangeNotifier {
         .map((m) => Map<String, dynamic>.from(m as Map))
         .toList();
     final recent = messages.reversed.take(maxRounds * 2).toList().reversed.toList();
-    return recent.map((m) => '${m['role'] == 'user' ? '主人' : '雪乃'}: ${m['content']}').join('\n');
+    final name = PetPersona().name;
+    return recent.map((m) => '${m['role'] == 'user' ? '主人' : name}: ${m['content']}').join('\n');
   }
 
   Future<int> importMemories(List<Map<String, dynamic>> summaries) async {

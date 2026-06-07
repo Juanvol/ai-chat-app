@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../services/pet/pet_agent_core.dart';
 import '../../services/pet/pet_chat_service.dart';
+import '../../services/pet/pet_overlay_host.dart';
 import '../../services/pet/pet_logger.dart';
 import 'pet_chat_history_screen.dart';
 
@@ -14,6 +15,11 @@ class PetChatScreen extends StatefulWidget {
 
 class _PetChatScreenState extends State<PetChatScreen> {
   final _inputController = TextEditingController();
+
+  String get _petName {
+    final n = petOverlayController.personaStore?.persona.name;
+    return (n != null && n.isNotEmpty) ? n : '糯糯';
+  }
   final List<Map<String, String>> _messages = [];
   final _scrollController = ScrollController();
   bool _isLoading = false;
@@ -24,7 +30,7 @@ class _PetChatScreenState extends State<PetChatScreen> {
   @override
   void initState() {
     super.initState();
-    _initChat();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initChat());
   }
 
   Future<void> _initChat() async {
@@ -65,60 +71,66 @@ class _PetChatScreenState extends State<PetChatScreen> {
     if (text.isEmpty || _isLoading) return;
     _inputController.clear();
 
-    if (PetAgentCore.shared == null) {
-      await _initAgent();
+    try {
+      if (PetAgentCore.shared == null) {
+        await _initAgent();
+      }
+
+      final agent = PetAgentCore.shared;
+      if (agent == null) {
+        final name = _petName;
+        _addMessage('assistant', '$name还在睡觉喵...请先在设置中配置 API Key~');
+        return;
+      }
+
+      _chatId ??= await _chatService.createChat();
+
+      await _chatService.addMessage(_chatId!, 'user', text);
+
+      setState(() {
+        _messages.add({'role': 'user', 'content': text});
+        _messages.add({'role': 'assistant', 'content': ''});
+        _isLoading = true;
+      });
+      _scrollToBottom();
+
+      final aiIndex = _messages.length - 1;
+      final history = _buildHistory();
+
+      await agent.chatStream(
+        userText: text,
+        history: history,
+        onChunk: (fullText) {
+          if (!mounted) return;
+          setState(() {
+            _messages[aiIndex]['content'] = fullText;
+          });
+          _scrollToBottom();
+        },
+        onDone: () async {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          final aiText = _messages[aiIndex]['content'] ?? '';
+          if (aiText.isNotEmpty && _chatId != null) {
+            await _chatService.addMessage(_chatId!, 'assistant', aiText);
+          }
+          PetLogger().info('PetChat', 'chat done, ${_messages.length} msgs');
+        },
+        onError: (error) {
+          if (!mounted) return;
+          setState(() {
+            _messages[aiIndex]['content'] = error;
+            _isLoading = false;
+          });
+          PetLogger().warn('PetChat', 'chat error: $error');
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _addMessage('assistant', '发送失败，请稍后再试~');
+      PetLogger().error('PetChat', '_send failed', e);
     }
-
-    final agent = PetAgentCore.shared;
-    if (agent == null) {
-      _addMessage('assistant', '雪乃还在睡觉喵...请先在设置中配置 API Key~');
-      return;
-    }
-
-    if (_chatId == null) {
-      _chatId = await _chatService.createChat();
-    }
-
-    await _chatService.addMessage(_chatId!, 'user', text);
-
-    setState(() {
-      _messages.add({'role': 'user', 'content': text});
-      _messages.add({'role': 'assistant', 'content': ''});
-      _isLoading = true;
-    });
-    _scrollToBottom();
-
-    final aiIndex = _messages.length - 1;
-    final history = _buildHistory();
-
-    await agent.chatStream(
-      userText: text,
-      history: history,
-      onChunk: (fullText) {
-        if (!mounted) return;
-        setState(() {
-          _messages[aiIndex]['content'] = fullText;
-        });
-        _scrollToBottom();
-      },
-      onDone: () async {
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-        final aiText = _messages[aiIndex]['content'] ?? '';
-        if (aiText.isNotEmpty && _chatId != null) {
-          await _chatService.addMessage(_chatId!, 'assistant', aiText);
-        }
-        PetLogger().info('PetChat', 'chat done, ${_messages.length} msgs');
-      },
-      onError: (error) {
-        if (!mounted) return;
-        setState(() {
-          _messages[aiIndex]['content'] = error;
-          _isLoading = false;
-        });
-        PetLogger().warn('PetChat', 'chat error: $error');
-      },
-    );
   }
 
   List<Map<String, dynamic>> _buildHistory() {
@@ -181,33 +193,37 @@ class _PetChatScreenState extends State<PetChatScreen> {
   }
 
   Future<void> _loadChat(String chatId) async {
-    final chat = await _chatService.getChat(chatId);
-    if (chat == null) return;
-    final rawMsgs = chat['messages'] as List? ?? [];
-    final msgs = rawMsgs
-        .map((m) => Map<String, String>.from({
-              'role': '${m['role'] ?? ''}',
-              'content': '${m['content'] ?? ''}',
-            }))
-        .toList();
-    await _chatService.switchChat(chatId);
-    if (!mounted) return;
-    setState(() {
-      _chatId = chatId;
-      _messages.clear();
-      _messages.addAll(msgs);
-    });
-    _scrollToBottom();
+    try {
+      final chat = await _chatService.getChat(chatId);
+      if (chat == null) return;
+      final rawMsgs = chat['messages'] as List? ?? [];
+      final msgs = rawMsgs
+          .map((m) => Map<String, String>.from({
+                'role': '${m['role'] ?? ''}',
+                'content': '${m['content'] ?? ''}',
+              }))
+          .toList();
+      await _chatService.switchChat(chatId);
+      if (!mounted) return;
+      setState(() {
+        _chatId = chatId;
+        _messages.clear();
+        _messages.addAll(msgs);
+      });
+      _scrollToBottom();
+    } catch (_) {}
   }
 
   /// 新建对话
   Future<void> _newChat() async {
-    final newId = await _chatService.createChat();
-    if (!mounted) return;
-    setState(() {
-      _chatId = newId;
-      _messages.clear();
-    });
+    try {
+      final newId = await _chatService.createChat();
+      if (!mounted) return;
+      setState(() {
+        _chatId = newId;
+        _messages.clear();
+      });
+    } catch (_) {}
   }
 
   @override
@@ -215,7 +231,7 @@ class _PetChatScreenState extends State<PetChatScreen> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('和雪乃聊天'),
+        title: Text('和$_petName聊天'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -235,7 +251,7 @@ class _PetChatScreenState extends State<PetChatScreen> {
           Expanded(
             child: _messages.isEmpty
                 ? Center(
-                    child: Text('开始和雪乃聊天吧~',
+                    child: Text('开始和$_petName聊天吧~',
                         style: TextStyle(color: cs.onSurfaceVariant)),
                   )
                 : ListView.builder(
@@ -267,7 +283,7 @@ class _PetChatScreenState extends State<PetChatScreen> {
               child: TextField(
                 controller: _inputController,
                 decoration: InputDecoration(
-                  hintText: '和雪乃说点什么...',
+                  hintText: '和$_petName说点什么...',
                   border: const OutlineInputBorder(),
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

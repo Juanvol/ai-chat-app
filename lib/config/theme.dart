@@ -16,7 +16,6 @@ class C {
   static const _borderStrong = Color(0xFFD5D2CC);
 
   static const _accent  = Color(0xFFB8935D);  // 哑铜金（点缀色）
-  static const _accentDim = Color(0xFFD4C4A8); // 浅金（hover态）
 
   static const _text   = Color(0xFF1C1B1F);  // 近黑
   static const _text2  = Color(0xFF6B6760);  // 暖灰辅文
@@ -72,7 +71,6 @@ class C {
   static const _dBorderStrong = Color(0xFF4A4A4E);
 
   static const _dAccent  = Color(0xFFB8935D);  // 哑铜金
-  static const _dAccentDim = Color(0xFF9A7B4A); // 暗金
 
   static const _dText  = Color(0xFFE4DFD8);  // 暖白（~12:1 对比度）
   static const _dText2 = Color(0xFF8B857D);  // 暖灰辅文（~5:1）

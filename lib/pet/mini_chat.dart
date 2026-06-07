@@ -9,6 +9,7 @@ import '../main.dart' show petAgentChatSink;
 import '../services/pet/pet_ai_service.dart';
 import '../services/pet/pet_logger.dart';
 import '../services/pet/pet_token_service.dart';
+import '../services/pet/pet_overlay_host.dart';
 import '../pet/pet_persona.dart';
 
 class MiniChat extends StatefulWidget {
@@ -31,10 +32,26 @@ class MiniChat extends StatefulWidget {
 
 class _MiniChatState extends State<MiniChat> {
   static const _agentChannel = MethodChannel('com.example.deepseek_chat/pet_agent_bridge');
-  static const _personaPrompt = '你是弗糯糯，一只可爱的虚拟宠物精灵。'
-      '性格：软萌、粘人、偶尔丧丧的摆烂。'
-      '自称"糯糯"，句尾加"喵~"或"..."。'
-      '保持短回复，像宠物一样简洁可爱，不超过3句话。';
+
+  /// 动态读取名字，空则 fallback
+  String get _petName {
+    final n = petOverlayController.personaStore?.persona.name;
+    return (n != null && n.isNotEmpty) ? n : '糯糯';
+  }
+  /// 动态读取自称，空则 fallback
+  String get _petSelfRef {
+    final r = petOverlayController.personaStore?.persona.style.selfReference;
+    return (r != null && r.isNotEmpty) ? r : '糯糯';
+  }
+
+  String get _personaPrompt {
+    final name = _petName;
+    final selfRef = _petSelfRef;
+    return '你是$name，一只可爱的虚拟宠物精灵。'
+        '性格：软萌、粘人、偶尔丧丧的摆烂。'
+        '自称"$selfRef"，句尾加"喵~"或"..."。'
+        '保持短回复，像宠物一样简洁可爱，不超过3句话。';
+  }
 
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
@@ -164,7 +181,7 @@ class _MiniChatState extends State<MiniChat> {
       if (mounted && _isLoading && _agentRequestId == myRequestId) {
         setState(() {
           _messages[_agentAssistantIndex] =
-              const _ChatLine(isUser: false, text: '...糯糯在想该怎么回你喵~');
+              _ChatLine(isUser: false, text: '...$_petSelfRef在想该怎么回你喵~');
           _isLoading = false;
         });
         petAgentChatSink = null;
@@ -184,7 +201,7 @@ class _MiniChatState extends State<MiniChat> {
         // Agent 桥未就绪 → 显示错误提示
         setState(() {
           _messages.removeLast(); // 移除空 assistant 消息
-          _messages.add(const _ChatLine(isUser: false, text: '糯糯还没准备好喵~ 请确认 API Key 已配置'));
+          _messages.add(_ChatLine(isUser: false, text: '$_petSelfRef还没准备好喵~ 请确认 API Key 已配置'));
           _isLoading = false;
         });
         PetLogger().warn('MiniChat', 'Agent bridge failed: $e');
@@ -277,7 +294,7 @@ class _MiniChatState extends State<MiniChat> {
     final recent = _messages.sublist(_lastSummarizedIndex);
     final text = recent
         .where((m) => m.text.isNotEmpty)
-        .map((m) => '${m.isUser ? "主人" : "糯糯"}: ${m.text}')
+        .map((m) => '${m.isUser ? "主人" : _petSelfRef}: ${m.text}')
         .join('\n');
 
     if (text.isEmpty) return;
@@ -321,43 +338,45 @@ class _MiniChatState extends State<MiniChat> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: _resetIdleTimer,
       child: Container(
         width: 280,
         height: 380,
         decoration: BoxDecoration(
-          color: const Color(0xE6212121),
+          color: scheme.surface,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scheme.outlineVariant.withAlpha(80)),
         ),
         child: Column(
           children: [
-            _buildHeader(),
-            Expanded(child: _buildMessageList()),
-            _buildInputBar(),
+            _buildHeader(scheme),
+            Expanded(child: _buildMessageList(scheme)),
+            _buildInputBar(scheme),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ColorScheme scheme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          const Text('🐾 弗糯糯', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          Text('🐾 $_petName', style: TextStyle(color: scheme.onSurface.withAlpha(180), fontSize: 13)),
           const Spacer(),
           GestureDetector(
             onTap: _onClose,
-            child: const Icon(Icons.close, color: Colors.white38, size: 18),
+            child: Icon(Icons.close, color: scheme.onSurface.withAlpha(80), size: 18),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(ColorScheme scheme) {
     return ListView.builder(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
@@ -366,12 +385,12 @@ class _MiniChatState extends State<MiniChat> {
       itemBuilder: (_, i) {
         final line = _messages[i];
         final showFeedback = widget.onFeedback != null && i == _lastFeedbackIndex && !line.isUser;
-        return _buildMessage(line, showFeedback: showFeedback);
+        return _buildMessage(scheme, line, showFeedback: showFeedback);
       },
     );
   }
 
-  Widget _buildMessage(_ChatLine line, {bool showFeedback = false}) {
+  Widget _buildMessage(ColorScheme scheme, _ChatLine line, {bool showFeedback = false}) {
     if (line.isUser) {
       return Align(
         alignment: Alignment.centerRight,
@@ -379,17 +398,17 @@ class _MiniChatState extends State<MiniChat> {
           margin: const EdgeInsets.only(top: 4, bottom: 4),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF4A90D9),
+            color: scheme.primary,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(line.text, style: const TextStyle(color: Colors.white, fontSize: 13)),
+          child: Text(line.text, style: TextStyle(color: scheme.onPrimary, fontSize: 13)),
         ),
       );
     }
     if (line.text.isEmpty && _isLoading) {
-      return const Padding(
-        padding: EdgeInsets.all(8),
-        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+      return Padding(
+        padding: const EdgeInsets.all(8),
+        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary)),
       );
     }
     return Align(
@@ -402,10 +421,10 @@ class _MiniChatState extends State<MiniChat> {
             margin: const EdgeInsets.only(top: 4, bottom: 2),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFF3A3A3A),
+              color: scheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(line.text, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            child: Text(line.text, style: TextStyle(color: scheme.onSurface, fontSize: 13)),
           ),
           if (showFeedback)
             Padding(
@@ -430,7 +449,7 @@ class _MiniChatState extends State<MiniChat> {
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar(ColorScheme scheme) {
     return Container(
       padding: const EdgeInsets.all(8),
       child: Row(
@@ -438,14 +457,14 @@ class _MiniChatState extends State<MiniChat> {
           Expanded(
             child: TextField(
               controller: _inputController,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: TextStyle(color: scheme.onSurface, fontSize: 13),
               decoration: InputDecoration(
-                hintText: '和糯糯说点什么...',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                hintText: '和$_petSelfRef说点什么...',
+                hintStyle: TextStyle(color: scheme.onSurface.withAlpha(80), fontSize: 13),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                 filled: true,
-                fillColor: const Color(0xFF4A4A4A),
+                fillColor: scheme.surfaceContainerHighest,
               ),
               onChanged: (_) => _resetIdleTimer(),
               onSubmitted: (_) => _send(),
@@ -454,7 +473,7 @@ class _MiniChatState extends State<MiniChat> {
           const SizedBox(width: 8),
           GestureDetector(
             onTap: _send,
-            child: const Icon(Icons.send, color: Color(0xFF4A90D9), size: 22),
+            child: Icon(Icons.send, color: scheme.primary, size: 22),
           ),
         ],
       ),

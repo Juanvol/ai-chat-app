@@ -8,11 +8,12 @@ import '../models/memory_entry.dart';
 class MemoryRepoHive implements IMemoryRepository {
   static const _boxName = 'pet_memory_v2';
   bool _initialized = false;
+  Future<Box>? _cachedBox;
 
   final StreamController<List<MemoryEntry>> _watchCtrl =
       StreamController<List<MemoryEntry>>.broadcast();
 
-  Future<Box> get _box => Hive.openBox(_boxName);
+  Future<Box> get _box => _cachedBox ??= Hive.openBox(_boxName);
 
   Future<void> init() async {
     if (_initialized) return;

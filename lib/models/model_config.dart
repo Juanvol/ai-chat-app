@@ -2,6 +2,7 @@ class ModelProvider {
   final String id;
   final String name;
   final String baseUrl;
+  final String chatPath; // 追加在 baseUrl 后的路径，默认 /v1/chat/completions
   final String keyLabel;
   String apiKey;
   bool enabled;
@@ -10,6 +11,7 @@ class ModelProvider {
     required this.id,
     required this.name,
     required this.baseUrl,
+    this.chatPath = '/v1/chat/completions',
     this.keyLabel = 'API Key',
     this.apiKey = '',
     this.enabled = true,
@@ -17,12 +19,14 @@ class ModelProvider {
 
   Map<String, dynamic> toJson() => {
         'id': id, 'name': name, 'baseUrl': baseUrl,
+        'chatPath': chatPath,
         'apiKey': apiKey, 'enabled': enabled,
       };
 
   factory ModelProvider.fromJson(Map<String, dynamic> j) => ModelProvider(
         id: j['id'] as String, name: j['name'] as String,
         baseUrl: j['baseUrl'] as String,
+        chatPath: j['chatPath'] as String? ?? '/v1/chat/completions',
         apiKey: j['apiKey'] as String? ?? '',
         enabled: j['enabled'] as bool? ?? true,
       );
@@ -54,10 +58,10 @@ class ModelConfig {
     ModelProvider(id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com'),
     ModelProvider(id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com'),
     ModelProvider(id: 'siliconflow', name: '硅基流动', baseUrl: 'https://api.siliconflow.cn'),
-    ModelProvider(id: 'zhipu', name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4'),
+    ModelProvider(id: 'zhipu', name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', chatPath: '/chat/completions'),
     ModelProvider(id: 'moonshot', name: 'Moonshot', baseUrl: 'https://api.moonshot.cn'),
     ModelProvider(id: 'deepb', name: 'DeepSeek 官方', baseUrl: 'https://api.deepseek.com'),
-    ModelProvider(id: 'xiaomi', name: '小米 MiMo', baseUrl: 'https://token-plan-cn.xiaomimimo.com'),
+    ModelProvider(id: 'xiaomi', name: '小米 MiMo', baseUrl: 'https://api.xiaomimimo.com'),
     ModelProvider(id: 'custom', name: '自定义', baseUrl: ''),
   ];
 
@@ -69,10 +73,10 @@ class ModelConfig {
     ModelConfig(id: 'ds-v4-flash', name: 'DeepSeek V4 Flash', description: '轻量级 284B MoE，13B 活跃，极速低价',
         providerId: 'deepseek', modelId: 'deepseek-v4-flash', maxTokens: 8192,
         inputPricePerM: 1.01, outputPricePerM: 3.02, currency: 'CNY'),
-    ModelConfig(id: 'ds-chat', name: 'DeepSeek V4 (旧版兼容)', description: '等同于 Flash，7月24日后失效',
+    ModelConfig(id: 'ds-chat', name: 'DeepSeek V4 (旧版兼容)', description: '⚠ 2026-07-24 废弃，请迁移到 V4 Pro',
         providerId: 'deepseek', modelId: 'deepseek-chat', maxTokens: 8192,
         inputPricePerM: 1.01, outputPricePerM: 3.02, currency: 'CNY'),
-    ModelConfig(id: 'ds-reasoner', name: 'DeepSeek R1 推理 (旧版)', description: '深度推理，等同于 Flash 思考模式',
+    ModelConfig(id: 'ds-reasoner', name: 'DeepSeek R1 推理 (旧版)', description: '⚠ 2026-07-24 废弃，V4 Pro 原生支持思考模式',
         providerId: 'deepseek', modelId: 'deepseek-reasoner', maxTokens: 8192,
         inputPricePerM: 1.01, outputPricePerM: 3.02, currency: 'CNY'),
     // 小米 MiMo (CNY, OpenAI 兼容)
@@ -138,7 +142,7 @@ class ModelConfig {
   ];
 
   /// 根据 modelId 解析 provider 信息（baseUrl + apiKey 需从 Storage 读取）
-  static ({String providerId, String baseUrl, String modelId})? resolveModel(String modelId) {
+  static ({String providerId, String baseUrl, String chatPath, String modelId})? resolveModel(String modelId) {
     final config = builtIn.firstWhere(
       (m) => m.modelId == modelId,
       orElse: () => builtIn.first,
@@ -147,6 +151,6 @@ class ModelConfig {
       (p) => p.id == config.providerId,
       orElse: () => providers.first,
     );
-    return (providerId: provider.id, baseUrl: provider.baseUrl, modelId: config.modelId);
+    return (providerId: provider.id, baseUrl: provider.baseUrl, chatPath: provider.chatPath, modelId: config.modelId);
   }
 }

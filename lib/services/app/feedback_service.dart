@@ -108,7 +108,7 @@ class FeedbackService extends ChangeNotifier {
     required LLMClient client,
     String baseUrl = 'https://api.deepseek.com',
     String? apiKey,
-    String model = 'deepseek-chat',
+    String model = 'deepseek-v4-pro',
     int maxTokens = 2048,
   }) async {
     final pending = unprocessed;

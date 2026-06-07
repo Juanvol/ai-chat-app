@@ -15,14 +15,16 @@ class PetSuggestion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onChat,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xE64A90D9),
+          color: scheme.primaryContainer,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scheme.primary.withAlpha(40)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -31,7 +33,7 @@ class PetSuggestion extends StatelessWidget {
               text,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: TextStyle(color: scheme.onPrimaryContainer, fontSize: 13),
             ),
             const SizedBox(height: 8),
             Row(
@@ -54,28 +56,25 @@ class _ActionChip extends StatelessWidget {
   final VoidCallback onTap;
   final bool isPrimary;
 
-  const _ActionChip({
-    required this.label,
-    required this.onTap,
-    required this.isPrimary,
-  });
+  const _ActionChip({required this.label, required this.onTap, required this.isPrimary});
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isPrimary ? Colors.white : Colors.white24,
-          borderRadius: BorderRadius.circular(12),
+          color: isPrimary ? scheme.primary : scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isPrimary ? const Color(0xFF4A90D9) : Colors.white70,
+            color: isPrimary ? scheme.onPrimary : scheme.onSurface,
             fontSize: 12,
-            fontWeight: isPrimary ? FontWeight.w600 : FontWeight.normal,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),

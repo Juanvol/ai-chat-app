@@ -2,6 +2,7 @@
 // ignore_for_file: must_call_super
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
+import '../../pet/pet_persona.dart';
 import 'pet_logger.dart';
 
 /// 宠物日记持久化服务（单例）
@@ -79,10 +80,10 @@ class PetDiaryService extends ChangeNotifier {
       'longPress' => ('享受了主人给的零食，好吃好吃~ 😋', '😋'),
       'feed' => ('吃了一顿美味大餐~', '😋'),
       'talk' => ('和主人聊了会天~', '💬'),
-      'sleep' => ('糯糯睡着了...zzZ', '💤'),
-      'wake' => ('糯糯醒啦，又是元气满满的一天~', '😸'),
+      'sleep' => ('${PetPersona().style.selfReference}睡着了...zzZ', '💤'),
+      'wake' => ('${PetPersona().style.selfReference}醒啦，又是元气满满的一天~', '😸'),
       'suggestion' => (detail ?? '给了主人一个小建议', '💡'),
-      'lowEnergy' => ('能量不足，糯糯好累...', '😞'),
+      'lowEnergy' => ('能量不足，${PetPersona().style.selfReference}好累...', '😞'),
       'lowHunger' => ('肚子饿了，想吃东西...', '🍖'),
       _ => (detail ?? '发生了某件事', '📝'),
     };

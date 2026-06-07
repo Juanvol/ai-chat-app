@@ -55,22 +55,23 @@ class MemoryStore {
 
   // ═══ LLM 整理（Phase 2 实现） ═══
 
-  /// 每3天触发一次 LLM 批量整理
-  Future<void> organizeIfNeeded() async {
-    // 每3天检查一次
-    if (_lastOrganizeAt != null &&
-        DateTime.now().difference(_lastOrganizeAt!).inDays < 3) {
-      return;
+  /// 每1天触发一次 LLM 批量整理（测验版）
+  /// [force] 为 true 时跳过冷却检查（手动触发）
+  /// 返回 (更新的条目列表, 删除的ID列表)；null 表示跳过
+  Future<({List<MemoryEntry> updated, List<String> deleted})?> organizeIfNeeded({bool force = false}) async {
+    if (!force && _lastOrganizeAt != null &&
+        DateTime.now().difference(_lastOrganizeAt!).inDays < 1) {
+      return null;
     }
 
     int remaining = 0;
     if (_tokenService != null) {
       remaining = await _tokenService.getBudgetRemaining();
     }
-    if (remaining < 500) {
+    if (remaining < 150) {
       PetLogger().trace('MemoryStore',
-          'organizeIfNeeded skip: budget $remaining < 500');
-      return;
+          'organizeIfNeeded skip: budget $remaining < 150');
+      return null;
     }
 
     final existing = await _repo.loadAll();
@@ -86,11 +87,13 @@ class MemoryStore {
     }
 
     for (final id in result.toDelete) {
+      // 保存被删除记忆的内容，用于UI展示
       await _repo.delete(id);
       PetLogger().info('MemoryStore', 'organize: deleted $id');
     }
 
     _lastOrganizeAt = DateTime.now();
+    return (updated: result.toUpdate, deleted: result.toDelete);
   }
 
   // ═══ 用户 CRUD ═══
@@ -145,13 +148,7 @@ class MemoryStore {
 
   Future<List<MemoryEntry>> search(String keyword) => _repo.search(keyword);
 
-  // ═══ 用户画像聚合（纯规则） ═══
-
-  UserProfile buildProfile() {
-    // 同步加载所有记忆（MemoryStore 的操作是同步快速的 Hive 读取）
-    // 注意：这是同步包装，实际调用时由 KnowledgeBase 在 async 上下文中获取
-    return UserProfile(); // 占位，实际由 buildProfileAsync 填充
-  }
+  // ═══ 用户画像聚合（纯规则，异步） ═══
 
   Future<UserProfile> buildProfileAsync() async {
     final all = await _repo.loadAll();

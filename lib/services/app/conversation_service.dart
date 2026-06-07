@@ -10,6 +10,9 @@ import '../pet/pet_logger.dart';
 import 'storage_service.dart';
 
 class ConversationService extends ChangeNotifier {
+  /// D8h: 主聊天完成后通知宠物（触发即时建议）
+  static void Function()? onConversationComplete;
+
   final StorageService _storage;
   final LLMClient _client;
   List<Conversation> _conversations = [];
@@ -243,7 +246,7 @@ class ConversationService extends ChangeNotifier {
         final errMsg = Message(
           id: '${DateTime.now().millisecondsSinceEpoch}_assistant',
           role: 'assistant',
-          content: '发送太快了喵~ 每分钟限制 $rateLimitPerMinute 条消息，请稍后再试',
+          content: '发送频率过高，每分钟限制 $rateLimitPerMinute 条消息，请稍后再试',
           createdAt: DateTime.now(),
           isStreaming: false,
         );
@@ -309,6 +312,7 @@ class ConversationService extends ChangeNotifier {
         history: conversation.messages.where((m) => !m.isStreaming).toList(),
         userContent: content,
         baseUrl: provider?.baseUrl ?? 'https://api.deepseek.com',
+        chatPath: provider?.chatPath ?? '/v1/chat/completions',
         apiKey: providerKey.isNotEmpty ? providerKey : _client.apiKey,
         model: model?.modelId ?? 'deepseek-v4-pro',
         maxTokens: maxTokens ?? model?.maxTokens ?? globalMaxTokens,
@@ -347,6 +351,8 @@ class ConversationService extends ChangeNotifier {
         PetLogger().info('ConvSvc', 'stream done, len=${contentBuf.length} usage=$usage');
         conversation.messages[conversation.messages.length - 1] =
             assistantMessage.copyWith(content: contentBuf.toString(), reasoningContent: reasoningBuf.toString(), isStreaming: false);
+        // D8h: 通知宠物——主人刚聊完天，可以给相关建议
+        onConversationComplete?.call();
       }
     } catch (e) {
       PetLogger().error('ConvSvc', 'sendMessage failed', e);
@@ -355,7 +361,7 @@ class ConversationService extends ChangeNotifier {
             assistantMessage.copyWith(content: '已停止生成', isStreaming: false);
       } else {
         conversation.messages[conversation.messages.length - 1] =
-            assistantMessage.copyWith(content: '信号不好喵...请稍后重试~', isStreaming: false);
+            assistantMessage.copyWith(content: '网络连接异常，请稍后重试', isStreaming: false);
       }
     }
 

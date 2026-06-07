@@ -63,6 +63,7 @@ class LLMClient {
     required List<Message> history,
     required String userContent,
     String baseUrl = 'https://api.deepseek.com',
+    String chatPath = '/v1/chat/completions',
     String? apiKey,
     String model = 'deepseek-v4-pro',
     int maxTokens = 8192,
@@ -89,7 +90,7 @@ class LLMClient {
     PetLogger().info('LLMClient', 'sendStream -> $baseUrl model=$model maxTokens=$maxTokens provider=$providerId');
     try {
       final response = await _dio.post(
-        '$baseUrl/v1/chat/completions',
+        '$baseUrl$chatPath',
         data: body,
         options: Options(responseType: ResponseType.stream),
         cancelToken: cancelToken,

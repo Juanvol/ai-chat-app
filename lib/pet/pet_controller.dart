@@ -15,16 +15,22 @@ class PetController extends ChangeNotifier {
   DateTime _lastInteractionAt;
   void Function(PetState state)? onStateChanged;
 
+  /// 养成里程碑回调（参数：档位 1/2/3 对应 100/500/1000）
+  void Function(int tier, int affection)? onMilestoneReached;
+
+  /// 上次已达成的里程碑档位（1=100, 2=500, 3=1000），避免重复触发
+  int _lastMilestoneTier = 0;
+
   PetController({
     PetState? initialState,
-    this.decayInterval = const Duration(minutes: 1),
+    this.decayInterval = const Duration(minutes: 2),
     this.onStateChanged,
   }) : _state = initialState ?? PetState(),
        _lastInteractionAt = initialState?.lastFed ?? DateTime.now();
 
   PetController.fromState(PetState state, {Duration? decayInterval, this.onStateChanged})
       : _state = state,
-        decayInterval = decayInterval ?? const Duration(minutes: 1),
+        decayInterval = decayInterval ?? const Duration(minutes: 2),
         _lastInteractionAt = state.lastFed;
 
   PetState get state => _state;
@@ -72,11 +78,18 @@ class PetController extends ChangeNotifier {
     if (isDeepSleeping) { PetLogger().trace('Controller', 'decay skipped: deep sleeping'); return; }
     // 用户主动触发的交互状态不衰减，警告状态（hungry/sleepy）继续衰减
     if (_noDecayStatuses.contains(_state.status)) { PetLogger().trace('Controller', 'decay skipped: status=${_state.status.name}'); return; }
-    _state = _state.copyWith(
-      hunger: (_state.hunger - 1).clamp(0, 100),
-      mood: (_state.mood - 0.5).clamp(0, 100),
-      energy: (_state.energy - 1).clamp(0, 100),
+    final newState = _state.copyWith(
+      hunger: (_state.hunger - 2).clamp(0, 100),   // 2min 间隔，翻倍补偿
+      mood: (_state.mood - 1).clamp(0, 100),
+      energy: (_state.energy - 2).clamp(0, 100),
     );
+    // ── 去重：值没变不通知（已经到底） ──
+    if (newState.hunger == _state.hunger &&
+        newState.mood == _state.mood &&
+        newState.energy == _state.energy) {
+      return;
+    }
+    _state = newState;
     _checkAutoTransition();
     _notify();
   }
@@ -188,8 +201,24 @@ class PetController extends ChangeNotifier {
   }
 
   void _notify() {
+    _checkMilestone();
     notifyListeners();
     onStateChanged?.call(_state);
+  }
+
+  /// 检查是否跨越养成里程碑（100/500/1000）
+  void _checkMilestone() {
+    final a = _state.affection;
+    final milestones = {100: 1, 500: 2, 1000: 3};
+    for (final entry in milestones.entries) {
+      if (a >= entry.key && _lastMilestoneTier < entry.value) {
+        _lastMilestoneTier = entry.value;
+        PetLogger().info('Controller',
+            'Milestone reached: tier=${entry.value} affection=$a');
+        onMilestoneReached?.call(entry.value, a);
+        break; // 每次只触发最近的一个
+      }
+    }
   }
 
   void _cancelTransition() {

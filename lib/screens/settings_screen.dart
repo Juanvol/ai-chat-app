@@ -183,15 +183,25 @@ class _SSState extends State<SettingsScreen> {
         const SizedBox(height: C.s16),
 
         // 温度 (V4 不支持)
-        Text('温度', style: C.body(context)),
-        const SizedBox(height: C.s4),
-        Text('⚠ V4 Pro/Flash 不支持温度调节，此设置无效。仅对旧版模型 (deepseek-chat) 有效。', style: C.caption(context)),
-        const SizedBox(height: C.s4),
-        Row(children: [
-          const Text('0', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 11)),
-          Expanded(child: Slider(value: _temp, min: 0.0, max: 1.5, divisions: 15, onChanged: (v) => setState(() => _temp = v))),
-          const Text('1.5', style: TextStyle(color: Color(0xFF5B5B65), fontSize: 11)),
-        ]),
+        Builder(builder: (ctx) {
+          final noTemp = _model.contains('v4') || _model.contains('flash');
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('温度', style: C.body(ctx)),
+            const SizedBox(height: C.s4),
+            if (noTemp)
+              Text('⚠ $_model 不支持温度调节', style: C.caption(ctx).copyWith(color: Colors.orange.shade700)),
+            const SizedBox(height: C.s4),
+            Row(children: [
+              Text('0', style: TextStyle(color: noTemp ? Colors.grey : const Color(0xFF5B5B65), fontSize: 11)),
+              Expanded(child: Slider(
+                value: _temp, min: 0.0, max: 1.5, divisions: 15,
+                activeColor: noTemp ? Colors.grey : null,
+                onChanged: noTemp ? null : (v) => setState(() => _temp = v),
+              )),
+              Text('1.5', style: TextStyle(color: noTemp ? Colors.grey : const Color(0xFF5B5B65), fontSize: 11)),
+            ]),
+          ]);
+        }),
         Center(child: Text('${_temp.toStringAsFixed(1)} — ${_tempDesc(_temp)}', style: C.caption(context))),
 
         const SizedBox(height: C.s16),

@@ -97,7 +97,7 @@ class _DeepSeekAppState extends State<DeepSeekApp> with WidgetsBindingObserver {
             PetLogger().error('App', 'chatReq handleChatRequest failed', e);
             // Agent 异常 → 通过 petAgentChatSink 回传错误
             petAgentChatSink?.call('chatError', {
-              'message': '糯糯还没准备好喵...稍等一下~',
+              'message': '${petOverlayController.petSelfRef}还没准备好喵...稍等一下~',
               'requestId': requestId,
             });
           }

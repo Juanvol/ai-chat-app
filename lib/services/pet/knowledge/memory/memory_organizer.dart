@@ -20,9 +20,9 @@ class MemoryOrganizer {
   }) async {
     if (existingMemories.isEmpty) return (toUpdate: <MemoryEntry>[], toDelete: <String>[]);
 
-    if (remainingBudget < 500) {
+    if (remainingBudget < 150) {
       PetLogger().trace('MemoryOrganizer',
-          'skip: remaining budget $remainingBudget < 500');
+          'skip: remaining budget $remainingBudget < 150');
       return (toUpdate: <MemoryEntry>[], toDelete: <String>[]);
     }
 
@@ -35,7 +35,7 @@ class MemoryOrganizer {
 
     if (memoryLines.isEmpty) return (toUpdate: <MemoryEntry>[], toDelete: <String>[]);
 
-    final prompt = '''你是糯糯的记忆管理助手。以下是糯糯通过规则自动提取的观察片段：
+    final prompt = '''你是宠物记忆管理助手。以下是通过规则自动提取的观察片段：
 
 $memoryLines
 

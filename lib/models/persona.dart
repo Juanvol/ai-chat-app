@@ -46,7 +46,7 @@ class Persona {
   Persona({
     required this.id, required this.name, this.avatar = '🤖',
     required this.systemPrompt, this.temperature = 0.7,
-    this.modelId = 'deepseek-chat',
+    this.modelId = 'deepseek-v4-pro',
     required this.createdAt, required this.updatedAt,
     this.replyLength = 'normal', this.tone = 'professional',
     this.language = 'zh', this.expertise = 'general',
@@ -181,7 +181,7 @@ class Persona {
         avatar: j['avatar'] as String? ?? '🤖',
         systemPrompt: j['systemPrompt'] as String,
         temperature: (j['temperature'] as num?)?.toDouble() ?? 0.7,
-        modelId: j['modelId'] as String? ?? 'deepseek-chat',
+        modelId: j['modelId'] as String? ?? 'deepseek-v4-pro',
         createdAt: DateTime.parse(j['createdAt'] as String),
         updatedAt: DateTime.parse(j['updatedAt'] as String),
         replyLength: j['replyLength'] as String? ?? 'normal',

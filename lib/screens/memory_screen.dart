@@ -5,6 +5,7 @@ import '../config/theme.dart';
 import '../services/app/conversation_service.dart';
 import '../services/app/memory_service.dart';
 import '../services/pet/pet_chat_service.dart';
+import '../services/pet/pet_overlay_host.dart';
 import '../utils/memory_extractor.dart';
 
 const _impLabels = ['', '临时提及', '技术约束', '已做决策', '当前任务', '核心目标'];
@@ -20,6 +21,11 @@ class MemoryScreen extends StatefulWidget {
 class _MemoryScreenState extends State<MemoryScreen> {
   bool _selecting = false;
   final _selected = <String>{};
+
+  String get _petName {
+    final n = petOverlayController.personaStore?.persona.name;
+    return (n != null && n.isNotEmpty) ? n : '糯糯';
+  }
 
   void _exitSelecting() {
     setState(() {
@@ -44,7 +50,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已导入 $count 条记忆到雪乃 🐾')),
+      SnackBar(content: Text('已导入 $count 条记忆到$_petName 🐾')),
     );
     _exitSelecting();
   }
@@ -64,7 +70,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
           if (!_selecting)
             IconButton(
               icon: const Text('🐾', style: TextStyle(fontSize: 18)),
-              tooltip: '导入记忆到雪乃',
+              tooltip: '导入记忆到$_petName',
               onPressed: () => setState(() => _selecting = true),
             )
           else
@@ -188,7 +194,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
                   child: FilledButton.icon(
                     onPressed: _selected.isEmpty ? null : () => _importToPet(context),
                     icon: const Text('🐾', style: TextStyle(fontSize: 16)),
-                    label: Text(_selected.isEmpty ? '请选择要导入的记忆' : '导入 ${_selected.length} 条到雪乃'),
+                    label: Text(_selected.isEmpty ? '请选择要导入的记忆' : '导入 ${_selected.length} 条到$_petName'),
                   ),
                 ),
               ),

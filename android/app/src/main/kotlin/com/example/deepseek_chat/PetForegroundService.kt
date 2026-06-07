@@ -12,7 +12,9 @@ import android.content.IntentFilter
 import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.view.MotionEvent
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
@@ -35,10 +37,19 @@ class PetForegroundService : Service() {
     private var screenReceiver: BroadcastReceiver? = null
     private var density: Float = 1f
 
+    // 双窗口：触控窗口（小，仅精灵身体约 78×85dp）
+    private var touchWindowRoot: FrameLayout? = null
+    private var touchWindowParams: WindowManager.LayoutParams? = null
+
     // 点击穿透
     private var isPassthrough = false
     // 浮窗 LayoutParams（小窗模式重定位用）
     private var windowParams: WindowManager.LayoutParams? = null
+
+    /** 宠物显示名（从 Dart 端同步，默认"雪乃"） */
+    private var petName: String = "雪乃"
+    /** 宠物自称（从 Dart 端同步，默认"糯糯"） */
+    private var petSelfRef: String = "糯糯"
 
     companion object {
         const val CHANNEL_ID = "pet_foreground"
@@ -80,8 +91,8 @@ class PetForegroundService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "雪乃电子宠物", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "雪乃正在陪伴你"
+                NotificationChannel(CHANNEL_ID, "${petName}电子宠物", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "${petName}正在陪伴你"
                     setShowBadge(false)
                 }
             )
@@ -97,13 +108,13 @@ class PetForegroundService : Service() {
         val ipi = PendingIntent.getService(this, 1, interact, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("雪乃").setContentText("雪乃正在陪你...")
+                .setContentTitle(petName).setContentText("${petName}正在陪你...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentIntent(pi)
                 .addAction(android.R.drawable.ic_menu_edit, "交互", ipi)
                 .addAction(android.R.drawable.ic_media_pause, "关闭", spi).setOngoing(true).build()
         else @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("雪乃").setContentText("雪乃正在陪你...")
+                .setContentTitle(petName).setContentText("${petName}正在陪你...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentIntent(pi).setOngoing(true).build()
     }
 
@@ -190,7 +201,7 @@ class PetForegroundService : Service() {
             Log.e("PetSvc", "NO ANIMATIONS LOADED — pet will be invisible!")
         }
 
-        // 小窗容器 — clipChildren=false 让气泡能绘制在 PetView 边界之外
+        // ── 视觉窗口（大，FLAG_NOT_TOUCHABLE，只渲染不截触摸）──
         rootView = FrameLayout(this).apply {
             clipChildren = false
             clipToPadding = false
@@ -205,15 +216,15 @@ class PetForegroundService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
-        // 默认交互模式（无 FLAG_NOT_TOUCHABLE），小窗不挡屏幕
-        val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+        // 视觉窗口：FLAG_NOT_TOUCHABLE — 完全不截触摸
+        val visualFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 
         windowParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type, flags, PixelFormat.TRANSLUCENT
+            type, visualFlags, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = startX.toInt()
@@ -221,6 +232,52 @@ class PetForegroundService : Service() {
         }
 
         windowManager?.addView(rootView, windowParams)
+
+        // ── 触控窗口（小，仅精灵身体约 78×85dp）──
+        // 透明 View，forward 触摸到 petView.onTouchEvent
+        val hitW = (192f * 1.15f).toInt()  // bitmap.width * 容差
+        val hitH = (208f * 1.15f).toInt()  // bitmap.height * 容差
+        val bubbleOffset = (petH * 0.42f * petView!!.renderScale).toInt()
+
+        val touchView = object : View(this) {
+            init { setBackgroundColor(Color.TRANSPARENT) }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                setMeasuredDimension(hitW, hitH)
+            }
+            override fun onTouchEvent(event: MotionEvent): Boolean {
+                // Forward to petView's touch handling with coordinate translation
+                // touchView top-left = sprite body top-left
+                // petView's touch expects coords relative to petView's visual center
+                val pv = petView ?: return false
+                // Translate touch coords from touchView space to petView space
+                // petView has bubbleReserve at the top, then the sprite
+                // touchView starts at the sprite top, so add bubbleOffset to y
+                val adjusted = MotionEvent.obtain(event)
+                adjusted.offsetLocation(0f, bubbleOffset.toFloat())
+                val result = pv.dispatchTouchEvent(adjusted)
+                adjusted.recycle()
+                return result
+            }
+        }
+
+        val touchRoot = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(hitW, hitH)
+            addView(touchView)
+        }
+
+        val touchFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+        touchWindowParams = WindowManager.LayoutParams(hitW, hitH, type, touchFlags, PixelFormat.TRANSLUCENT).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = startX.toInt()
+            y = (startY + bubbleOffset).toInt()
+        }
+
+        touchWindowRoot = touchRoot
+        windowManager?.addView(touchRoot, touchWindowParams)
+
         isPassthrough = false
         startMonitoring()
 
@@ -345,6 +402,13 @@ class PetForegroundService : Service() {
         Log.d("PetSvc", ">>> cmd IN: $cmd ${args?.toString() ?: "{}"}")
         val pv = petView
         when (cmd) {
+            "setPetName" -> {
+                val name = (args?.get("name") as? String)?.takeIf { it.isNotEmpty() } ?: "雪乃"
+                val selfRef = (args?.get("selfRef") as? String)?.takeIf { it.isNotEmpty() } ?: "糯糯"
+                petName = name
+                petSelfRef = selfRef
+                Log.d("PetSvc", "<<< cmd DONE setPetName: name=$name selfRef=$selfRef")
+            }
             "playAnim" -> {
                 var animName = (args?.get("anim") as? String) ?: "idle"
                 // 旧动画名 → Codex spritesheet 状态名映射
@@ -360,8 +424,31 @@ class PetForegroundService : Service() {
             "showBubble" -> {
                 val text = (args?.get("text") as? String) ?: ""
                 val durationMs = (args?.get("durationMs") as? Number)?.toLong() ?: 3000L
-                pv?.showBubble(text, durationMs)
-                Log.d("PetSvc", "<<< cmd DONE showBubble: '$text'")
+                val clickable = (args?.get("clickable") as? Boolean) ?: false
+                pv?.showBubble(text, durationMs, clickable)
+                Log.d("PetSvc", "<<< cmd DONE showBubble: '$text' clickable=$clickable")
+            }
+            "showChatBubble" -> {
+                val text = (args?.get("text") as? String) ?: ""
+                val context = (args?.get("context") as? String) ?: ""
+                pv?.showBubble(text, 8000, true)
+                pv?.onBubbleClick = { bubbleText ->
+                    showChatDialog(bubbleText)
+                }
+                // D8g: 气泡手势
+                pv?.onBubbleSwipe = { action ->
+                    when (action) {
+                        "dismiss" -> {
+                            pv?.showBubble("知道了~ 以后少说这类话题 ✨", 2000)
+                            touchConsumer?.invoke("dismissSuggestion", -1f, -1f)
+                        }
+                        "deepen" -> {
+                            pv?.showBubble("好的！\${petSelfRef}多说一点~", 1500)
+                            showChatDialog(text)
+                        }
+                    }
+                }
+                Log.d("PetSvc", "<<< cmd DONE showChatBubble: '$text'")
             }
             "hideBubble" -> {
                 pv?.bubble?.hide()
@@ -474,10 +561,10 @@ class PetForegroundService : Service() {
     }
 
     /** Wire 3: 弹出迷你聊天对话框 — 含完整对话历史 + 流式响应 + 空闲自动关闭 */
-    private fun showChatDialog() {
+    private fun showChatDialog(initialContext: String? = null) {
         val petView = this.petView
         val wm = windowManager
-        Log.d("PetSvc", "showChatDialog() called — petView=${petView != null} wm=${wm != null}")
+        Log.d("PetSvc", "showChatDialog() called — petView=${petView != null} wm=${wm != null} ctx=$initialContext")
         if (petView == null) { Log.w("PetSvc", "showChatDialog ABORT: petView is null"); return }
         if (wm == null) { Log.w("PetSvc", "showChatDialog ABORT: windowManager is null"); return }
         val ctx = this@PetForegroundService
@@ -527,7 +614,7 @@ class PetForegroundService : Service() {
             setPadding(dp(4), 0, dp(4), dp(10))
         }
         val title = android.widget.TextView(ctx).apply {
-            text = "和雪乃聊天"
+            text = "和${petName}聊天"
             setTextColor(colorText)
             textSize = 15f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
@@ -584,7 +671,7 @@ class PetForegroundService : Service() {
             setPadding(dp(4), 0, dp(4), 0)
         }
         val welcomeHint = android.widget.TextView(ctx).apply {
-            text = "和雪乃聊聊吧~ 💬"
+            text = "和${petName}聊聊吧~ 💬"
             setTextColor(colorHint)
             textSize = 12f
             gravity = android.view.Gravity.CENTER
@@ -608,7 +695,7 @@ class PetForegroundService : Service() {
             setPadding(0, 0, dp(6), 0)
         }
         val loadingLabel = android.widget.TextView(ctx).apply {
-            text = "雪乃思考中..."
+            text = "${petName}思考中..."
             setTextColor(colorHint)
             textSize = 12f
         }
@@ -759,7 +846,11 @@ class PetForegroundService : Service() {
             .setInterpolator(android.view.animation.OvershootInterpolator(0.6f))
             .start()
 
-        // 聚焦输入框
+        // 聚焦输入框 + D8b: 预填上下文
+        if (initialContext != null) {
+            input.setText(initialContext)
+            input.setSelection(initialContext.length)
+        }
         input.postDelayed({
             input.requestFocus()
             val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
@@ -880,7 +971,12 @@ class PetForegroundService : Service() {
         container.addView(bubbleRow)
     }
 
-    /** 更新聊天 Dialog 中的 AI 回复（流式 / 完成 / 错误） */
+    /**
+     * 更新聊天 Dialog 中的 AI 回复（流式 / 完成 / 错误）。
+     *
+     * 性能优化：增量更新——首次 chunk 创建 TextView，后续 chunk 仅 setText()，
+     * 避免每次 removeView + addView 重建整个 LinearLayout + GradientDrawable。
+     */
     private fun updateChatDialog(rid: Int, chunkText: String?, isStreaming: Boolean, doneOrNull: Boolean?) {
         val container = chatMsgContainer ?: return
         val scrollView = chatScrollView ?: return
@@ -903,87 +999,81 @@ class PetForegroundService : Service() {
             chatMessages[lastIdx] = ChatMsg(false, newText, isStreaming)
         }
 
-        // 重建消息列表（简化实现：清空重建）
-        val dp = { n: Int -> (n * resources.displayMetrics.density).toInt() }
-        val userBg = 0xFF3D3524.toInt()
-        val userBorder = 0xFFB8935D.toInt()
+        if (chatMessages.isEmpty()) return
+        val lastMsg = chatMessages.last()
+        if (lastMsg.isUser) return
 
-        // 只重建 AI 消息部分（最后一条），不重建全部（避免闪烁）
-        // 计算当前 AI 消息在容器中的位置
-        var msgViewIndex = -1
-        for (i in 0 until container.childCount) {
-            val child = container.getChildAt(i)
-            // user bubbles have a space on the right, AI bubbles have a space on the left
-            // 我们通过 tag 来识别
-            if (child.tag == "ai_msg_$rid" || (child.tag == null && i > 0)) {
-                msgViewIndex = i
+        val dp = { n: Int -> (n * resources.displayMetrics.density).toInt() }
+        val aiViewTag = "ai_msg_$rid"
+
+        // ── 增量更新：找到已有 bubble 则只更新文本，避免 removeView+addView ──
+        val existingBubbleRow = container.findViewWithTag<android.view.View>(aiViewTag)
+        if (existingBubbleRow != null) {
+            // 后续 chunk：仅更新 TextView 文本
+            val bubbleRow = existingBubbleRow as android.widget.LinearLayout
+            val textView = bubbleRow.getChildAt(1) as? android.widget.TextView
+            textView?.text = lastMsg.text
+        } else {
+            // 首个 chunk：创建新 bubble 行
+            val bubbleRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.START
+                setPadding(0, dp(3), 0, dp(3))
+                tag = aiViewTag
             }
+            bubbleRow.addView(android.widget.Space(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(dp(4), 1)
+            })
+            val bubble = android.widget.TextView(this).apply {
+                text = lastMsg.text
+                setTextColor(0xFFE4DFD8.toInt())
+                textSize = 13f
+                setPadding(dp(10), dp(7), dp(10), dp(7))
+                maxWidth = dp(200)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xFF2E2E32.toInt())
+                    cornerRadius = dp(10).toFloat()
+                    setStroke(dp(1), 0xFF3A3A3E.toInt())
+                }
+            }
+            bubbleRow.addView(bubble)
+            container.addView(bubbleRow)
         }
 
-        // 移除旧的 AI 流式消息并添加新的
-        val aiViewTag = "ai_msg_$rid"
-        val oldAiView = container.findViewWithTag<android.view.View>(aiViewTag)
-        oldAiView?.let { container.removeView(it) }
-
-        if (chatMessages.isNotEmpty()) {
-            val lastMsg = chatMessages.last()
-            if (!lastMsg.isUser) {
-                val bubbleRow = android.widget.LinearLayout(this).apply {
+        // 流式完成 → 添加反馈按钮（仅首次，幂等）
+        if (doneOrNull == true && lastMsg.text.isNotEmpty()) {
+            val fbTag = "fb_$rid"
+            if (container.findViewWithTag<android.view.View>(fbTag) == null) {
+                val fbRow = android.widget.LinearLayout(this).apply {
                     orientation = android.widget.LinearLayout.HORIZONTAL
+                    setPadding(dp(8), dp(2), 0, dp(6))
                     gravity = android.view.Gravity.START
-                    setPadding(0, dp(3), 0, dp(3))
-                    tag = aiViewTag
+                    tag = fbTag
                 }
-                bubbleRow.addView(android.widget.Space(this).apply {
-                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(4), 1)
-                })
-                val bubble = android.widget.TextView(this).apply {
-                    text = lastMsg.text
-                    setTextColor(0xFFE4DFD8.toInt())
-                    textSize = 13f
-                    setPadding(dp(10), dp(7), dp(10), dp(7))
-                    maxWidth = dp(200)
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        setColor(0xFF2E2E32.toInt())
-                        cornerRadius = dp(10).toFloat()
-                        setStroke(dp(1), 0xFF3A3A3E.toInt())
+                val likeBtn = android.widget.TextView(this).apply {
+                    text = "👍"
+                    textSize = 14f
+                    setPadding(0, 0, dp(12), 0)
+                    setOnClickListener {
+                        EngineBridge.invokeMain("feedback", mapOf("liked" to true))
+                        this.text = "👍 ✓"
+                        it.isEnabled = false
+                        (fbRow.getChildAt(1) as? android.widget.TextView)?.isEnabled = false
                     }
                 }
-                bubbleRow.addView(bubble)
-                container.addView(bubbleRow)
-
-                // 流式完成时添加反馈按钮
-                if (doneOrNull == true && lastMsg.text.isNotEmpty()) {
-                    val fbRow = android.widget.LinearLayout(this).apply {
-                        orientation = android.widget.LinearLayout.HORIZONTAL
-                        setPadding(dp(8), dp(2), 0, dp(6))
-                        gravity = android.view.Gravity.START
+                val dislikeBtn = android.widget.TextView(this).apply {
+                    text = "👎"
+                    textSize = 14f
+                    setOnClickListener {
+                        EngineBridge.invokeMain("feedback", mapOf("liked" to false))
+                        this.text = "👎 ✓"
+                        it.isEnabled = false
+                        (fbRow.getChildAt(0) as? android.widget.TextView)?.isEnabled = false
                     }
-                    val likeBtn = android.widget.TextView(this).apply {
-                        text = "👍"
-                        textSize = 14f
-                        setPadding(0, 0, dp(12), 0)
-                        setOnClickListener {
-                            EngineBridge.invokeMain("feedback", mapOf("liked" to true))
-                            this.text = "👍 ✓"
-                            it.isEnabled = false
-                            (fbRow.getChildAt(1) as? android.widget.TextView)?.isEnabled = false
-                        }
-                    }
-                    val dislikeBtn = android.widget.TextView(this).apply {
-                        text = "👎"
-                        textSize = 14f
-                        setOnClickListener {
-                            EngineBridge.invokeMain("feedback", mapOf("liked" to false))
-                            this.text = "👎 ✓"
-                            it.isEnabled = false
-                            (fbRow.getChildAt(0) as? android.widget.TextView)?.isEnabled = false
-                        }
-                    }
-                    fbRow.addView(likeBtn)
-                    fbRow.addView(dislikeBtn)
-                    container.addView(fbRow)
                 }
+                fbRow.addView(likeBtn)
+                fbRow.addView(dislikeBtn)
+                container.addView(fbRow)
             }
         }
 
@@ -994,7 +1084,7 @@ class PetForegroundService : Service() {
 
         // 流式完成 → 立即持久化 + 启动空闲自动关闭计时
         if (doneOrNull == true) {
-            saveChatHistory()  // 防止进程被杀死丢失本轮对话
+            saveChatHistory()
             resetChatIdleTimer()
         }
     }
@@ -1706,15 +1796,21 @@ class PetForegroundService : Service() {
         petView?.resetIdleTimer()
     }
 
-    /** 重定位浮窗到屏幕坐标 (winX, winY) */
+    /** 重定位浮窗到屏幕坐标 (winX, winY) — 同时移动视觉和触控窗口 */
     private fun repositionWindow(winX: Float, winY: Float) {
-        val lp = windowParams ?: return
+        val vlp = windowParams ?: return
+        val tlp = touchWindowParams ?: return
         val nx = winX.toInt()
         val ny = winY.toInt()
-        if (lp.x != nx || lp.y != ny) {
-            lp.x = nx
-            lp.y = ny
-            windowManager?.updateViewLayout(rootView, lp)
+        if (vlp.x != nx || vlp.y != ny) {
+            vlp.x = nx; vlp.y = ny
+            windowManager?.updateViewLayout(rootView, vlp)
+            // 触控窗口偏移 bubbleReserve 以对齐精灵身体顶部
+            val rs = petView?.renderScale ?: 1.5f
+            val ph = petView?.petHeight ?: 156f
+            val visualBubble = (ph * 0.42f * rs).toInt()
+            tlp.x = nx; tlp.y = ny + visualBubble
+            windowManager?.updateViewLayout(touchWindowRoot, tlp)
         }
     }
 
@@ -1754,8 +1850,8 @@ class PetForegroundService : Service() {
         val chg = bi?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) == BatteryManager.BATTERY_STATUS_CHARGING
         Log.d("PetSvc", "battery: $pct% charging=$chg")
 
-        // 电量<15% → 降帧
-        if (pct in 1..14) petView?.setFps(15)
+        // 电量<15% → 降帧；充电或电量恢复 → 恢复 60fps
+        if (!chg && pct in 1..14) petView?.setFps(15)
         else petView?.setFps(60)
 
         touchConsumer?.invoke("battery", pct.toFloat(), if (chg) 1f else 0f)
@@ -1769,7 +1865,9 @@ class PetForegroundService : Service() {
         stopMonitoring()
         petView?.stopRenderLoop()
         rootView?.let { try { windowManager?.removeView(it) } catch (_: IllegalArgumentException) {} }
+        touchWindowRoot?.let { try { windowManager?.removeView(it) } catch (_: IllegalArgumentException) {} }
         rootView = null; petView = null
+        touchWindowRoot = null; touchWindowParams = null
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
     }
 

@@ -28,6 +28,10 @@ class BubbleAnimator {
         textAlign = Paint.Align.CENTER
     }
 
+    // ── 对象池：复用 RectF，避免每帧分配 ──
+    private val clipRect = RectF()
+    private val bubbleRect = RectF()
+
     // 动画状态
     private enum class Phase { HIDDEN, SHOWING, VISIBLE, HIDING }
     private var phase = Phase.HIDDEN
@@ -35,13 +39,18 @@ class BubbleAnimator {
     private val showDuration = 0.3f   // 300ms 弹出
     private val hideDuration = 0.2f   // 200ms 消失
 
-    private var currentText = ""
+    var currentText: String = ""
+        private set
     private var autoHideDuration = 0f   // 0=不自动消失
     private var bubbleAlpha = 0f
     private var bubbleScale = 1f
     private var bubbleOffsetY = 0f
 
     val isVisible: Boolean get() = phase != Phase.HIDDEN
+    var isClickable: Boolean = false
+    // 缓存最近一次绘制的气泡区域（用于点击检测）
+    var lastBubbleRect: RectF? = null
+        private set
 
     /**
      * 显示气泡。durationMs=0 表示不自动消失。
@@ -105,12 +114,13 @@ class BubbleAnimator {
 
     /**
      * 绘制气泡。参数为宠物参考位置（气泡画在宠物上方）。
+     *
+     * 性能：复用成员 RectF 替代每帧 new RectF()，消除 GC 压力。
+     * saveLayerAlpha 是 GPU 驱动优化过的合成路径，保留使用。
      */
     fun draw(canvas: Canvas, petX: Float, petY: Float, petW: Float) {
         if (phase == Phase.HIDDEN) return
         if (currentText.isEmpty()) return
-
-        canvas.save()
 
         // 计算气泡位置（宠物上方居中）
         val textWidth = textPaint.measureText(currentText)
@@ -123,18 +133,17 @@ class BubbleAnimator {
         val bubbleRight = centerX + bubbleW * bubbleScale / 2f
         val bubbleBottom = petY - 16f + bubbleOffsetY
 
-        // 缩放 + 透明度
-        canvas.saveLayerAlpha(
-            RectF(bubbleLeft - 8f, bubbleTop - 8f, bubbleRight + 8f, bubbleBottom + 8f),
-            (bubbleAlpha * 255).toInt()
-        )
+        // 缓存气泡区域用于点击检测
+        lastBubbleRect = RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom)
+
+        // 复用 RectF 避免每帧分配（原代码 new RectF × 2 / 帧）
+        clipRect.set(bubbleLeft - 8f, bubbleTop - 8f, bubbleRight + 8f, bubbleBottom + 8f)
+        canvas.saveLayerAlpha(clipRect, (bubbleAlpha * 255).toInt())
 
         bgPaint.color = config.bgColor
         bgPaint.alpha = (bubbleAlpha * 255).toInt()
-        canvas.drawRoundRect(
-            RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom),
-            config.cornerRadius, config.cornerRadius, bgPaint
-        )
+        bubbleRect.set(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom)
+        canvas.drawRoundRect(bubbleRect, config.cornerRadius, config.cornerRadius, bgPaint)
 
         textPaint.alpha = (bubbleAlpha * 255).toInt()
         canvas.drawText(
@@ -144,7 +153,6 @@ class BubbleAnimator {
             textPaint
         )
 
-        canvas.restore()
         canvas.restore()
     }
 

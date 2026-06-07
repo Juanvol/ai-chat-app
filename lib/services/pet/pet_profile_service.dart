@@ -10,16 +10,24 @@ class PetProfileService extends ChangeNotifier {
   Future<Box> get _box => Hive.openBox(_boxName);
 
   Future<PetProfile> loadProfile() async {
-    final box = await _box;
-    final raw = box.get(_key);
-    if (raw == null) return PetProfile();
-    return PetProfile.fromJson(Map<String, dynamic>.from(raw as Map));
+    try {
+      final box = await _box;
+      final raw = box.get(_key);
+      if (raw == null) return PetProfile();
+      return PetProfile.fromJson(Map<String, dynamic>.from(raw as Map));
+    } catch (_) {
+      return PetProfile();
+    }
   }
 
   Future<void> saveProfile(PetProfile profile) async {
-    final box = await _box;
-    await box.put(_key, profile.toJson());
-    notifyListeners();
+    try {
+      final box = await _box;
+      await box.put(_key, profile.toJson());
+      notifyListeners();
+    } catch (e) {
+      debugPrint('PetProfileService.saveProfile failed: $e');
+    }
   }
 
   Future<void> recordRejection(String scene) async {

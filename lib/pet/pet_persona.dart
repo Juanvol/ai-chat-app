@@ -9,16 +9,16 @@ class SpeakingStyle {
   final double cuteLevel;        // 软萌程度 0.0–1.0
 
   static const defaultCat = SpeakingStyle(
-    selfReference: '糯糯',
-    sentenceEnding: '喵~',
+    selfReference: '',
+    sentenceEnding: '',
     maxSentenceLength: 80,
     emojiFrequency: 0.6,
     cuteLevel: 0.8,
   );
 
   const SpeakingStyle({
-    this.selfReference = '糯糯',
-    this.sentenceEnding = '喵~',
+    this.selfReference = '',
+    this.sentenceEnding = '',
     this.maxSentenceLength = 80,
     this.emojiFrequency = 0.6,
     this.cuteLevel = 0.8,
@@ -49,8 +49,8 @@ class SpeakingStyle {
 
   factory SpeakingStyle.fromJson(Map<String, dynamic> json) {
     return SpeakingStyle(
-      selfReference: json['selfReference'] as String? ?? '糯糯',
-      sentenceEnding: json['sentenceEnding'] as String? ?? '喵~',
+      selfReference: json['selfReference'] as String? ?? '',
+      sentenceEnding: json['sentenceEnding'] as String? ?? '',
       maxSentenceLength: (json['maxSentenceLength'] as num?)?.toInt() ?? 80,
       emojiFrequency:
           ((json['emojiFrequency'] as num?)?.toDouble() ?? 0.6).clamp(0.0, 1.0),
@@ -156,14 +156,12 @@ class PetPersona {
   final SpeakingStyle style;       // 说话风格
   final String? source;            // 来源：builtin/skin_default/user_custom
 
-  static const _defaultPrompt =
-      '你是弗糯糯，一只可爱的虚拟宠物精灵。'
+  static const _defaultPrompt = '你是一只可爱的虚拟宠物精灵。'
       '性格：软萌、粘人、偶尔丧丧的摆烂。'
-      '自称"糯糯"，句尾加"喵~"或"..."。'
-      '保持短小可爱，不超过2句话。';
+      '保持短小可爱。可在设置中自定义名字和称呼。';
 
   PetPersona({
-    this.name = '弗糯糯',
+    this.name = '',
     this.species = '猫',
     this.systemPrompt = _defaultPrompt,
     this.templateId,
@@ -256,7 +254,7 @@ class PetPersona {
 
   factory PetPersona.fromJson(Map<String, dynamic> json) {
     return PetPersona(
-      name: json['name'] as String? ?? '弗糯糯',
+      name: json['name'] as String? ?? '',
       species: json['species'] as String? ?? '猫',
       systemPrompt: json['systemPrompt'] as String? ?? _defaultPrompt,
       templateId: json['templateId'] as String?,

@@ -2,11 +2,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../pet/pet_controller.dart';
+import '../../services/pet/pet_overlay_host.dart';
 
 /// 宠物头部卡片 — 精简版：猫 emoji + 名字 + 心情 + 好感
 class PetHeroCard extends StatelessWidget {
   const PetHeroCard({super.key});
 
+  String get _petName {
+    final n = petOverlayController.personaStore?.persona.name;
+    return (n != null && n.isNotEmpty) ? n : '糯糯';
+  }
   String _stageName(int interactions) =>
       interactions < 30 ? '初识' : interactions < 200 ? '熟悉' : interactions < 1000 ? '默契' : '老友';
   String _levelName(int interactions) =>
@@ -37,7 +42,7 @@ class PetHeroCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Row(children: [
-                          Text('弗糯糯',
+                          Text(_petName,
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
                           const SizedBox(width: 6),
                           Container(

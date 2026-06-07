@@ -2,6 +2,7 @@
 import 'dart:math';
 import '../../pet_logger.dart';
 import '../../pet_token_service.dart';
+import '../../pet_overlay_host.dart';
 import '../models/diary_entry.dart';
 import 'diary_repository.dart';
 import 'diary_summarizer.dart';
@@ -16,6 +17,17 @@ class DiaryStore {
   /// 高亮检测用的滑动窗口（同一日内的近期事件）
   final List<DiaryEntry> _recentEventsByDay = [];
   String _personaPrompt = '';
+
+  /// 从 PersonaStore 读取自称，空则 fallback
+  static String get petSelfRef {
+    final ref = petOverlayController.personaStore?.persona.style.selfReference;
+    return (ref != null && ref.isNotEmpty) ? ref : '糯糯';
+  }
+  /// 从 PersonaStore 读取名字，空则 fallback
+  static String get petName {
+    final n = petOverlayController.personaStore?.persona.name;
+    return (n != null && n.isNotEmpty) ? n : '糯糯';
+  }
 
   DiaryStore({
     required IDiaryRepository repo,
@@ -36,12 +48,14 @@ class DiaryStore {
       'feed' => ('吃了一顿美味大餐~', '😋'),
       'play' => ('和主人愉快地玩了会儿~', '😸'),
       'talk' => ('和主人聊了会天~', '💬'),
-      'sleep' => ('糯糯睡着了...zzZ', '💤'),
-      'wake' => ('糯糯醒啦，又是元气满满的一天~', '😸'),
+      'sleep' => ('${DiaryStore.petSelfRef}睡着了...zzZ', '💤'),
+      'wake' => ('${DiaryStore.petSelfRef}醒啦，又是元气满满的一天~', '😸'),
       'longPress' => ('享受了主人给的零食，好吃好吃~ 😋', '😋'),
       'suggestion' => (detail ?? '给了主人一个小建议', '💡'),
-      'lowEnergy' => ('能量不足，糯糯好累...', '😞'),
+      'lowEnergy' => ('能量不足，${DiaryStore.petSelfRef}好累...', '😞'),
       'lowHunger' => ('肚子饿了，想吃东西...', '🍖'),
+      'milestone' => (detail ?? '好感度达到新阶段！', '🎉'),
+      'import' => (detail ?? '从对话中导入了记忆~', '📝'),
       _ => (detail ?? '发生了某件事', '📝'),
     };
   }
@@ -110,7 +124,7 @@ class DiaryStore {
         return DiaryEntry(
           id: _genId('highlight_late', event.date),
           type: DiaryEntryType.highlight,
-          content: '凌晨${hour}点主人还在活动...糯糯默默地陪着~ 🌙',
+          content: '凌晨$hour点主人还在活动...${DiaryStore.petSelfRef}默默地陪着~ 🌙',
           mood: '🌙',
           sourceType: 'highlight',
           date: event.date,
@@ -132,7 +146,7 @@ class DiaryStore {
       final entry = DiaryEntry(
         id: _genId('highlight_mood', DateTime.now()),
         type: DiaryEntryType.highlight,
-        content: '糯糯今天心情突然变差了...从${avg.toInt()}掉到${currentMood.toInt()}...是发生什么事了吗？ 😢',
+        content: '${DiaryStore.petSelfRef}今天心情突然变差了...从${avg.toInt()}掉到${currentMood.toInt()}...是发生什么事了吗？ 😢',
         mood: '😢',
         sourceType: 'highlight',
         date: DateTime.now(),
@@ -144,16 +158,24 @@ class DiaryStore {
 
   // ═══ 日总结（Phase 2 实现） ═══
 
-  /// 日总结占位：Phase 2 集成 LLM
-  Future<DiaryEntry?> summarizeDay(DateTime date) async {
+  /// 日总结：LLM 驱动，21:00 自动触发 / 手动触发
+  /// [force] 为 true 时删除旧总结重新生成
+  Future<DiaryEntry?> summarizeDay(DateTime date, {bool force = false}) async {
     final dateKey =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final todayEvents = await _repo.loadByDate(date);
 
-    final existing = todayEvents
-        .where((e) => e.type == DiaryEntryType.summary)
-        .firstOrNull;
-    if (existing != null) return existing;
+    if (!force) {
+      final existing = todayEvents
+          .where((e) => e.type == DiaryEntryType.summary)
+          .firstOrNull;
+      if (existing != null) return existing;
+    } else {
+      // 删除旧总结
+      for (final e in todayEvents.where((e) => e.type == DiaryEntryType.summary)) {
+        await _repo.delete(e.id);
+      }
+    }
 
     final remaining =
         (await _tokenService?.getBudgetRemaining()) ?? 999999;

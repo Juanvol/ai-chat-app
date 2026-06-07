@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../services/pet/pet_chat_service.dart';
 import '../../services/pet/popup_chat_service.dart';
+import '../../services/pet/pet_overlay_host.dart';
 
 /// 聊天记录管理 — 折叠面板：宠物聊天 + 弹窗聊天
 class PetChatHistoryScreen extends StatefulWidget {
@@ -21,6 +22,11 @@ class PetChatHistoryScreen extends StatefulWidget {
 class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
   final _popupSvc = PopupChatService();
 
+  String get _petName {
+    final n = petOverlayController.personaStore?.persona.name;
+    return (n != null && n.isNotEmpty) ? n : '糯糯';
+  }
+
   List<Map<String, dynamic>> _petChats = [];
   List<PopupSession> _popupSessions = [];
   String? _activePopupId;
@@ -37,40 +43,47 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
   }
 
   Future<void> _loadAll() async {
-    final petChats = await widget.chatService.listChats();
-    final popupSessions = await _popupSvc.listSessions();
-    if (!mounted) return;
-    setState(() {
-      _petChats = petChats;
-      _popupSessions = popupSessions;
-      _activePopupId = popupSessions.isNotEmpty ? popupSessions.first.id : null;
-      _loading = false;
-    });
+    try {
+      final petChats = await widget.chatService.listChats();
+      final popupSessions = await _popupSvc.listSessions();
+      if (!mounted) return;
+      setState(() {
+        _petChats = petChats;
+        _popupSessions = popupSessions;
+        _activePopupId = popupSessions.isNotEmpty ? popupSessions.first.id : null;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _deletePetChat(String id) async {
-    await widget.chatService.deleteChat(id);
+    try { await widget.chatService.deleteChat(id); } catch (_) {}
     _loadAll();
   }
 
   Future<void> _deletePopupSession(String sessionId) async {
-    await _popupSvc.deleteSession(sessionId);
+    try { await _popupSvc.deleteSession(sessionId); } catch (_) {}
     _loadAll();
   }
 
   Future<void> _newPetChat() async {
-    final newId = await widget.chatService.createChat();
-    if (!mounted) return;
-    await _loadAll();
-    // 创建后切换到新会话
-    if (mounted) Navigator.pop(context, newId);
+    try {
+      final newId = await widget.chatService.createChat();
+      if (!mounted) return;
+      await _loadAll();
+      if (mounted) Navigator.pop(context, newId);
+    } catch (_) {}
   }
 
   Future<void> _newPopupSession() async {
-    final newId = await _popupSvc.createSession();
-    if (newId != null && mounted) {
-      await _loadAll();
-    }
+    try {
+      final newId = await _popupSvc.createSession();
+      if (newId != null && mounted) {
+        await _loadAll();
+      }
+    } catch (_) {}
   }
 
   /// 弹窗会话被选中 → 切换活跃会话
@@ -79,6 +92,7 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
     if (mounted) {
       setState(() => _activePopupId = session.id);
       await _loadAll();
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('已切换到「${session.title}」'), duration: const Duration(seconds: 1)),
       );
@@ -184,7 +198,7 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
                             const SizedBox(height: 12),
                             Text('暂无聊天记录', style: TextStyle(color: cs.onSurfaceVariant)),
                             const SizedBox(height: 4),
-                            Text('去和雪乃聊聊天吧~', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant.withValues(alpha: 0.6))),
+                            Text('去和$_petName聊聊天吧~', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant.withValues(alpha: 0.6))),
                           ],
                         ),
                       )
@@ -252,7 +266,8 @@ class _PetChatHistoryScreenState extends State<PetChatHistoryScreen> {
     final messages = chat['messages'] as List? ?? [];
     if (messages.isEmpty) return '暂无消息';
     final last = messages.last as Map?;
-    final role = last?['role'] == 'user' ? '你' : '雪乃';
+    final name = _petName;
+    final role = last?['role'] == 'user' ? '你' : name;
     final content = last?['content']?.toString() ?? '';
     return '$role: ${content.length > 20 ? '${content.substring(0, 20)}...' : content}';
   }

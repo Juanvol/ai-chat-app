@@ -1,5 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
@@ -14,6 +15,7 @@ import 'pet_chat_service.dart';
 import 'pet_token_service.dart';
 import 'pet_profile_service.dart';
 import 'suggestion/suggestion_engine.dart';
+import 'suggestion/models/suggestion.dart';
 
 /// 原生浮窗动画控制通道（与 PetOverlayController 共用）
 const _overlayChannel = MethodChannel('com.example.deepseek_chat/pet_overlay');
@@ -99,9 +101,10 @@ class PetAgentCore extends ChangeNotifier {
     // 1. 解析 API Key：provider 专属 key → fallback 主 api_key
     String? apiKey;
     try {
+      // static 上下文中无法使用实例缓存的 getter，直接 openBox（仅调用一次）
       final settingsBox = await Hive.openBox('settings');
       final configBox = await Hive.openBox('pet_config');
-      final chatModelId = configBox.get('chatModel') as String? ?? 'deepseek-chat';
+      final chatModelId = configBox.get('chatModel') as String? ?? 'deepseek-v4-pro';
       final modelInfo = ModelConfig.resolveModel(chatModelId);
       final providerId = modelInfo?.providerId ?? 'deepseek';
       apiKey = settingsBox.get('${providerId}_key') as String?
@@ -140,12 +143,24 @@ class PetAgentCore extends ChangeNotifier {
   Timer? _perceptionTimer;
   int _consecutiveApiFailures = 0;
   bool _isPureRuleMode = false;
+  DateTime? _lastApiAttemptAt;
   CancelToken? _chatCancelToken;
   final _rng = Random();
   PetChatService? _chatSvc;
-  String _decisionModelId = 'deepseek-chat';
-  String _chatModelId = 'deepseek-chat';
+  String _decisionModelId = 'deepseek-v4-pro';
+  String _chatModelId = 'deepseek-v4-pro';
   SuggestionEngine? _suggestionEngine;
+  PetPersona? _cachedPersona;
+
+  // ── Hive Box 缓存（避免每次 LLM 调用都 openBox） ──
+  Future<Box>? _petConfigFuture;
+  Future<Box> get _petConfig => _petConfigFuture ??= Hive.openBox('pet_config');
+  Future<Box>? _settingsFuture;
+  Future<Box> get _settings => _settingsFuture ??= Hive.openBox('settings');
+  Future<Box>? _agentActionFuture;
+  Future<Box> get _agentAction => _agentActionFuture ??= Hive.openBox('agent_action');
+  Future<Box>? _petChatsFuture;
+  Future<Box> get _petChats => _petChatsFuture ??= Hive.openBox('pet_chats');
 
   PetAgentCore({
     PetTokenService? tokenService,
@@ -176,7 +191,7 @@ class PetAgentCore extends ChangeNotifier {
 
   Future<void> _loadState() async {
     try {
-      final box = await Hive.openBox('pet_config');
+      final box = await _petConfig;
       final raw = box.get('agent_state');
       if (raw != null) {
         final map = Map<String, dynamic>.from(raw as Map);
@@ -198,7 +213,7 @@ class PetAgentCore extends ChangeNotifier {
 
   Future<void> _saveState() async {
     try {
-      final box = await Hive.openBox('pet_config');
+      final box = await _petConfig;
       await box.put('agent_state', {'attentionLevel': _attentionLevel.name});
     } catch (e) {
       PetLogger().error('Agent', '_saveState failed', e);
@@ -239,7 +254,19 @@ class PetAgentCore extends ChangeNotifier {
 
   Future<void> _perceive() async {
     if (!_isActive) { PetLogger().trace('Agent', 'perceive SKIP: not active'); return; }
-    if (_isPureRuleMode) { PetLogger().trace('Agent', 'perceive SKIP: pure rule mode'); return; }
+
+    // ── 纯规则模式恢复：每15分钟尝试一次 API 重连 ──
+    if (_isPureRuleMode) {
+      final secondsSinceLastAttempt = _lastApiAttemptAt != null
+          ? DateTime.now().difference(_lastApiAttemptAt!).inSeconds
+          : 999;
+      if (secondsSinceLastAttempt < 900) {
+        PetLogger().trace('Agent', 'perceive SKIP: pure rule mode, next retry in ${900 - secondsSinceLastAttempt}s');
+        return;
+      }
+      PetLogger().info('Agent', 'pure rule mode: attempting API recovery...');
+    }
+
     if (!await tokenService.checkBudget()) { PetLogger().warn('Agent', 'perceive SKIP: budget exceeded'); return; }
     if (!_isActive) { PetLogger().trace('Agent', 'perceive SKIP: became inactive during await'); return; }
 
@@ -296,8 +323,8 @@ class PetAgentCore extends ChangeNotifier {
       return AssessResult(shouldSkipLLM: false, context: '有最近互动');
     }
 
-    if (_rng.nextDouble() < 0.3) {
-      return AssessResult(shouldSkipLLM: false);
+    if (_rng.nextDouble() < 0.05) {
+      return AssessResult(shouldSkipLLM: false, context: '随机主动互动');
     }
 
     return AssessResult(shouldSkipLLM: true);
@@ -305,7 +332,7 @@ class PetAgentCore extends ChangeNotifier {
 
   Future<void> _refreshConfig() async {
     try {
-      final box = await Hive.openBox('pet_config');
+      final box = await _petConfig;
       final dm = box.get('decisionModel');
       final cm = box.get('chatModel');
       if (dm is String && dm.isNotEmpty) _decisionModelId = dm;
@@ -318,6 +345,7 @@ class PetAgentCore extends ChangeNotifier {
     await _refreshConfig();
 
     try {
+      _lastApiAttemptAt = DateTime.now();
       await _loadPersona(); // 确保 persona 已加载到上下文
       final mood = _mood.applyNoise();
 
@@ -349,7 +377,7 @@ class PetAgentCore extends ChangeNotifier {
         resolvedBaseUrl = modelInfo.baseUrl;
         resolvedProviderId = modelInfo.providerId;
         try {
-          final settingsBox = await Hive.openBox('settings');
+          final settingsBox = await _settings;
           final key = settingsBox.get('${modelInfo.providerId}_key') as String?;
           if (key != null && key.isNotEmpty) resolvedApiKey = key;
         } catch (_) {}
@@ -421,17 +449,59 @@ class PetAgentCore extends ChangeNotifier {
   Future<void> _publishAction(ActionEntry action) async {
     lastActionAt = DateTime.now();
     try {
-      final box = await Hive.openBox('agent_action');
+      final box = await _agentAction;
       await box.put('current', action.toJson());
       notifyListeners();
+
+      // ── D8: 气泡/语音 → 结构化建议持久化（通过解锁门控）──
+      if (action.type == 'bubble' || action.type == 'speak') {
+        final text = action.content ?? '';
+        if (text.isNotEmpty) {
+          final level = action.type == 'bubble'
+              ? SuggestionLevel.l1
+              : SuggestionLevel.l2;
+          // P2-①: 渐进解锁门控 — 仅当用户已解锁该层级时才记录
+          if (_suggestionEngine == null || await _suggestionEngine!.shouldSuggest(level)) {
+            _suggestionEngine?.recordSuggestion(
+              text: text,
+              level: level,
+              source: _deriveSource(),
+            );
+          }
+        }
+      }
     } catch (e) {
       PetLogger().error('Agent', '_publishAction failed', e);
     }
   }
 
+  /// 推断来源标注（供建议历史展示 + 气泡透明化）
+  String _deriveSource() {
+    final now = DateTime.now();
+    final hour = now.hour;
+    if (hour >= 6 && hour < 9) return '早安问候';
+    if (hour >= 9 && hour < 12) return '上午时光';
+    if (hour >= 12 && hour < 14) return '午间关心';
+    if (hour >= 14 && hour < 18) return '下午陪伴';
+    if (hour >= 18 && hour < 21) return '傍晚放松';
+    if (hour >= 21 && hour < 23) return '晚安问候';
+    if (hour >= 23 || hour < 6) return '深夜守护';
+    return '${currentPersona.style.selfReference}的关心';
+  }
+
   Future<PetPersona> _loadPersona() async {
+    // 优先读 PersonaStore 的 pet_persona Box（PersonaStore 用 jsonEncode 写入）
     try {
-      final box = await Hive.openBox('pet_config');
+      final personaBox = await Hive.openBox('pet_persona');
+      final raw = personaBox.get('data');
+      if (raw is String && raw.isNotEmpty) {
+        final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+        return PetPersona.fromJson(map);
+      }
+    } catch (_) {}
+    // fallback：读旧 pet_config Box（兼容升级前数据）
+    try {
+      final box = await _petConfig;
       final raw = box.get('persona');
       if (raw != null) {
         return PetPersona.fromJson(Map<String, dynamic>.from(raw as Map));
@@ -443,7 +513,7 @@ class PetAgentCore extends ChangeNotifier {
   /// 引擎 #1 是否存活（引擎 #2 调用）
   Future<bool> isEngine1Alive() async {
     try {
-      final box = await Hive.openBox('agent_action');
+      final box = await _agentAction;
       final raw = box.get('current');
       if (raw == null) return false;
       final map = Map<String, dynamic>.from(raw as Map);
@@ -455,11 +525,28 @@ class PetAgentCore extends ChangeNotifier {
     }
   }
 
+  /// 当前活跃人格（优先读 PersonaStore，fallback 默认）
+  PetPersona get currentPersona {
+    if (_cachedPersona != null) return _cachedPersona!;
+    try {
+      final box = Hive.box('pet_persona');
+      final raw = box.get('data');
+      if (raw is String && raw.isNotEmpty) {
+        _cachedPersona = PetPersona.fromJson(Map<String, dynamic>.from(jsonDecode(raw) as Map));
+        return _cachedPersona!;
+      }
+    } catch (_) {}
+    return PetPersona();
+  }
+
   /// D8: 注入建议引擎（由 PetOverlayController 在 KnowledgeBase 初始化后调用）
   void attachSuggestionEngine(SuggestionEngine engine) {
     _suggestionEngine = engine;
     PetLogger().info('Agent', 'SuggestionEngine attached');
   }
+
+  /// D8: 公开建议引擎（供上下文收集等场景读取）
+  SuggestionEngine? get suggestionEngine => _suggestionEngine;
 
   /// 回调版聊天流 — 供应用内 UI 使用（不依赖 MethodChannel）
   /// [saveToHive] 弹窗聊天传 false，避免弹窗数据串到宠物聊天存储
@@ -476,7 +563,7 @@ class PetAgentCore extends ChangeNotifier {
 
     PetLogger().info('Agent', 'chatStream len=${userText.length}');
     if (_chatClient == null) {
-      onError('糯糯还没准备好喵...稍等一下~');
+      onError('${currentPersona.style.selfReference}还没准备好喵...稍等一下~');
       return;
     }
 
@@ -500,6 +587,7 @@ class PetAgentCore extends ChangeNotifier {
         userContent: prompt,
         model: _chatModelId,
         baseUrl: resolved.baseUrl,
+        chatPath: resolved.chatPath,
         apiKey: resolved.apiKey,
         providerId: resolved.providerId,
         thinkingEnabled: false,
@@ -530,22 +618,24 @@ class PetAgentCore extends ChangeNotifier {
     }
   }
 
-  /// 解析聊天模型 → (baseUrl, apiKey, providerId)
-  Future<({String baseUrl, String? apiKey, String providerId})> _resolveChatProvider() async {
+  /// 解析聊天模型 → (baseUrl, chatPath, apiKey, providerId)
+  Future<({String baseUrl, String chatPath, String? apiKey, String providerId})> _resolveChatProvider() async {
     String baseUrl = 'https://api.deepseek.com';
+    String chatPath = '/v1/chat/completions';
     String? apiKey = _chatClient?.apiKey;
     String providerId = 'deepseek';
     final modelInfo = ModelConfig.resolveModel(_chatModelId);
     if (modelInfo != null) {
       baseUrl = modelInfo.baseUrl;
+      chatPath = modelInfo.chatPath;
       providerId = modelInfo.providerId;
       try {
-        final settingsBox = await Hive.openBox('settings');
+        final settingsBox = await _settings;
         final key = settingsBox.get('${modelInfo.providerId}_key') as String?;
         if (key != null && key.isNotEmpty) apiKey = key;
       } catch (_) {}
     }
-    return (baseUrl: baseUrl, apiKey: apiKey, providerId: providerId);
+    return (baseUrl: baseUrl, chatPath: chatPath, apiKey: apiKey, providerId: providerId);
   }
 
   /// 获取弹窗聊天历史（来自原生 SharedPreferences）
@@ -565,7 +655,8 @@ class PetAgentCore extends ChangeNotifier {
     if (popupHistory.isNotEmpty) {
       buffer.writeln('【弹窗聊天记录】');
       for (final m in popupHistory) {
-        final role = (m['isUser'] == true || m['role'] == 'user') ? '主人' : '雪乃';
+        final name = currentPersona.name;
+        final role = (m['isUser'] == true || m['role'] == 'user') ? '主人' : name;
         buffer.writeln('$role: ${m['text'] ?? m['content'] ?? ''}');
       }
       buffer.writeln('');
@@ -573,12 +664,14 @@ class PetAgentCore extends ChangeNotifier {
     if (history.isNotEmpty) {
       buffer.writeln('【最近宠物聊天】');
       for (final m in history) {
-        final role = m['role'] == 'user' ? '主人' : '雪乃';
+        final name = currentPersona.name;
+        final role = m['role'] == 'user' ? '主人' : name;
         buffer.writeln('$role: ${m['content']}');
       }
     }
     buffer.writeln('主人说: $userText');
-    buffer.writeln('请以雪乃的身份回复，保持短小可爱，不超过3句话。');
+    final name = currentPersona.name;
+    buffer.writeln('请以$name的身份回复，保持短小可爱，不超过3句话。');
     return buffer.toString();
   }
 
@@ -675,7 +768,7 @@ class PetAgentCore extends ChangeNotifier {
   Future<void> _saveChatMessage(String userText, String assistantText) async {
     try {
       _chatSvc ??= PetChatService();
-      final chatBox = await Hive.openBox('pet_chats');
+      final chatBox = await _petChats;
       var currentId = chatBox.get('currentId') as String?;
       if (currentId == null) {
         currentId = await _chatSvc!.createChat();

@@ -16,5 +16,5 @@
     "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
     "ANTHROPIC_AUTH_TOKEN": "sk-ccbbdb7b908b43e7bff5edbff097e79a"
   },
-  "model": "deepseek-v4-pro"
+  "model": "deepseek-v4-pro[1m]"
 }

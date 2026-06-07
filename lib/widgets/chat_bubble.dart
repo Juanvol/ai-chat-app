@@ -111,19 +111,19 @@ class ChatBubble extends StatelessWidget {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     GestureDetector(
                       onTap: () => Clipboard.setData(ClipboardData(text: answerText)),
-                      child: const Icon(Icons.copy_outlined, size: 13, color: Color(0xFF8B857D)),
+                      child: Icon(Icons.copy_outlined, size: 13, color: cs.onSurfaceVariant),
                     ),
                     if (onRegenerate != null) ...[
                       const SizedBox(width: C.s8),
                       GestureDetector(
                         onTap: onRegenerate,
-                        child: const Icon(Icons.refresh, size: 13, color: Color(0xFF8B857D)),
+                        child: Icon(Icons.refresh, size: 13, color: cs.onSurfaceVariant),
                       ),
                     ],
                     const SizedBox(width: C.s8),
                     GestureDetector(
                       onTap: onDislike,
-                      child: const Icon(Icons.thumb_down_outlined, size: 13, color: Color(0xFF8B857D)),
+                      child: Icon(Icons.thumb_down_outlined, size: 13, color: cs.onSurfaceVariant),
                     ),
                   ]),
                 ),
@@ -350,7 +350,7 @@ class _ThreeDotsState extends State<_ThreeDots> with SingleTickerProviderStateMi
 class _Dot extends StatelessWidget {
   const _Dot();
   @override
-  Widget build(BuildContext context) => Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFB8935D)));
+  Widget build(BuildContext context) => Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primary));
 }
 
 // ==================== 代码块 ====================

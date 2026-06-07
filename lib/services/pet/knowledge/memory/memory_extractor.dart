@@ -1,5 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'dart:math';
+import '../../../../pet/pet_persona.dart';
 import '../models/diary_entry.dart';
 import '../models/memory_entry.dart';
 
@@ -71,15 +72,34 @@ class MemoryExtractor {
     final content = event.content;
     final hour = event.date.hour;
 
-    // ── 1. 深夜活动 → habit ──
-    if (type == 'tap' && _isLateNight(hour) && lateNightCountThisMonth >= 5) {
+    // ── 1. 所有互动类型 → event 记忆（每个类型首次出现创建一条）──
+    final interactionTypes = {'feed', 'play', 'pet', 'tap', 'talk', 'sleep', 'wake'};
+    if (interactionTypes.contains(type)) {
+      final typeLabel = _interactionLabel(type);
+      final exists = existingMemories.any(
+          (m) => m.tag == MemoryTag.event && m.content == typeLabel);
+      if (!exists) {
+        return MemoryEntry(
+          id: _genId('interact_$type', event.date),
+          tag: MemoryTag.event,
+          content: typeLabel,
+          importance: 0.3,
+          createdAt: event.date,
+          source: MemorySource.rule,
+          sourceDiaryId: event.id,
+        );
+      }
+    }
+
+    // ── 2. 深夜活动 → habit ──
+    if (type == 'tap' && _isLateNight(hour) && lateNightCountThisMonth >= 3) {
       final exists = existingMemories.any(
           (m) => m.tag == MemoryTag.habit && m.content.contains('深夜'));
       if (!exists) {
         return MemoryEntry(
           id: _genId('habit_late', event.date),
           tag: MemoryTag.habit,
-          content: '主人经常深夜工作/活动（凌晨${hour}点还在活跃）',
+          content: '主人有时深夜还在活动（凌晨$hour点）',
           importance: 0.6,
           createdAt: event.date,
           source: MemorySource.rule,
@@ -88,29 +108,27 @@ class MemoryExtractor {
       }
     }
 
-    // ── 2. 对话关键词 → interest ──
-    if (type == 'talk' || type == 'suggestion') {
-      for (final kw in _interestKeywords.keys) {
-        if (content.contains(kw)) {
-          final label = _interestKeywords[kw]!;
-          final exists = existingMemories
-              .any((m) => m.tag == MemoryTag.interest && m.content.contains(label));
-          if (!exists) {
-            return MemoryEntry(
-              id: _genId('interest_$kw', event.date),
-              tag: MemoryTag.interest,
-              content: '主人对$label感兴趣',
-              importance: 0.5,
-              createdAt: event.date,
-              source: MemorySource.rule,
-              sourceDiaryId: event.id,
-            );
-          }
+    // ── 3. 所有事件 → 关键词检测 → interest ──
+    for (final kw in _interestKeywords.keys) {
+      if (content.contains(kw)) {
+        final label = _interestKeywords[kw]!;
+        final exists = existingMemories
+            .any((m) => m.tag == MemoryTag.interest && m.content.contains(label));
+        if (!exists) {
+          return MemoryEntry(
+            id: _genId('interest_$kw', event.date),
+            tag: MemoryTag.interest,
+            content: '主人对$label感兴趣',
+            importance: 0.5,
+            createdAt: event.date,
+            source: MemorySource.rule,
+            sourceDiaryId: event.id,
+          );
         }
       }
     }
 
-    // ── 3. 建议(L3+) → event 直接写入 ──
+    // ── 4. 建议 → event 直接写入 ──
     if (type == 'suggestion') {
       return MemoryEntry(
         id: _genId('event_sug', event.date),
@@ -123,12 +141,12 @@ class MemoryExtractor {
       );
     }
 
-    // ── 4. 稀有互动（30天内首次）→ fact ──
-    if (isRareIn30Days) {
+    // ── 5. 稀有互动（30天内首次）→ fact ──
+    if (isRareIn30Days && interactionTypes.contains(type)) {
       return MemoryEntry(
         id: _genId('rare_$type', event.date),
         tag: MemoryTag.fact,
-        content: '主人第一次做了「$type」互动',
+        content: '主人第一次做了「${_interactionLabel(type)}」',
         importance: 0.4,
         createdAt: event.date,
         source: MemorySource.rule,
@@ -138,6 +156,18 @@ class MemoryExtractor {
 
     return null;
   }
+
+  /// 交互类型 → 记忆文案
+  static String _interactionLabel(String type) => switch (type) {
+    'feed' => '主人喂过${PetPersona().style.selfReference}',
+    'play' => '主人和${PetPersona().style.selfReference}一起玩耍',
+    'pet'  => '主人喜欢抚摸${PetPersona().style.selfReference}',
+    'tap'  => '主人戳过${PetPersona().style.selfReference}',
+    'talk' => '主人和${PetPersona().style.selfReference}聊过天',
+    'sleep' => '${PetPersona().style.selfReference}睡了一觉',
+    'wake' => '${PetPersona().style.selfReference}从深度休眠中醒来',
+    _ => '主人做了「$type」互动',
+  };
 
   String _genId(String prefix, DateTime dt) =>
       'mem_${prefix}_${dt.microsecondsSinceEpoch.toRadixString(36)}_${_rng.nextInt(9999)}';

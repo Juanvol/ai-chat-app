@@ -33,8 +33,11 @@ class PetView(context: Context) : View(context) {
     private var downTime = 0L
     private var downX = 0f
     private var downY = 0f
+    private var swipeStartX = 0f
+    private var swipeStartY = 0f
     private var isDragging = false
     private var hasMoved = false
+    private var isBubbleSwipe = false
     private var lastClickTime = 0L
     private var pokeCount = 0
     private var pokeTimer = 0f
@@ -67,6 +70,9 @@ class PetView(context: Context) : View(context) {
     private var walkPhase = 0f
     private var talkPhase = 0f
     private var hungryPhase = 0f
+    // 呼吸相位：dt 累加替代 System.currentTimeMillis() JNI 调用
+    // idle ~4.2s 周期 / sleeping ~31.4s 周期
+    private var breathePhase = 0f
 
     // 回调（Dart 端通过 MethodChannel 接收）
     var onTouchEvent: ((String, Float, Float) -> Unit)? = null
@@ -91,7 +97,6 @@ class PetView(context: Context) : View(context) {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // 窗口宽 = 取视觉缩放宽度和触控宽度的较大值（确保缩放后不裁切）
         val displayW = (petWidth * renderScale).toInt().coerceAtLeast(petWidth.toInt())
         val displayH = (petHeight * renderScale).toInt()
         val bubbleReserve = (petHeight * 0.42f * renderScale).toInt()
@@ -189,8 +194,14 @@ class PetView(context: Context) : View(context) {
         walkPhase = 0f; talkPhase = 0f; hungryPhase = 0f
     }
 
-    fun showBubble(text: String, durationMs: Long = 3000) {
+    /** 气泡点击回调（D8b） */
+    var onBubbleClick: ((String) -> Unit)? = null
+    /** 气泡滑动回调（D8g：左滑忽略/右滑深入） */
+    var onBubbleSwipe: ((String) -> Unit)? = null // "dismiss" or "deepen"
+
+    fun showBubble(text: String, durationMs: Long = 3000, clickable: Boolean = false) {
         bubble.show(text, durationMs)
+        bubble.isClickable = clickable
     }
 
     fun moveTo(targetX: Float, targetY: Float, speed: Float = 200f) {
@@ -257,13 +268,6 @@ class PetView(context: Context) : View(context) {
 
             val dt = (frameTimeNanos - lastFrameTime) / 1_000_000_000f
             lastFrameTime = frameTimeNanos
-
-            // 帧率控制
-            val minDt = 1f / targetFps
-            if (dt < minDt && targetFps < 60) {
-                Choreographer.getInstance().postFrameCallback(this)
-                return
-            }
 
             update(dt.coerceAtMost(0.1f))  // 防止大帧跳跃
             invalidate()
@@ -343,8 +347,10 @@ class PetView(context: Context) : View(context) {
                 drawOffsetX *= kotlin.math.max(0f, 1f - 4f * dt)         // X 衰减
             }
             "sleeping" -> {
-                // 睡觉：呼吸式缩放（极慢，5秒一个周期）
-                val breathe = kotlin.math.sin(System.currentTimeMillis() / 5000.0).toFloat()
+                // 睡觉：呼吸式缩放（极慢，~31s 周期，0.2 rad/s）
+                breathePhase += dt * 0.2f
+                if (breathePhase > 100f) breathePhase -= 100f
+                val breathe = kotlin.math.sin(breathePhase)
                 animScaleX = 1f + breathe * 0.03f
                 animScaleY = 1f + breathe * 0.04f
                 drawOffsetX *= 0.9f
@@ -366,9 +372,11 @@ class PetView(context: Context) : View(context) {
                 animScaleY = 1f - kotlin.math.sin(hungryPhase * 0.7f) * 0.02f
             }
             "idle" -> {
-                // 呼吸动画：~4秒周期，幅度 ±2%，模拟活物感
-                val idlePhase = (System.currentTimeMillis() / 1000.0).toFloat()
-                val breathe = kotlin.math.sin(idlePhase * 1.5f)  // ~4.2s 周期
+                // 呼吸动画：~4.2s 周期，幅度 ±2%，模拟活物感
+                // dt 累加替代 System.currentTimeMillis()，避免每帧 2 次 JNI 调用
+                breathePhase += dt * 1.5f
+                if (breathePhase > 100f) breathePhase -= 100f  // 防浮点精度漂移
+                val breathe = kotlin.math.sin(breathePhase)
                 animScaleX = 1f + breathe * 0.025f
                 animScaleY = 1f + breathe * 0.03f
                 // 微小Y轴浮动，模拟站立时的身体微晃
@@ -433,11 +441,24 @@ class PetView(context: Context) : View(context) {
             // 视觉中心 = FrameBlender 的缩放锚点 (bitmap 中心)
             val visualCenterX = drawX + bmpW / 2f
             val visualCenterY = drawY + bmpH / 2f
-            // 触控命中区 petWidth×petHeight，中心对齐视觉中心
-            val spriteLeft = visualCenterX - petWidth / 2f
-            val spriteTop = visualCenterY - petHeight / 2f
-            val onSprite = event.x >= spriteLeft && event.x <= spriteLeft + petWidth &&
-                           event.y >= spriteTop && event.y <= spriteTop + petHeight
+            // 触控命中区 = bitmap 原尺寸 + 15% 容差（约 78×85dp），
+            // 比旧版 234dp 缩小约 45%，高于 Material 48dp 标准
+            val hitW = bmpW * 1.15f
+            val hitH = bmpH * 1.15f
+            val spriteLeft = visualCenterX - hitW / 2f
+            val spriteTop = visualCenterY - hitH / 2f
+            val onSprite = event.x >= spriteLeft && event.x <= spriteLeft + hitW &&
+                           event.y >= spriteTop && event.y <= spriteTop + hitH
+
+            // D8b: 气泡点击→聊天 检测
+            if (!onSprite && bubble.isVisible && bubble.isClickable) {
+                val rect = bubble.lastBubbleRect
+                if (rect != null && event.x >= rect.left && event.x <= rect.right &&
+                    event.y >= rect.top && event.y <= rect.bottom) {
+                    onBubbleClick?.invoke(bubble.currentText)
+                    return true  // 消费事件
+                }
+            }
             if (!onSprite) return false
         }
 
@@ -449,8 +470,11 @@ class PetView(context: Context) : View(context) {
                 downTime = System.currentTimeMillis()
                 downX = event.rawX
                 downY = event.rawY
+                swipeStartX = event.x
+                swipeStartY = event.y
                 hasMoved = false
                 isDragging = false
+                isBubbleSwipe = bubble.isVisible && bubble.isClickable
             }
             MotionEvent.ACTION_MOVE -> {
                 if (abs(event.rawX - downX) > 15f || abs(event.rawY - downY) > 15f) {
@@ -471,6 +495,18 @@ class PetView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP -> {
                 val duration = System.currentTimeMillis() - downTime
+
+                // D8g: 气泡滑动检测
+                if (!isDragging && isBubbleSwipe) {
+                    val dx = event.x - swipeStartX
+                    val dy = abs(event.y - swipeStartY)
+                    if (abs(dx) > 60f && dy < 40f && duration < 800) {
+                        val action = if (dx < 0) "dismiss" else "deepen"
+                        onBubbleSwipe?.invoke(action)
+                        isBubbleSwipe = false
+                        return true
+                    }
+                }
                 if (isDragging) {
                     // 拖拽松手 → 停在原地（桌面宠物不需要重力/惯性）
                     physics.vx = 0f; physics.vy = 0f

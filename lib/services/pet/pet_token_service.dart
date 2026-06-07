@@ -25,7 +25,8 @@ class PetTokenService extends ChangeNotifier {
     // Singleton — 不由 Provider dispose，生命周期跟随应用进程
   }
 
-  Future<Box> get _box => Hive.openBox(_boxName);
+  Future<Box>? _cachedBox;
+  Future<Box> get _box => _cachedBox ??= Hive.openBox(_boxName);
 
   Future<void> loadBudget() async {
     if (_budgetLoaded) return;

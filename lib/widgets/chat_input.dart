@@ -71,7 +71,7 @@ class _ChatInputState extends State<ChatInput> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: widget.loading
-                    ? const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFDC2626)], begin: Alignment.topLeft, end: Alignment.bottomRight)
+                    ? LinearGradient(colors: [Colors.red.shade400, Colors.red.shade700], begin: Alignment.topLeft, end: Alignment.bottomRight)
                     : _has
                         ? LinearGradient(colors: [cs.primary, cs.primary.withValues(alpha: 0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight)
                         : null,

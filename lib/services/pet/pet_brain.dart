@@ -1,5 +1,6 @@
 // Flutter 3.24 / Dart 3.5
 import 'dart:math';
+import '../../pet/pet_persona.dart';
 import 'pet_agent_core.dart';
 
 enum DayPeriod { morning, morningWork, afternoon, evening, night }
@@ -163,7 +164,7 @@ class DailyMood {
         DateTime.now().month * 100 + DateTime.now().day);
     final seed = 0.5 + (rng.nextDouble() - 0.5) * 0.5; // 0.25-0.75
     if (seed > 0.75) return DailyMood._(seed, '😸', '今天心情超好');
-    if (seed < 0.25) return DailyMood._(seed, '😼', '今天是糯糯的小脾气日');
+    if (seed < 0.25) return DailyMood._(seed, '😼', '今天是${PetPersona().style.selfReference}的小脾气日');
     return DailyMood._(seed, '😊', '普通的一天');
   }
 }

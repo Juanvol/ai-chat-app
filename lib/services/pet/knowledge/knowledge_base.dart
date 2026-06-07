@@ -1,6 +1,5 @@
 // Flutter 3.24 / Dart 3.5
 import '../../../pet/pet_persona.dart';
-import '../pet_token_service.dart';
 import 'models/diary_entry.dart';
 import 'models/memory_entry.dart';
 import 'models/user_profile.dart';
@@ -81,7 +80,6 @@ class KnowledgeBase {
     required IDiaryRepository diaryRepo,
     required IMemoryRepository memoryRepo,
     PetPersona? persona,
-    PetTokenService? tokenService, // ignore: unused_element
   })  : _diaryRepo = diaryRepo,
         _memoryRepo = memoryRepo,
         _persona = persona {
@@ -200,6 +198,9 @@ class KnowledgeBase {
 
   Future<List<DiaryEntry>> getRecentDiary({int days = 7}) =>
       _diaryRepo.loadRecent(days: days);
+
+  /// 删除单条日记
+  Future<void> deleteDiaryEntry(String id) => _diaryRepo.delete(id);
 
   // ═══ Persona ── ═══
 

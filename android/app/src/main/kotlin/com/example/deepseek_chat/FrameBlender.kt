@@ -43,6 +43,13 @@ class FrameBlender {
     private var earWiggleOffset = 0f
     private val rng = Random(System.currentTimeMillis())
 
+    // ── 对象池：缓存 Paint 和 ColorFilter，避免 onDraw 内分配 ──
+    private val eyePaint = Paint().apply { color = 0xFF000000.toInt(); alpha = 180 }
+    private val earPaint = Paint().apply { color = 0xFF000000.toInt() }
+    private var cachedEmotionFilter: PorterDuffColorFilter? = null
+    private var lastEmotionSat = 1f
+    private var lastEmotionGray = 0f
+
     // 帧间混合强度（0=无混合, 0.4=适度柔化过渡）
     var intraBlend = 0.35f
 
@@ -245,16 +252,13 @@ class FrameBlender {
         // 微动 overlay
         drawMicroOverlays(canvas, x, y, bitmap.width.toFloat(), bitmap.height.toFloat())
 
-        // 眨眼（遮盖眼部区域）
-        if (isBlinking) {
+        // 眨眼（遮盖眼部区域）—— 复用 eyePaint，仅调整 alpha
+        if (isBlinking && currentName == "idle") {
             val eyeY = y + bitmap.height * 0.3f
             val eyeH = bitmap.height * 0.08f
-            val eyePaint = Paint().apply { color = 0xFF000000.toInt(); alpha = 180 }
-            // 仅当 idle 动画时绘制眨眼线
-            if (currentName == "idle") {
-                canvas.drawRect(x + bitmap.width * 0.25f, eyeY, x + bitmap.width * 0.45f, eyeY + eyeH, eyePaint)
-                canvas.drawRect(x + bitmap.width * 0.55f, eyeY, x + bitmap.width * 0.75f, eyeY + eyeH, eyePaint)
-            }
+            eyePaint.alpha = 180
+            canvas.drawRect(x + bitmap.width * 0.25f, eyeY, x + bitmap.width * 0.45f, eyeY + eyeH, eyePaint)
+            canvas.drawRect(x + bitmap.width * 0.55f, eyeY, x + bitmap.width * 0.75f, eyeY + eyeH, eyePaint)
         }
 
         canvas.restore()
@@ -262,13 +266,22 @@ class FrameBlender {
 
     fun currentBitmap(): Bitmap? = currentDef?.frames?.getOrNull(currentIndex)
 
+    /**
+     * 构建情绪色彩滤镜。缓存结果——仅在饱和度或灰度变化时重建。
+     * 原实现在每次 draw() 调用中都 new PorterDuffColorFilter，60fps = 60次/秒分配。
+     */
     private fun buildEmotionFilter(): PorterDuffColorFilter {
+        if (emotionSaturation == lastEmotionSat && emotionGrayscale == lastEmotionGray && cachedEmotionFilter != null) {
+            return cachedEmotionFilter!!
+        }
+        lastEmotionSat = emotionSaturation
+        lastEmotionGray = emotionGrayscale
         val sat = (emotionSaturation * 255).toInt().coerceIn(0, 255)
         val gray = (emotionGrayscale * 255).toInt().coerceIn(0, 255)
-        // 简化：用灰度混合
         val g = (gray * emotionGrayscale).toInt().coerceIn(0, 255)
         val color = android.graphics.Color.argb(255, sat, sat - g, sat - g)
-        return PorterDuffColorFilter(color, PorterDuff.Mode.SRC_ATOP)
+        cachedEmotionFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_ATOP)
+        return cachedEmotionFilter!!
     }
 
     private fun updateMicroExpressions(dt: Float) {
@@ -295,21 +308,9 @@ class FrameBlender {
     private fun drawMicroOverlays(canvas: Canvas, x: Float, y: Float, w: Float, h: Float) {
         // 耳朵微动 — 仅当 idle 动画时绘制微小偏移指示
         if (currentName == "idle" && abs(earWiggleOffset) > 0.5f) {
-            // 在左耳位置画微小标记
-            val earPaint = Paint().apply {
-                alpha = (abs(earWiggleOffset) / 3f * 120).toInt()
-                color = 0xFF000000.toInt()
-            }
-            canvas.drawCircle(
-                x + w * 0.25f,
-                y + h * 0.12f + earWiggleOffset,
-                3f, earPaint
-            )
-            canvas.drawCircle(
-                x + w * 0.75f,
-                y + h * 0.12f - earWiggleOffset,
-                3f, earPaint
-            )
+            earPaint.alpha = (abs(earWiggleOffset) / 3f * 120).toInt()
+            canvas.drawCircle(x + w * 0.25f, y + h * 0.12f + earWiggleOffset, 3f, earPaint)
+            canvas.drawCircle(x + w * 0.75f, y + h * 0.12f - earWiggleOffset, 3f, earPaint)
         }
     }
 

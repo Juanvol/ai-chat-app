@@ -24,10 +24,10 @@ class DiarySummarizer {
         .toList();
     if (sourceEvents.isEmpty) return null;
 
-    // 预算门控：至少需要 300 tok
-    if (remainingBudget < 300) {
+    // 预算门控：至少需要 100 tok
+    if (remainingBudget < 100) {
       PetLogger().trace('DiarySummarizer',
-          'skip: remaining budget $remainingBudget < 300');
+          'skip: remaining budget $remainingBudget < 100');
       return null;
     }
 
@@ -38,9 +38,9 @@ class DiarySummarizer {
       return '$time ${e.mood} ${e.content}';
     }).join('\n');
 
-    final prompt = '''${personaPrompt}
+    final prompt = '''$personaPrompt
 
-请用糯糯第一人称的语气，以"糯糯的日记"为题，写一篇今日总结日记。
+请用第一人称的语气，以"我的日记"为题，写一篇今日总结日记。
 今天的事件记录如下：
 $eventLines
 
