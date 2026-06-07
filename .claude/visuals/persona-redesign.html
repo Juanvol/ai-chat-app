@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>人格设置</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#1a1a2e;display:flex;justify-content:center;padding:20px}
+.phone{width:375px;background:#12121a;border-radius:30px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.bar{background:#1a1a2e;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a2a3e}
+.bar h1{font-size:17px;color:#e4e4ec;font-weight:600}
+.bar .save{background:#7c3aed;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:14px;font-weight:600}
+.content{padding:20px;overflow-y:auto;max-height:600px}
+h2{font-size:15px;color:#a78bfa;margin:24px 0 6px;font-weight:700}
+h2:first-child{margin-top:0}
+.input{width:100%;background:#1e1e2e;border:1px solid #2a2a3e;border-radius:10px;padding:12px 14px;color:#e4e4ec;font-size:15px;outline:0}
+.input:focus{border-color:#7c3aed}
+.row{display:flex;gap:12px}
+.row .input{flex:1}
+label{display:block;font-size:12px;color:#888;margin-bottom:4px}
+.slider-row{display:flex;align-items:center;gap:8px;padding:6px 0}
+.slider-row .label{width:50px;font-size:13px;color:#ccc;text-align:right}
+.slider-row input[type=range]{flex:1;accent-color:#7c3aed}
+.slider-row .val{width:30px;font-size:11px;color:#888;text-align:left}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid #2a2a3e;border-radius:10px;padding:10px 14px;color:#ccc;font-size:13px;cursor:pointer;background:#1e1e2e}
+.chip:hover{border-color:#7c3aed;color:#e4e4ec}
+textarea.input{min-height:100px;font-size:12px;font-family:monospace;resize:vertical}
+.preview{margin-top:12px;background:#1a1030;border:1px solid #7c3aed44;border-radius:10px;padding:14px}
+.preview .title{font-size:13px;color:#a78bfa;font-weight:600;margin-bottom:6px}
+.preview p{font-size:13px;color:#ccc;line-height:1.6}
+.divider{height:1px;background:#2a2a3e;margin:24px 0 16px}
+</style></head>
+<body>
+<div class="phone">
+<div class="bar"><h1>人格设置</h1><button class="save">保存</button></div>
+<div class="content">
+
+<h2>名字</h2>
+<input class="input" value="雪乃" placeholder="给宠物取个名字">
+
+<h2>说话风格</h2>
+<div class="row">
+<div><label>自称</label><input class="input" value="糯糯" placeholder="自称"></div>
+<div><label>句尾</label><input class="input" value="喵~" placeholder="句尾语气"></div>
+</div>
+
+<h2>性格维度</h2>
+<div class="slider-row"><span class="label">活力</span><input type="range" min="0" max="1" step="0.1" value="0.6"><span class="val">0.6</span></div>
+<div class="slider-row"><span class="label">好奇心</span><input type="range" min="0" max="1" step="0.1" value="0.5"><span class="val">0.5</span></div>
+<div class="slider-row"><span class="label">粘人度</span><input type="range" min="0" max="1" step="0.1" value="0.6"><span class="val">0.6</span></div>
+<div class="slider-row"><span class="label">傲娇度</span><input type="range" min="0" max="1" step="0.1" value="0.1"><span class="val">0.1</span></div>
+<div class="slider-row"><span class="label">共情力</span><input type="range" min="0" max="1" step="0.1" value="0.7"><span class="val">0.7</span></div>
+<div class="slider-row"><span class="label">幽默感</span><input type="range" min="0" max="1" step="0.1" value="0.4"><span class="val">0.4</span></div>
+
+<h2>快速预设</h2>
+<div class="chips">
+<div class="chip">🐱 软萌粘人</div>
+<div class="chip">😤 傲娇毒舌</div>
+<div class="chip">😴 佛系摆烂</div>
+<div class="chip">🔄 重置默认</div>
+</div>
+
+<h2>System Prompt</h2>
+<textarea class="input" placeholder="直接编辑 AI 系统提示词">你是雪乃，一只可爱的虚拟宠物精灵。
+性格：软萌、粘人、偶尔丧丧的摆烂。
+自称"糯糯"，句尾加"喵~"。
+保持短小可爱，不超过2句话。</textarea>
+
+<div class="preview">
+<div class="title">💬 预览</div>
+<p>你是<strong>雪乃</strong>，一只可爱的虚拟宠物精灵。<br>性格：活力0.6、好奇心0.5、粘人0.6。<br>自称"<strong>糯糯</strong>"，句尾加"<strong>喵~</strong>"。</p>
+</div>
+
+<div class="divider"></div>
+<p style="color:#666;font-size:11px;text-align:center">设置 → 性格设置 → 编辑人格<br>所有更改需点右上角"保存"才会生效</p>
+
+</div></div></body></html>

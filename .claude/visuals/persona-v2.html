@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>人格设置 V2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#0d0d1a;display:flex;justify-content:center;padding:20px}
+.phone{width:390px;background:#12121f;border-radius:36px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.bar{background:#12121f;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.bar h1{font-size:18px;color:#f0f0f8;font-weight:700}
+.bar .save{background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;padding:10px 22px;border-radius:14px;font-size:14px;font-weight:600;box-shadow:0 4px 16px #7c3aed44}
+.content{padding:0 20px 40px;overflow-y:auto;max-height:660px}
+.desc{font-size:13px;color:#666;margin:8px 0 20px;line-height:1.5}
+
+/* ── 人格卡片 ── */
+.cards{display:flex;flex-wrap:wrap;gap:10px}
+.card{flex:1;min-width:100px;background:#1a1a2e;border:2px solid #252540;border-radius:16px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s}
+.card:hover{border-color:#7c3aed;background:#1e1a3a}
+.card.sel{border-color:#7c3aed;background:#1e1a3a;box-shadow:0 0 20px #7c3aed22}
+.card .emoji{font-size:28px;margin-bottom:6px}
+.card .name{font-size:13px;color:#ddd;font-weight:600;margin-bottom:2px}
+.card .tag{font-size:11px;color:#777}
+
+/* ── 折叠区 ── */
+.advanced{margin-top:24px}
+.advanced summary{font-size:13px;color:#888;cursor:pointer;padding:8px 0;outline:none}
+.advanced summary:hover{color:#a78bfa}
+
+.input{width:100%;background:#1a1a2e;border:1px solid #252540;border-radius:12px;padding:12px 14px;color:#e0e0f0;font-size:14px;outline:0;margin-bottom:10px}
+.input:focus{border-color:#7c3aed}
+.row{display:flex;gap:10px}
+.row .input{flex:1}
+label{display:block;font-size:12px;color:#777;margin-bottom:4px;margin-top:12px}
+
+/* ── 滑块 ── */
+.slider-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+.slider-row .lbl{width:52px;font-size:13px;color:#bbb;text-align:right}
+.slider-row input[type=range]{flex:1;accent-color:#7c3aed;height:6px}
+.slider-row .lbl2{width:28px;font-size:11px;color:#666}
+
+/* ── System Prompt ── */
+.preview-box{margin-top:12px;background:#1a1030;border:1px solid #7c3aed33;border-radius:12px;padding:14px}
+.preview-box .ptitle{font-size:12px;color:#a78bfa;font-weight:600;margin-bottom:6px}
+.preview-box p{font-size:12px;color:#bbb;line-height:1.7}
+</style></head>
+<body>
+<div class="phone">
+<div class="bar"><h1>人格设置</h1><button class="save">保存</button></div>
+<div class="content">
+
+<p class="desc">选择一个基础人格，或展开「高级设置」微调每个维度。</p>
+
+<!-- ═══ 人格卡片 ─══ -->
+<h2 style="font-size:14px;color:#a78bfa;margin-bottom:10px">选择人格类型</h2>
+<div class="cards">
+<div class="card sel"><div class="emoji">🐱</div><div class="name">软萌粘人</div><div class="tag">默认</div></div>
+<div class="card"><div class="emoji">🧠</div><div class="name">高效助理</div><div class="tag">直截了当</div></div>
+<div class="card"><div class="emoji">😤</div><div class="name">傲娇毒舌</div><div class="tag">高冷吐槽</div></div>
+<div class="card"><div class="emoji">😴</div><div class="name">佛系摆烂</div><div class="tag">随缘躺平</div></div>
+</div>
+
+<!-- ═══ 基础信息 ─══ -->
+<label>宠物名字</label>
+<input class="input" value="雪乃" placeholder="给宠物取个名字">
+
+<label>自称</label>
+<div class="row">
+<input class="input" value="糯糯" placeholder="自称">
+<input class="input" value="喵~" placeholder="句尾">
+</div>
+
+<!-- ═══ 高级设置 ─══ -->
+<details class="advanced">
+<summary>⚙ 高级设置 — 精细调整每个性格维度</summary>
+
+<label>活力</label>
+<div class="slider-row"><span class="lbl">😴 慵懒</span><input type="range" min="0" max="10" value="6"><span class="lbl2">0.6</span><span class="lbl">🏃 活跃</span></div>
+
+<label>好奇心</label>
+<div class="slider-row"><span class="lbl">😐 冷淡</span><input type="range" min="0" max="10" value="5"><span class="lbl2">0.5</span><span class="lbl">🔍 好奇</span></div>
+
+<label>粘人度</label>
+<div class="slider-row"><span class="lbl">🐺 独立</span><input type="range" min="0" max="10" value="6"><span class="lbl2">0.6</span><span class="lbl">🐶 粘人</span></div>
+
+<label>傲娇度</label>
+<div class="slider-row"><span class="lbl">😊 坦率</span><input type="range" min="0" max="10" value="1"><span class="lbl2">0.1</span><span class="lbl">😤 傲娇</span></div>
+
+<label>共情力</label>
+<div class="slider-row"><span class="lbl">🗿 木讷</span><input type="range" min="0" max="10" value="7"><span class="lbl2">0.7</span><span class="lbl">💕 共情</span></div>
+
+<label>幽默感</label>
+<div class="slider-row"><span class="lbl">📋 正经</span><input type="range" min="0" max="10" value="4"><span class="lbl2">0.4</span><span class="lbl">🤣 幽默</span></div>
+
+<label>System Prompt</label>
+<textarea class="input" style="min-height:80px;font-size:12px;font-family:monospace">你是雪乃，一只可爱的虚拟宠物精灵。性格：软萌、粘人。自称"糯糯"，句尾加"喵~"。</textarea>
+
+</details>
+
+<!-- ═══ 实时预览 ─══ -->
+<div class="preview-box">
+<div class="ptitle">💬 实时预览</div>
+<p>你是<b>雪乃</b>，一只可爱的虚拟宠物精灵。<br>自称"<b>糯糯</b>"，句尾加"<b>喵~</b>"。<br>性格：软萌粘人、充满好奇心、对主人温柔体贴。</p>
+</div>
+
+</div></div></body></html>
