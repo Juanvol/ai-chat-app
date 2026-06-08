@@ -1,15 +1,15 @@
-# 境外 Runner 拉取 Ollama 模型 → 分片上传 Release → 国内下载合并
+# 境外 Runner 下载 Ollama 模型 → 分片上传 Release
 name: 中转下载 Ollama 模型
 
 on:
   workflow_dispatch:
     inputs:
       ollama_model:
-        description: 'Ollama 模型名（如 qwen3:32b）'
+        description: 'Ollama 模型名'
         required: true
         default: 'qwen3:32b'
       local_name:
-        description: '本地模型名（如 qwen3-local）'
+        description: '本地名'
         required: true
         default: 'qwen3-local'
 
@@ -20,13 +20,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 释放磁盘空间（Runner 默认 14G，需扩容）
+      - name: 释放磁盘空间
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL /usr/local/.ghcup
-          sudo rm -rf /usr/local/share/powershell /usr/local/share/chromium
-          sudo rm -rf /usr/local/graalvm /usr/local/share/boost
-          sudo apt-get clean
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL /usr/local/.ghcup 2>/dev/null || true
+          sudo rm -rf /usr/local/share/powershell /usr/local/share/chromium 2>/dev/null || true
+          sudo rm -rf /usr/local/graalvm /usr/local/share/boost 2>/dev/null || true
+          sudo apt-get clean 2>/dev/null || true
           df -h /
 
       - name: 安装 Ollama
@@ -39,23 +39,22 @@ jobs:
           ollama pull ${{ inputs.ollama_model }}
           ollama list
 
-      - name: 打包模型目录（先删缓存腾空间）
+      - name: 打包 blobs 目录（直接分片，跳过无关文件）
         run: |
-          # 删除 pip/npm 缓存腾空间
-          rm -rf /usr/local/lib/node_modules /opt/pipx /usr/share/swift 2>/dev/null
-          df -h /
-          # 边打包边分片，不生成完整中间文件
-          tar -cf - -C ~/.ollama/models . | split -d -b 1800M - parts/model.tar.part
-          # 验证分片
+          mkdir -p parts
+          # 只打包 blobs 和 manifests，跳过缓存
+          cd ~/.ollama/models
+          tar -cf - blobs manifests | split -d -b 1800M - $GITHUB_WORKSPACE/parts/model.tar.part
+          cd $GITHUB_WORKSPACE
           ls -lh parts/
-          du -sh parts/
+          df -h /
 
-      - name: 生成 Windows 还原脚本
+      - name: 生成还原脚本
         run: |
           cat > restore.bat << 'BAT'
           @echo off
           echo [1/3] 合并分片...
-          copy /b parts\model.tar.part* model.tar
+          copy /b model.tar.part* model.tar
           echo [2/3] 解压到 F:\OllamaModels...
           mkdir F:\OllamaModels 2>nul
           tar -xf model.tar -C F:\OllamaModels
@@ -71,15 +70,9 @@ jobs:
           name: "Ollama 模型: ${{ inputs.ollama_model }}"
           body: |
             ## 使用方法
-
-            1. 下载所有 `model.tar.gz.part.*` 和 `restore.bat`
-            2. 把所有文件放到同一个目录
-            3. **Windows**: 双击 `restore.bat`
-            4. 完成后 `ollama list` 确认
-
-            ## 模型信息
-            - Ollama 原名: `${{ inputs.ollama_model }}`
-            - 本地名: `${{ inputs.local_name }}`
+            1. 下载所有 `model.tar.part*` 和 `restore.bat` 到同一目录
+            2. 双击 `restore.bat`
+            3. 完成后 `ollama list` 确认
           files: |
             parts/*
             restore.bat
