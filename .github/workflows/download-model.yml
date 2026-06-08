@@ -1,6 +1,4 @@
-# 境外 Runner 下载 Ollama 模型 → 分片上传 Release
 name: 中转下载 Ollama 模型
-
 on:
   workflow_dispatch:
     inputs:
@@ -8,13 +6,10 @@ on:
         description: 'Ollama 模型名'
         required: true
         default: 'qwen3:32b'
-      local_name:
-        description: '本地名'
-        required: true
-        default: 'qwen3-local'
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build:
@@ -25,62 +20,31 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
           sudo rm -rf /opt/hostedtoolcache/CodeQL /usr/local/.ghcup 2>/dev/null || true
           sudo rm -rf /usr/local/share/powershell /usr/local/share/chromium 2>/dev/null || true
-          sudo rm -rf /usr/local/graalvm /usr/local/share/boost 2>/dev/null || true
-          sudo apt-get clean 2>/dev/null || true
           df -h /
 
       - name: 安装 Ollama
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
-          ollama --version
 
       - name: 拉取模型
         run: |
           ollama pull ${{ inputs.ollama_model }}
           ollama list
 
-      - name: 打包模型目录
+      - name: 导出模型为 GGUF 文件
         run: |
-          mkdir -p parts
-          # Ollama systemd 安装时模型在 /usr/share/ollama/.ollama/models/
+          # 模型 blob 是 GGUF 格式，直接复制出来
           MODEL_DIR="/usr/share/ollama/.ollama/models"
-          if [ ! -d "$MODEL_DIR" ]; then
-            MODEL_DIR=$(find / -path "*/ollama/models" -type d 2>/dev/null | head -1)
-          fi
-          if [ -z "$MODEL_DIR" ] || [ ! -d "$MODEL_DIR" ]; then
-            echo "ERROR: 找不到模型目录!" && ls -la ~/.ollama/ 2>/dev/null && find / -name "models" -type d 2>/dev/null | grep ollama && exit 1
-          fi
-          echo "Model dir: $MODEL_DIR"
-          ls -la "$MODEL_DIR/"
-          cd "$MODEL_DIR"
-          tar -cf - . 2>/dev/null | split -d -b 1800M - "$GITHUB_WORKSPACE/parts/model.tar.part"
-          cd "$GITHUB_WORKSPACE"
-          ls -lh parts/ 2>/dev/null || echo "No parts created"
+          mkdir -p gguf
+          # 最大的 blob 就是模型文件
+          find "$MODEL_DIR/blobs" -type f -size +1G -exec cp {} gguf/qwen3.gguf \;
+          ls -lh gguf/
+          du -sh gguf/
 
-      - name: 生成还原脚本
-        run: |
-          cat > restore.bat << 'BAT'
-          @echo off
-          echo [1/3] 合并分片...
-          copy /b model.tar.part* model.tar
-          echo [2/3] 解压到 F:\OllamaModels...
-          mkdir F:\OllamaModels 2>nul
-          tar -xf model.tar -C F:\OllamaModels
-          echo [3/3] 验证...
-          ollama list
-          echo 完成!
-          BAT
-
-      - name: 上传到 Release
-        uses: softprops/action-gh-release@v2
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ollama-${{ inputs.local_name }}-${{ github.run_id }}
-          name: "Ollama 模型: ${{ inputs.ollama_model }}"
-          body: |
-            ## 使用方法
-            1. 下载所有 `model.tar.part*` 和 `restore.bat` 到同一目录
-            2. 双击 `restore.bat`
-            3. 完成后 `ollama list` 确认
-          files: |
-            parts/*
-            restore.bat
+          name: qwen3-model
+          path: gguf/qwen3.gguf
+          retention-days: 7
+          compression-level: 0
