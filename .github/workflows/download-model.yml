@@ -39,15 +39,19 @@ jobs:
           ollama pull ${{ inputs.ollama_model }}
           ollama list
 
-      - name: 打包 blobs 目录（直接分片，跳过无关文件）
+      - name: 打包模型目录
         run: |
           mkdir -p parts
-          # 只打包 blobs 和 manifests，跳过缓存
-          cd ~/.ollama/models
-          tar -cf - blobs manifests | split -d -b 1800M - $GITHUB_WORKSPACE/parts/model.tar.part
-          cd $GITHUB_WORKSPACE
+          # 找到 ollama 模型实际路径
+          MODEL_DIR=$(find / -path "*/ollama/models" -type d 2>/dev/null | head -1)
+          if [ -z "$MODEL_DIR" ]; then MODEL_DIR="$HOME/.ollama/models"; fi
+          echo "Model dir: $MODEL_DIR"
+          ls "$MODEL_DIR/"
+          cd "$MODEL_DIR"
+          tar -cf - . | split -d -b 1800M - "$GITHUB_WORKSPACE/parts/model.tar.part"
+          cd "$GITHUB_WORKSPACE"
           ls -lh parts/
-          df -h /
+          echo "Parts created: $(ls parts/ | wc -l) files"
 
       - name: 生成还原脚本
         run: |
