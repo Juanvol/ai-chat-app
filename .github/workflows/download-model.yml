@@ -39,22 +39,26 @@ jobs:
           ollama pull ${{ inputs.ollama_model }}
           ollama list
 
-      - name: 打包模型目录
+      - name: 打包模型目录（先删缓存腾空间）
         run: |
-          tar -czf - -C ~/.ollama/models . | split -d -b 1900M - parts/model.tar.gz.part
+          # 删除 pip/npm 缓存腾空间
+          rm -rf /usr/local/lib/node_modules /opt/pipx /usr/share/swift 2>/dev/null
+          df -h /
+          # 边打包边分片，不生成完整中间文件
+          tar -cf - -C ~/.ollama/models . | split -d -b 1800M - parts/model.tar.part
+          # 验证分片
           ls -lh parts/
+          du -sh parts/
 
       - name: 生成 Windows 还原脚本
         run: |
           cat > restore.bat << 'BAT'
           @echo off
-          setlocal enabledelayedexpansion
-          set NAME=%1
           echo [1/3] 合并分片...
-          copy /b parts\model.tar.gz.part.* model.tar.gz
+          copy /b parts\model.tar.part* model.tar
           echo [2/3] 解压到 F:\OllamaModels...
           mkdir F:\OllamaModels 2>nul
-          tar -xzf model.tar.gz -C F:\OllamaModels
+          tar -xf model.tar -C F:\OllamaModels
           echo [3/3] 验证...
           ollama list
           echo 完成!
